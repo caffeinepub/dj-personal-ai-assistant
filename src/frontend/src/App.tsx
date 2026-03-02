@@ -1,17 +1,18 @@
-import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
-import { useInternetIdentity } from "./hooks/useInternetIdentity";
 import { Toaster } from "@/components/ui/sonner";
-import { LoginPage } from "./pages/LoginPage";
-import { DashboardPage } from "./pages/DashboardPage";
+import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
+import { useInternetIdentity } from "./hooks/useInternetIdentity";
+import { useUserProfile } from "./hooks/useQueries";
 import { ChatPage } from "./pages/ChatPage";
-import { ExcelPage } from "./pages/ExcelPage";
 import { CodingPage } from "./pages/CodingPage";
-import { WebsitePage } from "./pages/WebsitePage";
+import { DashboardPage } from "./pages/DashboardPage";
+import { ExcelPage } from "./pages/ExcelPage";
+import { KnowledgePage } from "./pages/KnowledgePage";
+import { LoginPage } from "./pages/LoginPage";
 import { ProfilePage } from "./pages/ProfilePage";
 import { SettingsPage } from "./pages/SettingsPage";
-import { TeachDJPage } from "./pages/TeachDJPage";
 import { SetupWizardPage } from "./pages/SetupWizardPage";
-import { useUserProfile } from "./hooks/useQueries";
+import { TeachDJPage } from "./pages/TeachDJPage";
+import { WebsitePage } from "./pages/WebsitePage";
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { loginStatus, isInitializing } = useInternetIdentity();
@@ -107,6 +108,14 @@ function App() {
             element={
               <ProtectedRoute>
                 <TeachDJPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/knowledge"
+            element={
+              <ProtectedRoute>
+                <KnowledgePage />
               </ProtectedRoute>
             }
           />

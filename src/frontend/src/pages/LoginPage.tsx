@@ -1,12 +1,18 @@
+import { Button } from "@/components/ui/button";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Loader2 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { useInternetIdentity } from "../hooks/useInternetIdentity";
-import { useUserProfile, useCreateUserProfile } from "../hooks/useQueries";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { toast } from "sonner";
-import { Loader2 } from "lucide-react";
+import { useInternetIdentity } from "../hooks/useInternetIdentity";
+import { useCreateUserProfile, useUserProfile } from "../hooks/useQueries";
 
 export function LoginPage() {
   const { login, loginStatus } = useInternetIdentity();
@@ -29,7 +35,7 @@ export function LoginPage() {
   const handleLogin = async () => {
     try {
       await login();
-    } catch (error) {
+    } catch (_error) {
       toast.error("Login failed. Please try again.");
     }
   };
@@ -43,7 +49,7 @@ export function LoginPage() {
       await createProfile.mutateAsync(name.trim());
       toast.success("Profile created successfully!");
       navigate("/");
-    } catch (error) {
+    } catch (_error) {
       toast.error("Failed to create profile. Please try again.");
     }
   };

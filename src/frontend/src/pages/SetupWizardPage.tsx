@@ -1,29 +1,64 @@
-import { useState } from "react";
-import { useNavigate } from "react-router-dom";
-import { motion, AnimatePresence } from "motion/react";
-import {
-  useUserProfile,
-  useCreateUserProfile,
-  useUpdateUserProfile,
-  useSetBehaviorRule,
-  useSaveOnboardingComplete,
-  useSetPersonalitySettings,
-  useBehaviorRules,
-} from "../hooks/useQueries";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Loader2, ChevronRight, Check, Briefcase, Smile, Zap, AlignLeft, GraduationCap, Flame } from "lucide-react";
+import {
+  AlignLeft,
+  Briefcase,
+  Check,
+  ChevronRight,
+  Flame,
+  GraduationCap,
+  Loader2,
+  Smile,
+  Zap,
+} from "lucide-react";
+import { AnimatePresence, motion } from "motion/react";
+import { useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
+import {
+  useBehaviorRules,
+  useCreateUserProfile,
+  useSaveOnboardingComplete,
+  useSetBehaviorRule,
+  useSetPersonalitySettings,
+  useUpdateUserProfile,
+  useUserProfile,
+} from "../hooks/useQueries";
 
 const PERSONALITIES = [
-  { id: "professional", label: "Professional", icon: Briefcase, desc: "Formal, structured, data-driven" },
-  { id: "friendly", label: "Friendly", icon: Smile, desc: "Warm, approachable, supportive" },
+  {
+    id: "professional",
+    label: "Professional",
+    icon: Briefcase,
+    desc: "Formal, structured, data-driven",
+  },
+  {
+    id: "friendly",
+    label: "Friendly",
+    icon: Smile,
+    desc: "Warm, approachable, supportive",
+  },
   { id: "witty", label: "Witty", icon: Zap, desc: "Sharp, clever, with humor" },
-  { id: "concise", label: "Concise", icon: AlignLeft, desc: "Brief, direct, no fluff" },
-  { id: "mentor", label: "Mentor", icon: GraduationCap, desc: "Guiding, thoughtful, educational" },
-  { id: "motivator", label: "Motivator", icon: Flame, desc: "Energetic, encouraging, action-oriented" },
+  {
+    id: "concise",
+    label: "Concise",
+    icon: AlignLeft,
+    desc: "Brief, direct, no fluff",
+  },
+  {
+    id: "mentor",
+    label: "Mentor",
+    icon: GraduationCap,
+    desc: "Guiding, thoughtful, educational",
+  },
+  {
+    id: "motivator",
+    label: "Motivator",
+    icon: Flame,
+    desc: "Energetic, encouraging, action-oriented",
+  },
 ];
 
 const QUICK_RULES = [
@@ -34,7 +69,13 @@ const QUICK_RULES = [
   { id: "examples", text: "Give examples in every response" },
 ];
 
-const STEPS = ["Welcome", "About You", "Personality", "Quick Rules", "All Set!"];
+const STEPS = [
+  "Welcome",
+  "About You",
+  "Personality",
+  "Quick Rules",
+  "All Set!",
+];
 
 export function SetupWizardPage() {
   const navigate = useNavigate();
@@ -51,7 +92,8 @@ export function SetupWizardPage() {
   const [profession, setProfession] = useState("");
   const [location, setLocation] = useState("");
   const [goal, setGoal] = useState("");
-  const [selectedPersonality, setSelectedPersonality] = useState("professional");
+  const [selectedPersonality, setSelectedPersonality] =
+    useState("professional");
   const [selectedRules, setSelectedRules] = useState<string[]>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -70,7 +112,9 @@ export function SetupWizardPage() {
         profession && `Profession: ${profession}`,
         location && `Location: ${location}`,
         goal && `Main goal: ${goal}`,
-      ].filter(Boolean).join(". ");
+      ]
+        .filter(Boolean)
+        .join(". ");
 
       await updateProfile.mutateAsync({
         name: name || profile?.name || "User",
@@ -84,7 +128,9 @@ export function SetupWizardPage() {
 
       // Save selected rules
       for (let i = 0; i < selectedRules.length; i++) {
-        const ruleText = QUICK_RULES.find((r) => r.id === selectedRules[i])?.text;
+        const ruleText = QUICK_RULES.find(
+          (r) => r.id === selectedRules[i],
+        )?.text;
         if (ruleText) {
           await setBehaviorRule.mutateAsync({
             ruleText,
@@ -107,7 +153,7 @@ export function SetupWizardPage() {
 
   const toggleRule = (id: string) => {
     setSelectedRules((prev) =>
-      prev.includes(id) ? prev.filter((r) => r !== id) : [...prev, id]
+      prev.includes(id) ? prev.filter((r) => r !== id) : [...prev, id],
     );
   };
 
@@ -115,14 +161,16 @@ export function SetupWizardPage() {
     <div
       className="flex min-h-screen flex-col items-center justify-center bg-background px-4 py-8"
       style={{
-        background: "radial-gradient(ellipse at 50% 0%, oklch(0.12 0.05 220) 0%, oklch(0 0 0) 70%)",
+        background:
+          "radial-gradient(ellipse at 50% 0%, oklch(0.12 0.05 220) 0%, oklch(0 0 0) 70%)",
       }}
     >
       {/* Grid overlay */}
       <div
         className="pointer-events-none fixed inset-0 opacity-[0.04]"
         style={{
-          backgroundImage: "linear-gradient(oklch(0.65 0.25 220) 1px, transparent 1px), linear-gradient(90deg, oklch(0.65 0.25 220) 1px, transparent 1px)",
+          backgroundImage:
+            "linear-gradient(oklch(0.65 0.25 220) 1px, transparent 1px), linear-gradient(90deg, oklch(0.65 0.25 220) 1px, transparent 1px)",
           backgroundSize: "40px 40px",
         }}
       />
@@ -137,14 +185,20 @@ export function SetupWizardPage() {
                   i < step
                     ? "border-primary bg-primary text-primary-foreground"
                     : i === step
-                    ? "border-primary text-primary"
-                    : "border-muted text-muted-foreground"
+                      ? "border-primary text-primary"
+                      : "border-muted text-muted-foreground"
                 }`}
-                style={i === step ? { boxShadow: "0 0 10px oklch(0.65 0.25 220 / 0.6)" } : {}}
+                style={
+                  i === step
+                    ? { boxShadow: "0 0 10px oklch(0.65 0.25 220 / 0.6)" }
+                    : {}
+                }
               >
                 {i < step ? <Check className="h-3 w-3" /> : i + 1}
               </div>
-              <span className="hidden text-[10px] text-muted-foreground sm:block">{s}</span>
+              <span className="hidden text-[10px] text-muted-foreground sm:block">
+                {s}
+              </span>
             </div>
           ))}
         </div>
@@ -171,30 +225,44 @@ export function SetupWizardPage() {
           {/* Step 0: Welcome */}
           {step === 0 && (
             <div className="space-y-6 text-center">
-              <div className="mx-auto flex h-20 w-20 items-center justify-center rounded-full border-2 border-primary bg-primary/10"
+              <div
+                className="mx-auto flex h-20 w-20 items-center justify-center rounded-full border-2 border-primary bg-primary/10"
                 style={{ boxShadow: "0 0 30px oklch(0.65 0.25 220 / 0.5)" }}
               >
-                <span className="glow-text font-display text-3xl font-bold">DJ</span>
+                <span className="glow-text font-display text-3xl font-bold">
+                  DJ
+                </span>
               </div>
               <div>
-                <h1 className="glow-text font-display text-3xl font-bold">Hello, I'm DJ</h1>
+                <h1 className="glow-text font-display text-3xl font-bold">
+                  Hello, I'm DJ
+                </h1>
                 <p className="mt-3 text-muted-foreground">
-                  Your personal AI assistant. Let's get to know each other so I can serve you better.
+                  Your personal AI assistant. Let's get to know each other so I
+                  can serve you better.
                 </p>
               </div>
               <div className="space-y-2 text-left">
-                <Label className="text-sm text-muted-foreground">What should I call you?</Label>
+                <Label className="text-sm text-muted-foreground">
+                  What should I call you?
+                </Label>
                 <Input
                   placeholder="Your name..."
                   value={name}
                   onChange={(e) => setName(e.target.value)}
                   className="border-primary/40 bg-card/50 text-center text-lg"
                   autoFocus
-                  onKeyDown={(e) => e.key === "Enter" && name.trim() && handleNext()}
+                  onKeyDown={(e) =>
+                    e.key === "Enter" && name.trim() && handleNext()
+                  }
                 />
               </div>
               <div className="flex gap-3">
-                <Button variant="ghost" className="flex-1 text-muted-foreground" onClick={handleSkip}>
+                <Button
+                  variant="ghost"
+                  className="flex-1 text-muted-foreground"
+                  onClick={handleSkip}
+                >
                   Skip
                 </Button>
                 <Button
@@ -231,7 +299,12 @@ export function SetupWizardPage() {
                   />
                 </div>
                 <div className="space-y-1">
-                  <Label>Where are you based? <span className="text-xs text-muted-foreground">(optional)</span></Label>
+                  <Label>
+                    Where are you based?{" "}
+                    <span className="text-xs text-muted-foreground">
+                      (optional)
+                    </span>
+                  </Label>
                   <Input
                     placeholder="e.g. New York, London..."
                     value={location}
@@ -251,7 +324,11 @@ export function SetupWizardPage() {
                 </div>
               </div>
               <div className="flex gap-3">
-                <Button variant="ghost" className="flex-1 text-muted-foreground" onClick={handleSkip}>
+                <Button
+                  variant="ghost"
+                  className="flex-1 text-muted-foreground"
+                  onClick={handleSkip}
+                >
                   Skip
                 </Button>
                 <Button className="flex-1 bg-primary" onClick={handleNext}>
@@ -289,13 +366,23 @@ export function SetupWizardPage() {
                         : {}
                     }
                   >
-                    <div className={`flex h-8 w-8 items-center justify-center rounded-md ${
-                      selectedPersonality === id ? "bg-primary/30" : "bg-muted"
-                    }`}>
-                      <Icon className={`h-4 w-4 ${selectedPersonality === id ? "text-primary" : "text-muted-foreground"}`} />
+                    <div
+                      className={`flex h-8 w-8 items-center justify-center rounded-md ${
+                        selectedPersonality === id
+                          ? "bg-primary/30"
+                          : "bg-muted"
+                      }`}
+                    >
+                      <Icon
+                        className={`h-4 w-4 ${selectedPersonality === id ? "text-primary" : "text-muted-foreground"}`}
+                      />
                     </div>
                     <div>
-                      <p className={`font-semibold text-sm ${selectedPersonality === id ? "text-primary" : ""}`}>{label}</p>
+                      <p
+                        className={`font-semibold text-sm ${selectedPersonality === id ? "text-primary" : ""}`}
+                      >
+                        {label}
+                      </p>
                       <p className="text-xs text-muted-foreground">{desc}</p>
                     </div>
                     {selectedPersonality === id && (
@@ -305,7 +392,11 @@ export function SetupWizardPage() {
                 ))}
               </div>
               <div className="flex gap-3">
-                <Button variant="ghost" className="flex-1 text-muted-foreground" onClick={handleSkip}>
+                <Button
+                  variant="ghost"
+                  className="flex-1 text-muted-foreground"
+                  onClick={handleSkip}
+                >
                   Skip
                 </Button>
                 <Button className="flex-1 bg-primary" onClick={handleNext}>
@@ -339,12 +430,20 @@ export function SetupWizardPage() {
                           ? "border-primary bg-primary/15 text-foreground"
                           : "border-muted bg-card/30 text-muted-foreground hover:border-primary/40 hover:text-foreground"
                       }`}
-                      style={active ? { boxShadow: "0 0 10px oklch(0.65 0.25 220 / 0.3)" } : {}}
+                      style={
+                        active
+                          ? { boxShadow: "0 0 10px oklch(0.65 0.25 220 / 0.3)" }
+                          : {}
+                      }
                     >
-                      <div className={`flex h-5 w-5 shrink-0 items-center justify-center rounded border ${
-                        active ? "border-primary bg-primary" : "border-muted"
-                      }`}>
-                        {active && <Check className="h-3 w-3 text-primary-foreground" />}
+                      <div
+                        className={`flex h-5 w-5 shrink-0 items-center justify-center rounded border ${
+                          active ? "border-primary bg-primary" : "border-muted"
+                        }`}
+                      >
+                        {active && (
+                          <Check className="h-3 w-3 text-primary-foreground" />
+                        )}
                       </div>
                       <span className="text-sm">{text}</span>
                     </button>
@@ -352,7 +451,11 @@ export function SetupWizardPage() {
                 })}
               </div>
               <div className="flex gap-3">
-                <Button variant="ghost" className="flex-1 text-muted-foreground" onClick={handleSkip}>
+                <Button
+                  variant="ghost"
+                  className="flex-1 text-muted-foreground"
+                  onClick={handleSkip}
+                >
                   Skip
                 </Button>
                 <Button className="flex-1 bg-primary" onClick={handleNext}>
@@ -372,7 +475,9 @@ export function SetupWizardPage() {
                 <Check className="h-10 w-10 text-primary" />
               </div>
               <div>
-                <h2 className="glow-text font-display text-2xl font-bold">You're all set!</h2>
+                <h2 className="glow-text font-display text-2xl font-bold">
+                  You're all set!
+                </h2>
                 <p className="mt-2 text-muted-foreground">
                   Here's what DJ has learned about you:
                 </p>
@@ -382,26 +487,35 @@ export function SetupWizardPage() {
                 {name && (
                   <div className="flex items-center gap-2 text-sm">
                     <Check className="h-3 w-3 text-primary shrink-0" />
-                    <span>Name: <span className="text-foreground">{name}</span></span>
+                    <span>
+                      Name: <span className="text-foreground">{name}</span>
+                    </span>
                   </div>
                 )}
                 {profession && (
                   <div className="flex items-center gap-2 text-sm">
                     <Check className="h-3 w-3 text-primary shrink-0" />
-                    <span>Profession: <span className="text-foreground">{profession}</span></span>
+                    <span>
+                      Profession:{" "}
+                      <span className="text-foreground">{profession}</span>
+                    </span>
                   </div>
                 )}
                 {goal && (
                   <div className="flex items-center gap-2 text-sm">
                     <Check className="h-3 w-3 text-primary shrink-0" />
-                    <span>Goal: <span className="text-foreground">{goal}</span></span>
+                    <span>
+                      Goal: <span className="text-foreground">{goal}</span>
+                    </span>
                   </div>
                 )}
                 <div className="flex items-center gap-2 text-sm">
                   <Check className="h-3 w-3 text-primary shrink-0" />
                   <span>
                     Personality:{" "}
-                    <span className="text-foreground capitalize">{selectedPersonality}</span>
+                    <span className="text-foreground capitalize">
+                      {selectedPersonality}
+                    </span>
                   </span>
                 </div>
                 {selectedRules.length > 0 && (
@@ -409,7 +523,9 @@ export function SetupWizardPage() {
                     <Check className="h-3 w-3 text-primary shrink-0" />
                     <span>
                       Rules activated:{" "}
-                      <span className="text-foreground">{selectedRules.length}</span>
+                      <span className="text-foreground">
+                        {selectedRules.length}
+                      </span>
                     </span>
                   </div>
                 )}

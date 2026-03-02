@@ -1,20 +1,44 @@
-import { useState } from "react";
-import { Layout } from "../components/Layout";
-import { useSaveExcelFile, useExcelFiles } from "../hooks/useQueries";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
-import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Upload, Download, Loader2 } from "lucide-react";
+import { Download, Loader2, Upload } from "lucide-react";
+import { useState } from "react";
+import {
+  Bar,
+  BarChart,
+  CartesianGrid,
+  Legend,
+  Line,
+  LineChart,
+  ResponsiveContainer,
+  Tooltip,
+  XAxis,
+  YAxis,
+} from "recharts";
 import { toast } from "sonner";
 import * as XLSX from "xlsx";
-import { BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from "recharts";
+import { Layout } from "../components/Layout";
+import { useExcelFiles, useSaveExcelFile } from "../hooks/useQueries";
 
 export function ExcelPage() {
   const saveFile = useSaveExcelFile();
-  const { data: savedFiles = [] } = useExcelFiles();
+  useExcelFiles();
 
   const [fileName, setFileName] = useState("");
   const [uploadedData, setUploadedData] = useState<any[]>([]);
@@ -44,7 +68,7 @@ export function ExcelPage() {
 
         toast.success("File uploaded successfully!");
       }
-    } catch (error) {
+    } catch (_error) {
       toast.error("Failed to parse file");
     }
   };
@@ -69,20 +93,32 @@ export function ExcelPage() {
     if (numericCols.length === 0) {
       result = "No numeric columns found for analysis.";
     } else if (lowerQ.includes("total") || lowerQ.includes("sum")) {
-      const col = numericCols.find((c) => lowerQ.includes(c.toLowerCase())) || numericCols[0];
-      const total = uploadedData.reduce((sum, row) => sum + (Number(row[col]) || 0), 0);
+      const col =
+        numericCols.find((c) => lowerQ.includes(c.toLowerCase())) ||
+        numericCols[0];
+      const total = uploadedData.reduce(
+        (sum, row) => sum + (Number(row[col]) || 0),
+        0,
+      );
       result = `The total of ${col} is ${total.toFixed(2)}`;
     } else if (lowerQ.includes("average") || lowerQ.includes("mean")) {
-      const col = numericCols.find((c) => lowerQ.includes(c.toLowerCase())) || numericCols[0];
+      const col =
+        numericCols.find((c) => lowerQ.includes(c.toLowerCase())) ||
+        numericCols[0];
       const avg =
-        uploadedData.reduce((sum, row) => sum + (Number(row[col]) || 0), 0) / uploadedData.length;
+        uploadedData.reduce((sum, row) => sum + (Number(row[col]) || 0), 0) /
+        uploadedData.length;
       result = `The average of ${col} is ${avg.toFixed(2)}`;
     } else if (lowerQ.includes("max") || lowerQ.includes("highest")) {
-      const col = numericCols.find((c) => lowerQ.includes(c.toLowerCase())) || numericCols[0];
+      const col =
+        numericCols.find((c) => lowerQ.includes(c.toLowerCase())) ||
+        numericCols[0];
       const max = Math.max(...uploadedData.map((row) => Number(row[col]) || 0));
       result = `The maximum ${col} is ${max}`;
     } else if (lowerQ.includes("min") || lowerQ.includes("lowest")) {
-      const col = numericCols.find((c) => lowerQ.includes(c.toLowerCase())) || numericCols[0];
+      const col =
+        numericCols.find((c) => lowerQ.includes(c.toLowerCase())) ||
+        numericCols[0];
       const min = Math.min(...uploadedData.map((row) => Number(row[col]) || 0));
       result = `The minimum ${col} is ${min}`;
     } else {
@@ -104,15 +140,21 @@ export function ExcelPage() {
       <div className="container mx-auto space-y-6 px-4 py-8">
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="glow-text font-display text-3xl font-bold">Excel Analysis</h1>
-            <p className="text-muted-foreground">Upload and analyze spreadsheets with DJ</p>
+            <h1 className="glow-text font-display text-3xl font-bold">
+              Excel Analysis
+            </h1>
+            <p className="text-muted-foreground">
+              Upload and analyze spreadsheets with DJ
+            </p>
           </div>
         </div>
 
         <Card className="glow-border border-primary/50">
           <CardHeader>
             <CardTitle>Upload File</CardTitle>
-            <CardDescription>Supports .xlsx, .xls, and .csv files</CardDescription>
+            <CardDescription>
+              Supports .xlsx, .xls, and .csv files
+            </CardDescription>
           </CardHeader>
           <CardContent>
             <div className="flex gap-2">
@@ -164,7 +206,10 @@ export function ExcelPage() {
                     onChange={(e) => setQuestion(e.target.value)}
                     onKeyDown={(e) => e.key === "Enter" && analyzeQuestion()}
                   />
-                  <Button onClick={analyzeQuestion} className="bg-secondary text-secondary-foreground">
+                  <Button
+                    onClick={analyzeQuestion}
+                    className="bg-secondary text-secondary-foreground"
+                  >
                     Analyze
                   </Button>
                 </div>
@@ -201,7 +246,10 @@ export function ExcelPage() {
                     <TabsTrigger value="line">Line Chart</TabsTrigger>
                   </TabsList>
 
-                  <TabsContent value="table" className="max-h-[500px] overflow-auto">
+                  <TabsContent
+                    value="table"
+                    className="max-h-[500px] overflow-auto"
+                  >
                     <Table>
                       <TableHeader>
                         <TableRow>
@@ -211,10 +259,16 @@ export function ExcelPage() {
                         </TableRow>
                       </TableHeader>
                       <TableBody>
-                        {uploadedData.slice(0, 50).map((row, i) => (
-                          <TableRow key={i}>
+                        {uploadedData.slice(0, 50).map((row) => (
+                          <TableRow
+                            key={Object.values(
+                              row as Record<string, unknown>,
+                            ).join("-")}
+                          >
                             {columns.map((col) => (
-                              <TableCell key={col}>{String(row[col] ?? "")}</TableCell>
+                              <TableCell key={col}>
+                                {String(row[col] ?? "")}
+                              </TableCell>
                             ))}
                           </TableRow>
                         ))}
@@ -225,14 +279,31 @@ export function ExcelPage() {
                   <TabsContent value="bar">
                     <ResponsiveContainer width="100%" height={400}>
                       <BarChart data={getChartData()}>
-                        <CartesianGrid strokeDasharray="3 3" stroke="oklch(var(--border))" />
-                        <XAxis dataKey="name" stroke="oklch(var(--foreground))" />
+                        <CartesianGrid
+                          strokeDasharray="3 3"
+                          stroke="oklch(var(--border))"
+                        />
+                        <XAxis
+                          dataKey="name"
+                          stroke="oklch(var(--foreground))"
+                        />
                         <YAxis stroke="oklch(var(--foreground))" />
-                        <Tooltip contentStyle={{ backgroundColor: "oklch(var(--card))", border: "1px solid oklch(var(--border))" }} />
+                        <Tooltip
+                          contentStyle={{
+                            backgroundColor: "oklch(var(--card))",
+                            border: "1px solid oklch(var(--border))",
+                          }}
+                        />
                         <Legend />
-                        {getNumericColumns().slice(0, 3).map((col, i) => (
-                          <Bar key={col} dataKey={col} fill={`oklch(var(--chart-${(i % 5) + 1}))`} />
-                        ))}
+                        {getNumericColumns()
+                          .slice(0, 3)
+                          .map((col, i) => (
+                            <Bar
+                              key={col}
+                              dataKey={col}
+                              fill={`oklch(var(--chart-${(i % 5) + 1}))`}
+                            />
+                          ))}
                       </BarChart>
                     </ResponsiveContainer>
                   </TabsContent>
@@ -240,14 +311,32 @@ export function ExcelPage() {
                   <TabsContent value="line">
                     <ResponsiveContainer width="100%" height={400}>
                       <LineChart data={getChartData()}>
-                        <CartesianGrid strokeDasharray="3 3" stroke="oklch(var(--border))" />
-                        <XAxis dataKey="name" stroke="oklch(var(--foreground))" />
+                        <CartesianGrid
+                          strokeDasharray="3 3"
+                          stroke="oklch(var(--border))"
+                        />
+                        <XAxis
+                          dataKey="name"
+                          stroke="oklch(var(--foreground))"
+                        />
                         <YAxis stroke="oklch(var(--foreground))" />
-                        <Tooltip contentStyle={{ backgroundColor: "oklch(var(--card))", border: "1px solid oklch(var(--border))" }} />
+                        <Tooltip
+                          contentStyle={{
+                            backgroundColor: "oklch(var(--card))",
+                            border: "1px solid oklch(var(--border))",
+                          }}
+                        />
                         <Legend />
-                        {getNumericColumns().slice(0, 3).map((col, i) => (
-                          <Line key={col} type="monotone" dataKey={col} stroke={`oklch(var(--chart-${(i % 5) + 1}))`} />
-                        ))}
+                        {getNumericColumns()
+                          .slice(0, 3)
+                          .map((col, i) => (
+                            <Line
+                              key={col}
+                              type="monotone"
+                              dataKey={col}
+                              stroke={`oklch(var(--chart-${(i % 5) + 1}))`}
+                            />
+                          ))}
                       </LineChart>
                     </ResponsiveContainer>
                   </TabsContent>

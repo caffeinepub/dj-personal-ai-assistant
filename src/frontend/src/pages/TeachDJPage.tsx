@@ -1,19 +1,19 @@
-import { useEffect, useRef, useState } from "react";
-import { useNavigate } from "react-router-dom";
-import { Layout } from "../components/Layout";
-import { motion, AnimatePresence } from "motion/react";
-import {
-  useUserProfile,
-  useUpdateUserProfile,
-  useAddMemory,
-  useSetBehaviorRule,
-  useBehaviorRules,
-} from "../hooks/useQueries";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Badge } from "@/components/ui/badge";
-import { Send, Loader2, Check, ArrowLeft, Brain } from "lucide-react";
+import { ArrowLeft, Brain, Check, Loader2, Send } from "lucide-react";
+import { AnimatePresence, motion } from "motion/react";
+import { useEffect, useRef, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
+import { Layout } from "../components/Layout";
+import {
+  useAddMemory,
+  useBehaviorRules,
+  useSetBehaviorRule,
+  useUpdateUserProfile,
+  useUserProfile,
+} from "../hooks/useQueries";
 
 interface Message {
   id: string;
@@ -23,11 +23,23 @@ interface Message {
 
 const QUESTIONS = [
   { key: "name", question: "What's your name? I want to greet you properly." },
-  { key: "work", question: "What do you do for work? This helps me give you more relevant answers." },
+  {
+    key: "work",
+    question:
+      "What do you do for work? This helps me give you more relevant answers.",
+  },
   { key: "interests", question: "What are your main interests or hobbies?" },
-  { key: "responseStyle", question: "How do you prefer I respond — brief and direct, or detailed with examples?" },
+  {
+    key: "responseStyle",
+    question:
+      "How do you prefer I respond — brief and direct, or detailed with examples?",
+  },
   { key: "goal", question: "What's your most important goal right now?" },
-  { key: "rule", question: "Any rules you'd like me to always follow? For example: 'always be direct', 'always give examples', 'keep it short'." },
+  {
+    key: "rule",
+    question:
+      "Any rules you'd like me to always follow? For example: 'always be direct', 'always give examples', 'keep it short'.",
+  },
 ];
 
 export function TeachDJPage() {
@@ -61,20 +73,24 @@ export function TeachDJPage() {
     return () => clearTimeout(timer);
   }, [profileName]);
 
+  // biome-ignore lint/correctness/useExhaustiveDependencies: messages.length is intentional to scroll on new messages
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages]);
+  }, [messages.length]);
 
   const addDJMessage = (content: string) => {
     setIsTyping(true);
-    setTimeout(() => {
-      setMessages((prev) => [
-        ...prev,
-        { id: `dj-${Date.now()}`, role: "dj", content },
-      ]);
-      setIsTyping(false);
-      setTimeout(() => inputRef.current?.focus(), 100);
-    }, 800 + Math.random() * 500);
+    setTimeout(
+      () => {
+        setMessages((prev) => [
+          ...prev,
+          { id: `dj-${Date.now()}`, role: "dj", content },
+        ]);
+        setIsTyping(false);
+        setTimeout(() => inputRef.current?.focus(), 100);
+      },
+      800 + Math.random() * 500,
+    );
   };
 
   const handleSend = () => {
@@ -84,7 +100,11 @@ export function TeachDJPage() {
     setInput("");
 
     // Add user message
-    const userMsg: Message = { id: `user-${Date.now()}`, role: "user", content: userAnswer };
+    const userMsg: Message = {
+      id: `user-${Date.now()}`,
+      role: "user",
+      content: userAnswer,
+    };
     setMessages((prev) => [...prev, userMsg]);
 
     const currentQ = QUESTIONS[currentQuestionIndex];
@@ -101,13 +121,14 @@ export function TeachDJPage() {
         "Great, I'll keep that in mind.",
         "Excellent, thank you for sharing.",
       ];
-      const confirmation = confirmations[Math.floor(Math.random() * confirmations.length)];
+      const confirmation =
+        confirmations[Math.floor(Math.random() * confirmations.length)];
       addDJMessage(`${confirmation} ${QUESTIONS[nextIndex].question}`);
     } else {
       // All questions answered
       setCurrentQuestionIndex(QUESTIONS.length);
       addDJMessage(
-        "That's everything I need! I now have a much better picture of who you are and how to help you. Tap the button below to save all of this to my memory."
+        "That's everything I need! I now have a much better picture of who you are and how to help you. Tap the button below to save all of this to my memory.",
       );
       setTimeout(() => setIsComplete(true), 2000);
     }
@@ -120,9 +141,14 @@ export function TeachDJPage() {
 
       if (answers.name) memoryItems.push(`My name is ${answers.name}`);
       if (answers.work) memoryItems.push(`I work as: ${answers.work}`);
-      if (answers.interests) memoryItems.push(`My interests include: ${answers.interests}`);
-      if (answers.goal) memoryItems.push(`My current main goal is: ${answers.goal}`);
-      if (answers.responseStyle) memoryItems.push(`My preferred response style: ${answers.responseStyle}`);
+      if (answers.interests)
+        memoryItems.push(`My interests include: ${answers.interests}`);
+      if (answers.goal)
+        memoryItems.push(`My current main goal is: ${answers.goal}`);
+      if (answers.responseStyle)
+        memoryItems.push(
+          `My preferred response style: ${answers.responseStyle}`,
+        );
 
       for (const item of memoryItems) {
         await addMemory.mutateAsync(item);
@@ -140,7 +166,9 @@ export function TeachDJPage() {
         await updateProfile.mutateAsync({
           name: answers.name,
           preferences: profile.preferences || "",
-          personalitySettings: profile.personalitySettings || { communicationStyle: "professional" },
+          personalitySettings: profile.personalitySettings || {
+            communicationStyle: "professional",
+          },
           onboardingComplete: profile.onboardingComplete,
         });
       }
@@ -158,12 +186,18 @@ export function TeachDJPage() {
     answers.name && { label: "Name", value: answers.name },
     answers.work && { label: "Work", value: answers.work },
     answers.interests && { label: "Interests", value: answers.interests },
-    answers.responseStyle && { label: "Response style", value: answers.responseStyle },
+    answers.responseStyle && {
+      label: "Response style",
+      value: answers.responseStyle,
+    },
     answers.goal && { label: "Goal", value: answers.goal },
     answers.rule && { label: "Custom rule", value: answers.rule },
   ].filter(Boolean) as { label: string; value: string }[];
 
-  const progressPct = Math.min((currentQuestionIndex / QUESTIONS.length) * 100, 100);
+  const progressPct = Math.min(
+    (currentQuestionIndex / QUESTIONS.length) * 100,
+    100,
+  );
 
   return (
     <Layout>
@@ -181,7 +215,9 @@ export function TeachDJPage() {
             </Button>
             <div className="flex items-center gap-2">
               <Brain className="h-5 w-5 text-primary" />
-              <span className="font-display font-bold">Teach DJ — Story Mode</span>
+              <span className="font-display font-bold">
+                Teach DJ — Story Mode
+              </span>
             </div>
             <div className="ml-auto flex items-center gap-2">
               <div className="h-1.5 w-20 overflow-hidden rounded-full bg-muted">
@@ -254,7 +290,11 @@ export function TeachDJPage() {
                         key={i}
                         className="h-1.5 w-1.5 rounded-full bg-secondary"
                         animate={{ opacity: [0.4, 1, 0.4] }}
-                        transition={{ duration: 1, repeat: Infinity, delay: i * 0.2 }}
+                        transition={{
+                          duration: 1,
+                          repeat: Number.POSITIVE_INFINITY,
+                          delay: i * 0.2,
+                        }}
                       />
                     ))}
                   </div>
@@ -290,9 +330,14 @@ export function TeachDJPage() {
                   style={{ boxShadow: "0 0 12px oklch(0.65 0.25 220 / 0.4)" }}
                 >
                   {isSaving ? (
-                    <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Saving to DJ's Memory...</>
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Saving
+                      to DJ's Memory...
+                    </>
                   ) : (
-                    <><Brain className="mr-2 h-4 w-4" /> Save to DJ's Memory</>
+                    <>
+                      <Brain className="mr-2 h-4 w-4" /> Save to DJ's Memory
+                    </>
                   )}
                 </Button>
               </motion.div>
@@ -311,7 +356,9 @@ export function TeachDJPage() {
                 placeholder="Type your answer..."
                 value={input}
                 onChange={(e) => setInput(e.target.value)}
-                onKeyDown={(e) => e.key === "Enter" && !e.shiftKey && handleSend()}
+                onKeyDown={(e) =>
+                  e.key === "Enter" && !e.shiftKey && handleSend()
+                }
                 className="flex-1 border-primary/40 bg-card/50"
                 disabled={isTyping}
               />

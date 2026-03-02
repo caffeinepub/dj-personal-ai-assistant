@@ -1,17 +1,17 @@
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { useActor } from "./useActor";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type {
-  UserProfile,
-  Memory,
-  Command,
   BehaviorRule,
-  PersonalitySettings,
   ChatMessage,
-  ImprovementLog,
   CodeSnippet,
+  Command,
   ExcelFile,
+  ImprovementLog,
+  Memory,
+  PersonalitySettings,
+  UserProfile,
   Website,
 } from "../backend.d.ts";
+import { useActor } from "./useActor";
 
 // User Profile Queries
 export function useUserProfile() {
@@ -44,7 +44,13 @@ export function useUpdateUserProfile() {
   const { actor } = useActor();
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: async (profile: Partial<UserProfile> & { name: string; preferences: string; personalitySettings: PersonalitySettings }) => {
+    mutationFn: async (
+      profile: Partial<UserProfile> & {
+        name: string;
+        preferences: string;
+        personalitySettings: PersonalitySettings;
+      },
+    ) => {
       if (!actor) throw new Error("Actor not available");
       const fullProfile: UserProfile = {
         name: profile.name,
@@ -80,7 +86,10 @@ export function useAddMemory() {
     mutationFn: async (content: string) => {
       if (!actor) throw new Error("Actor not available");
       await actor.addMemory(content);
-      await actor.addImprovementLog("Memory", `Added memory: ${content.substring(0, 50)}...`);
+      await actor.addImprovementLog(
+        "Memory",
+        `Added memory: ${content.substring(0, 50)}...`,
+      );
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["memories"] });
@@ -179,10 +188,16 @@ export function useSetBehaviorRule() {
   const { actor } = useActor();
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: async ({ ruleText, priority = 0n }: { ruleText: string; priority?: bigint }) => {
+    mutationFn: async ({
+      ruleText,
+      priority = 0n,
+    }: { ruleText: string; priority?: bigint }) => {
       if (!actor) throw new Error("Actor not available");
       await actor.setBehaviorRule(ruleText, priority);
-      await actor.addImprovementLog("Rule", `Set rule: ${ruleText.substring(0, 50)}`);
+      await actor.addImprovementLog(
+        "Rule",
+        `Set rule: ${ruleText.substring(0, 50)}`,
+      );
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["behaviorRules"] });
@@ -196,7 +211,10 @@ export function useUpdateRulePriority() {
   const { actor } = useActor();
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: async ({ id, newPriority }: { id: bigint; newPriority: bigint }) => {
+    mutationFn: async ({
+      id,
+      newPriority,
+    }: { id: bigint; newPriority: bigint }) => {
       if (!actor) throw new Error("Actor not available");
       await actor.updateRulePriority(id, newPriority);
     },
@@ -257,7 +275,10 @@ export function useSetPersonalitySettings() {
     mutationFn: async (style: string) => {
       if (!actor) throw new Error("Actor not available");
       await actor.setPersonalitySettings(style);
-      await actor.addImprovementLog("Personality", `Changed style to: ${style}`);
+      await actor.addImprovementLog(
+        "Personality",
+        `Changed style to: ${style}`,
+      );
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["personalitySettings"] });
@@ -283,7 +304,10 @@ export function useSaveChatMessage() {
   const { actor } = useActor();
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: async ({ role, content }: { role: string; content: string }) => {
+    mutationFn: async ({
+      role,
+      content,
+    }: { role: string; content: string }) => {
       if (!actor) throw new Error("Actor not available");
       await actor.saveChatMessage(role, content);
     },
@@ -313,7 +337,10 @@ export function useActivateModule() {
     mutationFn: async (moduleName: string) => {
       if (!actor) throw new Error("Actor not available");
       await actor.activateModule(moduleName);
-      await actor.addImprovementLog("Module", `Activated module: ${moduleName}`);
+      await actor.addImprovementLog(
+        "Module",
+        `Activated module: ${moduleName}`,
+      );
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["activeModules"] });
@@ -329,7 +356,10 @@ export function useDeactivateModule() {
     mutationFn: async (moduleName: string) => {
       if (!actor) throw new Error("Actor not available");
       await actor.deactivateModule(moduleName);
-      await actor.addImprovementLog("Module", `Deactivated module: ${moduleName}`);
+      await actor.addImprovementLog(
+        "Module",
+        `Deactivated module: ${moduleName}`,
+      );
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["activeModules"] });
@@ -403,7 +433,10 @@ export function useSaveExcelFile() {
   const { actor } = useActor();
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: async ({ filename, data }: { filename: string; data: Uint8Array }) => {
+    mutationFn: async ({
+      filename,
+      data,
+    }: { filename: string; data: Uint8Array }) => {
       if (!actor) throw new Error("Actor not available");
       await actor.saveExcelFile(filename, data);
     },
@@ -417,7 +450,10 @@ export function useSaveExcelAnalysis() {
   const { actor } = useActor();
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: async ({ fileId, analysis }: { fileId: bigint; analysis: string }) => {
+    mutationFn: async ({
+      fileId,
+      analysis,
+    }: { fileId: bigint; analysis: string }) => {
       if (!actor) throw new Error("Actor not available");
       await actor.saveExcelAnalysis(fileId, analysis);
     },

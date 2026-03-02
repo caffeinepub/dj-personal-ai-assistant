@@ -1,24 +1,3 @@
-import { useState } from "react";
-import {
-  useMemories,
-  useAddMemory,
-  useDeleteMemory,
-  useCustomCommands,
-  useCreateCustomCommand,
-  useDeleteCommand,
-  useBehaviorRules,
-  useSetBehaviorRule,
-  useDeleteBehaviorRule,
-  useImprovementLogs,
-} from "../hooks/useQueries";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Input } from "@/components/ui/input";
-import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
-import { ScrollArea } from "@/components/ui/scroll-area";
-import { Trash2, Plus, Loader2 } from "lucide-react";
-import { toast } from "sonner";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -30,6 +9,33 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Loader2, Plus, Trash2 } from "lucide-react";
+import { useState } from "react";
+import { toast } from "sonner";
+import {
+  useAddMemory,
+  useBehaviorRules,
+  useCreateCustomCommand,
+  useCustomCommands,
+  useDeleteBehaviorRule,
+  useDeleteCommand,
+  useDeleteMemory,
+  useImprovementLogs,
+  useMemories,
+  useSetBehaviorRule,
+} from "../hooks/useQueries";
 
 export function SelfImprovementPanel() {
   const { data: memories = [] } = useMemories();
@@ -69,7 +75,7 @@ export function SelfImprovementPanel() {
       await addMemory.mutateAsync(memoryInput.trim());
       setMemoryInput("");
       toast.success("Memory added successfully");
-    } catch (error) {
+    } catch (_error) {
       toast.error("Failed to add memory");
     }
   };
@@ -78,7 +84,7 @@ export function SelfImprovementPanel() {
     try {
       await deleteMemory.mutateAsync(id);
       toast.success("Memory deleted");
-    } catch (error) {
+    } catch (_error) {
       toast.error("Failed to delete memory");
     }
   };
@@ -89,11 +95,14 @@ export function SelfImprovementPanel() {
       return;
     }
     try {
-      await createCommand.mutateAsync({ name: commandName.trim(), action: commandAction.trim() });
+      await createCommand.mutateAsync({
+        name: commandName.trim(),
+        action: commandAction.trim(),
+      });
       setCommandName("");
       setCommandAction("");
       toast.success("Command created successfully");
-    } catch (error) {
+    } catch (_error) {
       toast.error("Failed to create command");
     }
   };
@@ -102,7 +111,7 @@ export function SelfImprovementPanel() {
     try {
       await deleteCommand.mutateAsync(id);
       toast.success("Command deleted");
-    } catch (error) {
+    } catch (_error) {
       toast.error("Failed to delete command");
     }
   };
@@ -113,10 +122,13 @@ export function SelfImprovementPanel() {
       return;
     }
     try {
-      await setRule.mutateAsync({ ruleText: ruleInput.trim(), priority: BigInt(rules.length + 1) });
+      await setRule.mutateAsync({
+        ruleText: ruleInput.trim(),
+        priority: BigInt(rules.length + 1),
+      });
       setRuleInput("");
       toast.success("Rule set successfully");
-    } catch (error) {
+    } catch (_error) {
       toast.error("Failed to set rule");
     }
   };
@@ -125,7 +137,7 @@ export function SelfImprovementPanel() {
     try {
       await deleteRule.mutateAsync(id);
       toast.success("Rule deleted");
-    } catch (error) {
+    } catch (_error) {
       toast.error("Failed to delete rule");
     }
   };
@@ -133,7 +145,9 @@ export function SelfImprovementPanel() {
   return (
     <Card className="glow-border border-primary/50">
       <CardHeader>
-        <CardTitle className="font-display text-2xl">Self-Improvement Engine</CardTitle>
+        <CardTitle className="font-display text-2xl">
+          Self-Improvement Engine
+        </CardTitle>
         <CardDescription>
           Train DJ by adding memories, commands, and behavior rules
         </CardDescription>
@@ -172,7 +186,9 @@ export function SelfImprovementPanel() {
             <ScrollArea className="h-[400px]">
               <div className="space-y-2">
                 {memories.length === 0 ? (
-                  <p className="text-center text-muted-foreground">No memories stored yet</p>
+                  <p className="text-center text-muted-foreground">
+                    No memories stored yet
+                  </p>
                 ) : (
                   memories.map((memory) => (
                     <Card key={memory.id.toString()} className="border-muted">
@@ -197,8 +213,8 @@ export function SelfImprovementPanel() {
                             <AlertDialogHeader>
                               <AlertDialogTitle>Delete Memory</AlertDialogTitle>
                               <AlertDialogDescription>
-                                Are you sure you want to delete this memory? This action cannot be
-                                undone.
+                                Are you sure you want to delete this memory?
+                                This action cannot be undone.
                               </AlertDialogDescription>
                             </AlertDialogHeader>
                             <AlertDialogFooter>
@@ -256,7 +272,9 @@ export function SelfImprovementPanel() {
             <ScrollArea className="h-[350px]">
               <div className="space-y-2">
                 {commands.length === 0 ? (
-                  <p className="text-center text-muted-foreground">No commands created yet</p>
+                  <p className="text-center text-muted-foreground">
+                    No commands created yet
+                  </p>
                 ) : (
                   commands.map((command) => (
                     <Card key={command.id.toString()} className="border-muted">
@@ -284,7 +302,9 @@ export function SelfImprovementPanel() {
                           </AlertDialogTrigger>
                           <AlertDialogContent>
                             <AlertDialogHeader>
-                              <AlertDialogTitle>Delete Command</AlertDialogTitle>
+                              <AlertDialogTitle>
+                                Delete Command
+                              </AlertDialogTitle>
                               <AlertDialogDescription>
                                 Are you sure you want to delete this command?
                               </AlertDialogDescription>
@@ -317,7 +337,11 @@ export function SelfImprovementPanel() {
                 onChange={(e) => setRuleInput(e.target.value)}
                 onKeyDown={(e) => e.key === "Enter" && handleSetRule()}
               />
-              <Button onClick={handleSetRule} disabled={setRule.isPending} className="bg-primary">
+              <Button
+                onClick={handleSetRule}
+                disabled={setRule.isPending}
+                className="bg-primary"
+              >
                 {setRule.isPending ? (
                   <Loader2 className="h-4 w-4 animate-spin" />
                 ) : (
@@ -329,7 +353,9 @@ export function SelfImprovementPanel() {
             <ScrollArea className="h-[400px]">
               <div className="space-y-2">
                 {rules.length === 0 ? (
-                  <p className="text-center text-muted-foreground">No behavior rules set yet</p>
+                  <p className="text-center text-muted-foreground">
+                    No behavior rules set yet
+                  </p>
                 ) : (
                   rules.map((rule) => (
                     <Card key={rule.id.toString()} className="border-muted">
@@ -381,7 +407,9 @@ export function SelfImprovementPanel() {
             <ScrollArea className="h-[450px]">
               <div className="space-y-2">
                 {logs.length === 0 ? (
-                  <p className="text-center text-muted-foreground">No improvements logged yet</p>
+                  <p className="text-center text-muted-foreground">
+                    No improvements logged yet
+                  </p>
                 ) : (
                   logs.map((log) => (
                     <Card

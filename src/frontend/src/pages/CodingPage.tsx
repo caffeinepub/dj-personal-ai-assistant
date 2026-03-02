@@ -1,16 +1,28 @@
-import { useState } from "react";
-import { Layout } from "../components/Layout";
-import { useSaveCodeSnippet, useCodeSnippets } from "../hooks/useQueries";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
-import { Button } from "@/components/ui/button";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import { Badge } from "@/components/ui/badge";
-import { Save, Copy, Download, Loader2 } from "lucide-react";
-import { toast } from "sonner";
+import { Button } from "@/components/ui/button";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import Editor from "@monaco-editor/react";
+import { Copy, Download, Loader2, Save } from "lucide-react";
+import { useState } from "react";
+import { toast } from "sonner";
+import { Layout } from "../components/Layout";
+import { useCodeSnippets, useSaveCodeSnippet } from "../hooks/useQueries";
 
 const TEMPLATES = {
   javascript: {
@@ -64,7 +76,7 @@ with open('output.txt', 'w') as f:
   </main>
 </body>
 </html>`,
-    "Form": `<form action="/submit" method="POST">
+    Form: `<form action="/submit" method="POST">
   <label for="name">Name:</label>
   <input type="text" id="name" name="name" required>
   
@@ -119,7 +131,8 @@ export function CodingPage() {
 
   const handleTemplateSelect = (template: string) => {
     setSelectedTemplate(template);
-    const templateCode = TEMPLATES[language as keyof typeof TEMPLATES]?.[template] || "";
+    const templateCode =
+      TEMPLATES[language as keyof typeof TEMPLATES]?.[template] || "";
     setCode(templateCode);
   };
 
@@ -132,7 +145,7 @@ export function CodingPage() {
       await saveSnippet.mutateAsync({ language, title: title.trim(), code });
       toast.success("Snippet saved successfully!");
       setTitle("");
-    } catch (error) {
+    } catch (_error) {
       toast.error("Failed to save snippet");
     }
   };
@@ -161,7 +174,7 @@ export function CodingPage() {
     URL.revokeObjectURL(url);
   };
 
-  const handleLoadSnippet = (snippet: typeof snippets[0]) => {
+  const handleLoadSnippet = (snippet: (typeof snippets)[0]) => {
     setCode(snippet.codeContent);
     setTitle(snippet.title);
     setLanguage(snippet.language);
@@ -171,8 +184,12 @@ export function CodingPage() {
     <Layout>
       <div className="container mx-auto space-y-6 px-4 py-8">
         <div>
-          <h1 className="glow-text font-display text-3xl font-bold">Coding Assistant</h1>
-          <p className="text-muted-foreground">Write, debug, and save code snippets</p>
+          <h1 className="glow-text font-display text-3xl font-bold">
+            Coding Assistant
+          </h1>
+          <p className="text-muted-foreground">
+            Write, debug, and save code snippets
+          </p>
         </div>
 
         <div className="grid gap-6 lg:grid-cols-3">
@@ -197,7 +214,11 @@ export function CodingPage() {
                   <Button variant="outline" size="icon" onClick={handleCopy}>
                     <Copy className="h-4 w-4" />
                   </Button>
-                  <Button variant="outline" size="icon" onClick={handleDownload}>
+                  <Button
+                    variant="outline"
+                    size="icon"
+                    onClick={handleDownload}
+                  >
                     <Download className="h-4 w-4" />
                   </Button>
                 </div>
@@ -248,22 +269,26 @@ export function CodingPage() {
             <Card className="glow-border border-secondary/50">
               <CardHeader>
                 <CardTitle>Templates</CardTitle>
-                <CardDescription>Quick start with common patterns</CardDescription>
+                <CardDescription>
+                  Quick start with common patterns
+                </CardDescription>
               </CardHeader>
               <CardContent>
                 <div className="space-y-2">
-                  {Object.keys(TEMPLATES[language as keyof typeof TEMPLATES] || {}).map(
-                    (template) => (
-                      <Button
-                        key={template}
-                        variant={selectedTemplate === template ? "default" : "outline"}
-                        className="w-full justify-start"
-                        onClick={() => handleTemplateSelect(template)}
-                      >
-                        {template}
-                      </Button>
-                    )
-                  )}
+                  {Object.keys(
+                    TEMPLATES[language as keyof typeof TEMPLATES] || {},
+                  ).map((template) => (
+                    <Button
+                      key={template}
+                      variant={
+                        selectedTemplate === template ? "default" : "outline"
+                      }
+                      className="w-full justify-start"
+                      onClick={() => handleTemplateSelect(template)}
+                    >
+                      {template}
+                    </Button>
+                  ))}
                 </div>
               </CardContent>
             </Card>
@@ -276,7 +301,9 @@ export function CodingPage() {
                 <ScrollArea className="h-[300px]">
                   <div className="space-y-2">
                     {snippets.length === 0 ? (
-                      <p className="text-center text-muted-foreground">No saved snippets</p>
+                      <p className="text-center text-muted-foreground">
+                        No saved snippets
+                      </p>
                     ) : (
                       snippets.map((snippet) => (
                         <Button

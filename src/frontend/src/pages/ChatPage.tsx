@@ -1,25 +1,38 @@
-import { useCallback, useEffect, useRef, useState } from "react";
-import { Layout } from "../components/Layout";
-import {
-  useChatMessages,
-  useSaveChatMessage,
-  useAddMemory,
-  useDeleteMemory,
-  useMemories,
-  useCreateCustomCommand,
-  useSetBehaviorRule,
-  useSetPersonalitySettings,
-  useActivateModule,
-  useDeactivateModule,
-  usePersonalitySettings,
-  useBehaviorRules,
-} from "../hooks/useQueries";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Badge } from "@/components/ui/badge";
-import { Mic, MicOff, Send, Loader2, Lightbulb, X } from "lucide-react";
-import { toast } from "sonner";
+import {
+  BookOpen,
+  Lightbulb,
+  Loader2,
+  Mic,
+  MicOff,
+  Send,
+  X,
+} from "lucide-react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
+import { toast } from "sonner";
+import { Layout } from "../components/Layout";
+import {
+  useActivateModule,
+  useAddMemory,
+  useBehaviorRules,
+  useChatMessages,
+  useCreateCustomCommand,
+  useDeactivateModule,
+  useDeleteMemory,
+  useMemories,
+  usePersonalitySettings,
+  useSaveChatMessage,
+  useSetBehaviorRule,
+  useSetPersonalitySettings,
+} from "../hooks/useQueries";
+import {
+  getRelevantContext,
+  parseKnowledgeSource,
+  searchKnowledgeSources,
+} from "../utils/knowledgeSources";
 
 declare global {
   interface Window {
@@ -82,9 +95,10 @@ export function ChatPage() {
   const synthRef = useRef<SpeechSynthesis | null>(null);
 
   // Auto-scroll to bottom on new messages
+  // biome-ignore lint/correctness/useExhaustiveDependencies: messages.length is intentional to scroll on new messages
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages]);
+  }, [messages.length]);
 
   // Show smart suggestions after 3+ messages
   useEffect(() => {
@@ -103,7 +117,8 @@ export function ChatPage() {
   }, []);
 
   const startVoiceInput = useCallback(() => {
-    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+    const SpeechRecognition =
+      window.SpeechRecognition || window.webkitSpeechRecognition;
     if (!SpeechRecognition) {
       toast.error("Speech recognition not supported in this browser");
       return;
@@ -150,7 +165,34 @@ export function ChatPage() {
   const parseCommand = async (userMessage: string): Promise<string> => {
     const lowerMessage = userMessage.toLowerCase().trim();
 
-    if (lowerMessage.startsWith("dj, remember ") || lowerMessage.startsWith("remember ")) {
+    // Knowledge search commands
+    const knowledgeSources = memories
+      .map(parseKnowledgeSource)
+      .filter((s) => s !== null);
+
+    const searchKnowledgeMatch = userMessage.match(
+      /(?:dj,?\s*)?(?:search\s+(?:my\s+)?knowledge\s+(?:base\s+)?for|what\s+do\s+you\s+know\s+about)\s+(.+)/i,
+    );
+    if (searchKnowledgeMatch) {
+      const query = searchKnowledgeMatch[1].trim();
+      const results = searchKnowledgeSources(knowledgeSources, query);
+      if (results.length === 0) {
+        return `I don't have any knowledge sources matching "${query}". You can add some at the Knowledge page.`;
+      }
+      const summary = results
+        .slice(0, 3)
+        .map(
+          (s) =>
+            `**${s.title}** (${s.sourceType})\n${s.content.slice(0, 300)}...`,
+        )
+        .join("\n\n");
+      return `Here's what I found in your knowledge base for "${query}":\n\n${summary}`;
+    }
+
+    if (
+      lowerMessage.startsWith("dj, remember ") ||
+      lowerMessage.startsWith("remember ")
+    ) {
       const content = userMessage.replace(/^(dj,?\s*)?remember\s*/i, "").trim();
       if (content) {
         await addMemory.mutateAsync(content);
@@ -158,10 +200,15 @@ export function ChatPage() {
       }
     }
 
-    if (lowerMessage.startsWith("dj, forget ") || lowerMessage.startsWith("forget ")) {
+    if (
+      lowerMessage.startsWith("dj, forget ") ||
+      lowerMessage.startsWith("forget ")
+    ) {
       const content = userMessage.replace(/^(dj,?\s*)?forget\s*/i, "").trim();
-      const matchingMemory = memories.find((m) =>
-        m.content.toLowerCase().includes(content.toLowerCase())
+      const matchingMemory = memories.find(
+        (m) =>
+          !m.content.startsWith("[KNOWLEDGE_SOURCE]") &&
+          m.content.toLowerCase().includes(content.toLowerCase()),
       );
       if (matchingMemory) {
         await deleteMemory.mutateAsync(matchingMemory.id);
@@ -170,16 +217,24 @@ export function ChatPage() {
       return "I couldn't find a matching memory to forget.";
     }
 
-    if (lowerMessage.includes("what do you remember") || lowerMessage.includes("show memories")) {
-      if (memories.length === 0) {
+    if (
+      lowerMessage.includes("what do you remember") ||
+      lowerMessage.includes("show memories")
+    ) {
+      const regularMemories = memories.filter(
+        (m) => !m.content.startsWith("[KNOWLEDGE_SOURCE]"),
+      );
+      if (regularMemories.length === 0) {
         return "I don't have any stored memories yet. You can teach me by saying 'DJ, remember [something]'.";
       }
-      const memoryList = memories.map((m, i) => `${i + 1}. ${m.content}`).join("\n");
+      const memoryList = regularMemories
+        .map((m, i) => `${i + 1}. ${m.content}`)
+        .join("\n");
       return `Here's everything I remember:\n\n${memoryList}`;
     }
 
     const commandMatch = userMessage.match(
-      /(?:dj,?\s*)?create\s+(?:a\s+)?command\s+called\s+"([^"]+)"\s+that\s+(.+)/i
+      /(?:dj,?\s*)?create\s+(?:a\s+)?command\s+called\s+"([^"]+)"\s+that\s+(.+)/i,
     );
     if (commandMatch) {
       const [, name, action] = commandMatch;
@@ -187,10 +242,18 @@ export function ChatPage() {
       return `Understood. I've created the custom command "${name}". You can activate it by saying "${name}".`;
     }
 
-    if (lowerMessage.includes("your new rule is") || lowerMessage.includes("set rule:")) {
-      const rule = userMessage.replace(/^(dj,?\s*)?(?:your\s+new\s+rule\s+is|set\s+rule:)\s*/i, "").trim();
+    if (
+      lowerMessage.includes("your new rule is") ||
+      lowerMessage.includes("set rule:")
+    ) {
+      const rule = userMessage
+        .replace(/^(dj,?\s*)?(?:your\s+new\s+rule\s+is|set\s+rule:)\s*/i, "")
+        .trim();
       if (rule) {
-        await setBehaviorRule.mutateAsync({ ruleText: rule, priority: BigInt(rules.length + 1) });
+        await setBehaviorRule.mutateAsync({
+          ruleText: rule,
+          priority: BigInt(rules.length + 1),
+        });
         return "Understood. I've set that as a new behavior rule and will follow it going forward.";
       }
     }
@@ -210,7 +273,9 @@ export function ChatPage() {
       return `Understood. I've adjusted my communication style to be more ${style}.`;
     }
 
-    const activateMatch = userMessage.match(/(?:dj,?\s*)?activate\s+(?:the\s+)?(\w+)\s+module/i);
+    const activateMatch = userMessage.match(
+      /(?:dj,?\s*)?activate\s+(?:the\s+)?(\w+)\s+module/i,
+    );
     if (activateMatch) {
       const moduleName = activateMatch[1].toLowerCase();
       await activateModule.mutateAsync(moduleName);
@@ -218,7 +283,7 @@ export function ChatPage() {
     }
 
     const deactivateMatch = userMessage.match(
-      /(?:dj,?\s*)?deactivate\s+(?:the\s+)?(\w+)\s+module/i
+      /(?:dj,?\s*)?deactivate\s+(?:the\s+)?(\w+)\s+module/i,
     );
     if (deactivateMatch) {
       const moduleName = deactivateMatch[1].toLowerCase();
@@ -226,14 +291,21 @@ export function ChatPage() {
       return `The ${moduleName} module has been deactivated.`;
     }
 
-    return generateResponse(userMessage);
+    return generateResponse(userMessage, knowledgeSources);
   };
 
-  const generateResponse = (userMessage: string): string => {
+  const generateResponse = (
+    userMessage: string,
+    knowledgeSources: ReturnType<typeof parseKnowledgeSource>[] = [],
+  ): string => {
     const style = personalitySettings?.communicationStyle || "professional";
     const lowerMessage = userMessage.toLowerCase();
 
-    if (lowerMessage.includes("hello") || lowerMessage.includes("hi") || lowerMessage.includes("hey")) {
+    if (
+      lowerMessage.includes("hello") ||
+      lowerMessage.includes("hi") ||
+      lowerMessage.includes("hey")
+    ) {
       return style === "casual"
         ? "Hey! What's up? How can I help?"
         : "Greetings. I'm DJ, your personal AI assistant. How may I assist you today?";
@@ -245,8 +317,24 @@ export function ChatPage() {
         : "All systems operational. I'm functioning optimally and ready to assist you.";
     }
 
-    if (lowerMessage.includes("help") || lowerMessage.includes("what can you do")) {
-      return `I can help you with:\n\n- Memory: "DJ, remember [something]"\n- Commands: "DJ, create command called [name] that does [action]"\n- Rules: "DJ, your new rule is [rule]"\n- Modules: Activate/deactivate Excel, Coding, and Website modules\n\nWhat would you like to do?`;
+    if (
+      lowerMessage.includes("help") ||
+      lowerMessage.includes("what can you do")
+    ) {
+      return `I can help you with:\n\n- Memory: "DJ, remember [something]"\n- Knowledge: "DJ, search my knowledge for [topic]" or "DJ, what do you know about [topic]"\n- Commands: "DJ, create command called [name] that does [action]"\n- Rules: "DJ, your new rule is [rule]"\n- Modules: Activate/deactivate Excel, Coding, and Website modules\n\nWhat would you like to do?`;
+    }
+
+    // Check knowledge sources for relevant context
+    const validSources = knowledgeSources.filter((s) => s !== null);
+    if (validSources.length > 0) {
+      const { context, titles } = getRelevantContext(validSources, userMessage);
+      if (context) {
+        const baseResponse =
+          style === "concise"
+            ? "Based on your knowledge sources:"
+            : "I found relevant information in your knowledge base that may help:";
+        return `${baseResponse}\n\n${context.slice(0, 800)}\n\n---\n*Based on your knowledge sources: ${titles.join(", ")}*`;
+      }
     }
 
     return style === "concise"
@@ -272,7 +360,10 @@ export function ChatPage() {
 
   const formatTimestamp = (timestamp: bigint) => {
     const date = new Date(Number(timestamp) / 1000000);
-    return date.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit" });
+    return date.toLocaleTimeString("en-US", {
+      hour: "2-digit",
+      minute: "2-digit",
+    });
   };
 
   const quickRuleSuggestions = [
@@ -289,13 +380,18 @@ export function ChatPage() {
           <div className="container mx-auto flex items-center justify-between gap-4">
             <div className="flex flex-wrap items-center gap-2">
               <Lightbulb className="h-4 w-4 shrink-0 text-primary" />
-              <span className="text-sm text-muted-foreground">Smart suggestion:</span>
+              <span className="text-sm text-muted-foreground">
+                Smart suggestion:
+              </span>
               {quickRuleSuggestions.map((rule) => (
                 <button
                   key={rule}
                   type="button"
                   onClick={async () => {
-                    await setBehaviorRule.mutateAsync({ ruleText: rule, priority: BigInt(rules.length + 1) });
+                    await setBehaviorRule.mutateAsync({
+                      ruleText: rule,
+                      priority: BigInt(rules.length + 1),
+                    });
                     toast.success(`Rule applied: ${rule}`);
                     setShowSuggestions(false);
                   }}
@@ -319,16 +415,25 @@ export function ChatPage() {
             {messages.length === 0 ? (
               <div className="flex h-64 items-center justify-center">
                 <div className="glow-border rounded-lg border border-primary/50 p-8 text-center">
-                  <p className="glow-text font-display text-xl">Start a conversation with DJ</p>
+                  <p className="glow-text font-display text-xl">
+                    Start a conversation with DJ
+                  </p>
                   <p className="mt-2 text-muted-foreground">
-                    Try: "DJ, remember my favorite color is blue"
+                    Try: "DJ, what do you know about [topic]"
                   </p>
                   <p className="mt-2 text-sm text-muted-foreground">
-                    Or go to{" "}
+                    Go to{" "}
+                    <Link
+                      to="/knowledge"
+                      className="text-primary hover:underline"
+                    >
+                      <BookOpen className="inline h-3.5 w-3.5" /> Knowledge
+                    </Link>{" "}
+                    to add websites & documents, or{" "}
                     <Link to="/teach" className="text-primary hover:underline">
                       Teach DJ
                     </Link>{" "}
-                    to set up your preferences easily.
+                    to set preferences.
                   </p>
                 </div>
               </div>
@@ -352,7 +457,9 @@ export function ChatPage() {
                   >
                     <div className="mb-1 flex items-center gap-2">
                       <Badge
-                        variant={message.role === "user" ? "default" : "secondary"}
+                        variant={
+                          message.role === "user" ? "default" : "secondary"
+                        }
                         className="text-xs"
                       >
                         {message.role === "user" ? "You" : "DJ"}
@@ -400,13 +507,19 @@ export function ChatPage() {
                 disabled={isListening}
                 className={`shrink-0 ${isListening ? "animate-pulse bg-primary" : "border-primary/50"}`}
               >
-                {isListening ? <MicOff className="h-5 w-5" /> : <Mic className="h-5 w-5" />}
+                {isListening ? (
+                  <MicOff className="h-5 w-5" />
+                ) : (
+                  <Mic className="h-5 w-5" />
+                )}
               </Button>
               <Input
                 placeholder="Type a message or use voice..."
                 value={input}
                 onChange={(e) => setInput(e.target.value)}
-                onKeyDown={(e) => e.key === "Enter" && !e.shiftKey && handleSend()}
+                onKeyDown={(e) =>
+                  e.key === "Enter" && !e.shiftKey && handleSend()
+                }
                 className="flex-1 border-primary/40 bg-card/50"
                 disabled={saveMessage.isPending}
               />

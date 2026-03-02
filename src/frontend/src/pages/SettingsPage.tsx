@@ -1,42 +1,114 @@
-import { useCallback, useEffect, useRef, useState } from "react";
-import { Layout } from "../components/Layout";
-import {
-  useUserProfile,
-  useUpdateUserProfile,
-  useSetPersonalitySettings,
-  usePersonalitySettings,
-  useSetBehaviorRule,
-  useGetRulesOrdered,
-  useUpdateRulePriority,
-  useDeleteBehaviorRule,
-  useMemories,
-  useAddMemory,
-} from "../hooks/useQueries";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
-import { Badge } from "@/components/ui/badge";
-import { Switch } from "@/components/ui/switch";
 import { Slider } from "@/components/ui/slider";
+import { Switch } from "@/components/ui/switch";
+import { Textarea } from "@/components/ui/textarea";
 import {
-  Briefcase, Smile, Zap, AlignLeft, GraduationCap, Flame,
-  Mic, MicOff, Check, ChevronUp, ChevronDown, Trash2, Loader2,
-  Users, Settings
+  AlignLeft,
+  Briefcase,
+  Check,
+  ChevronDown,
+  ChevronUp,
+  Flame,
+  GraduationCap,
+  Loader2,
+  Mic,
+  MicOff,
+  Settings,
+  Smile,
+  Trash2,
+  Users,
+  Zap,
 } from "lucide-react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
+import { Layout } from "../components/Layout";
+import {
+  useAddMemory,
+  useDeleteBehaviorRule,
+  useGetRulesOrdered,
+  useMemories,
+  usePersonalitySettings,
+  useSetBehaviorRule,
+  useSetPersonalitySettings,
+  useUpdateRulePriority,
+  useUpdateUserProfile,
+  useUserProfile,
+} from "../hooks/useQueries";
 
 interface SpeechRecognitionEvent {
   results: { [key: number]: { [key: number]: { transcript: string } } };
 }
 
 const PERSONALITIES = [
-  { id: "professional", label: "Professional", icon: Briefcase, desc: "Formal, structured, task-focused", rules: ["Use formal language always", "Start with the key point", "Provide structured responses with clear sections"] },
-  { id: "friendly", label: "Friendly", icon: Smile, desc: "Warm, supportive, approachable", rules: ["Use warm and encouraging tone", "Add supportive acknowledgments", "Be conversational and personal"] },
-  { id: "witty", label: "Witty", icon: Zap, desc: "Sharp, clever, with humor", rules: ["Include clever observations when appropriate", "Use wordplay and humor occasionally", "Be insightful and entertaining"] },
-  { id: "concise", label: "Concise", icon: AlignLeft, desc: "Brief, direct, no filler", rules: ["Keep all responses under 3 sentences", "Use bullet points only", "No preamble or filler phrases"] },
-  { id: "mentor", label: "Mentor", icon: GraduationCap, desc: "Guiding, educational, thoughtful", rules: ["Explain the reasoning behind every answer", "Provide step-by-step guidance", "Give examples to illustrate concepts"] },
-  { id: "motivator", label: "Motivator", icon: Flame, desc: "Energetic, encouraging, action-oriented", rules: ["Use energetic and uplifting language", "End every response with a next action step", "Celebrate progress and effort"] },
+  {
+    id: "professional",
+    label: "Professional",
+    icon: Briefcase,
+    desc: "Formal, structured, task-focused",
+    rules: [
+      "Use formal language always",
+      "Start with the key point",
+      "Provide structured responses with clear sections",
+    ],
+  },
+  {
+    id: "friendly",
+    label: "Friendly",
+    icon: Smile,
+    desc: "Warm, supportive, approachable",
+    rules: [
+      "Use warm and encouraging tone",
+      "Add supportive acknowledgments",
+      "Be conversational and personal",
+    ],
+  },
+  {
+    id: "witty",
+    label: "Witty",
+    icon: Zap,
+    desc: "Sharp, clever, with humor",
+    rules: [
+      "Include clever observations when appropriate",
+      "Use wordplay and humor occasionally",
+      "Be insightful and entertaining",
+    ],
+  },
+  {
+    id: "concise",
+    label: "Concise",
+    icon: AlignLeft,
+    desc: "Brief, direct, no filler",
+    rules: [
+      "Keep all responses under 3 sentences",
+      "Use bullet points only",
+      "No preamble or filler phrases",
+    ],
+  },
+  {
+    id: "mentor",
+    label: "Mentor",
+    icon: GraduationCap,
+    desc: "Guiding, educational, thoughtful",
+    rules: [
+      "Explain the reasoning behind every answer",
+      "Provide step-by-step guidance",
+      "Give examples to illustrate concepts",
+    ],
+  },
+  {
+    id: "motivator",
+    label: "Motivator",
+    icon: Flame,
+    desc: "Energetic, encouraging, action-oriented",
+    rules: [
+      "Use energetic and uplifting language",
+      "End every response with a next action step",
+      "Celebrate progress and effort",
+    ],
+  },
 ];
 
 const RULE_TEMPLATES = [
@@ -145,7 +217,9 @@ export function SettingsPage() {
   const [applyingTemplate, setApplyingTemplate] = useState<string | null>(null);
 
   // Active personality
-  const [activePersonality, setActivePersonality] = useState(personality?.communicationStyle || "professional");
+  const [activePersonality, setActivePersonality] = useState(
+    personality?.communicationStyle || "professional",
+  );
 
   useEffect(() => {
     if (profile) {
@@ -167,7 +241,10 @@ export function SettingsPage() {
       await setPersonalityFn.mutateAsync(id);
       // Apply personality bundle rules
       for (let i = 0; i < p.rules.length; i++) {
-        await setBehaviorRule.mutateAsync({ ruleText: p.rules[i], priority: BigInt(rulesOrdered.length + i + 1) });
+        await setBehaviorRule.mutateAsync({
+          ruleText: p.rules[i],
+          priority: BigInt(rulesOrdered.length + i + 1),
+        });
       }
       toast.success(`${p.label} mode activated`);
     } catch (_e) {
@@ -175,14 +252,19 @@ export function SettingsPage() {
     }
   };
 
-  const handleApplyTemplate = async (template: typeof RULE_TEMPLATES[0]) => {
+  const handleApplyTemplate = async (template: (typeof RULE_TEMPLATES)[0]) => {
     setApplyingTemplate(template.id);
     try {
       for (let i = 0; i < template.rules.length; i++) {
-        await setBehaviorRule.mutateAsync({ ruleText: template.rules[i], priority: BigInt(rulesOrdered.length + i + 1) });
+        await setBehaviorRule.mutateAsync({
+          ruleText: template.rules[i],
+          priority: BigInt(rulesOrdered.length + i + 1),
+        });
       }
       setAppliedTemplates((prev) => [...prev, template.id]);
-      toast.success(`${template.name} applied — ${template.rules.length} rules added`);
+      toast.success(
+        `${template.name} applied — ${template.rules.length} rules added`,
+      );
     } catch (_e) {
       toast.error("Failed to apply template");
     } finally {
@@ -194,29 +276,43 @@ export function SettingsPage() {
     const isActive = rulesOrdered.some((r) => r.ruleText === ruleText);
     if (!isActive) {
       try {
-        await setBehaviorRule.mutateAsync({ ruleText, priority: BigInt(rulesOrdered.length + 1) });
+        await setBehaviorRule.mutateAsync({
+          ruleText,
+          priority: BigInt(rulesOrdered.length + 1),
+        });
         toast.success("Rule added");
       } catch (_e) {
         toast.error("Failed to add rule");
       }
     } else {
-      toast.info("This rule is already active. Visit the rules list below to remove it.");
+      toast.info(
+        "This rule is already active. Visit the rules list below to remove it.",
+      );
     }
   };
 
   const handleSaveStyleSettings = async () => {
     const rules: string[] = [];
-    if (formalitySlider[0] < 30) rules.push("Use casual, conversational language");
-    else if (formalitySlider[0] > 70) rules.push("Use formal, professional language");
-    if (lengthSlider[0] < 30) rules.push("Keep responses very brief — one sentence max");
-    else if (lengthSlider[0] > 70) rules.push("Provide detailed, comprehensive responses");
+    if (formalitySlider[0] < 30)
+      rules.push("Use casual, conversational language");
+    else if (formalitySlider[0] > 70)
+      rules.push("Use formal, professional language");
+    if (lengthSlider[0] < 30)
+      rules.push("Keep responses very brief — one sentence max");
+    else if (lengthSlider[0] > 70)
+      rules.push("Provide detailed, comprehensive responses");
     if (useMarkdown) rules.push("Always use markdown formatting in responses");
-    if (includeExamples) rules.push("Include relevant examples in every response");
-    if (showConfidence) rules.push("Indicate your confidence level at the end of each response");
+    if (includeExamples)
+      rules.push("Include relevant examples in every response");
+    if (showConfidence)
+      rules.push("Indicate your confidence level at the end of each response");
 
     try {
       for (let i = 0; i < rules.length; i++) {
-        await setBehaviorRule.mutateAsync({ ruleText: rules[i], priority: BigInt(rulesOrdered.length + i + 1) });
+        await setBehaviorRule.mutateAsync({
+          ruleText: rules[i],
+          priority: BigInt(rulesOrdered.length + i + 1),
+        });
       }
       toast.success("Style settings saved as rules");
     } catch (_e) {
@@ -234,7 +330,9 @@ export function SettingsPage() {
         editInterests && `Interests: ${editInterests}`,
         editWorkStyle && `Work style: ${editWorkStyle}`,
         editProjects && `Current projects: ${editProjects}`,
-      ].filter(Boolean).join(". ");
+      ]
+        .filter(Boolean)
+        .join(". ");
 
       await updateProfile.mutateAsync({
         name: editName || profile?.name || "User",
@@ -273,8 +371,14 @@ export function SettingsPage() {
 
     try {
       await Promise.all([
-        updateRulePriority.mutateAsync({ id: ruleA.id, newPriority: ruleB.priority }),
-        updateRulePriority.mutateAsync({ id: ruleB.id, newPriority: ruleA.priority }),
+        updateRulePriority.mutateAsync({
+          id: ruleA.id,
+          newPriority: ruleB.priority,
+        }),
+        updateRulePriority.mutateAsync({
+          id: ruleB.id,
+          newPriority: ruleA.priority,
+        }),
       ]);
     } catch (_e) {
       toast.error("Failed to reorder rules");
@@ -291,7 +395,8 @@ export function SettingsPage() {
   };
 
   const startVoiceCapture = useCallback(() => {
-    const SpeechRecognitionClass = window.SpeechRecognition || window.webkitSpeechRecognition;
+    const SpeechRecognitionClass =
+      window.SpeechRecognition || window.webkitSpeechRecognition;
     if (!SpeechRecognitionClass) {
       toast.error("Speech recognition not supported in this browser");
       return;
@@ -330,9 +435,17 @@ export function SettingsPage() {
     }
   };
 
-  const initials = (profile?.name || "U").split(" ").map((n) => n[0]).join("").toUpperCase().slice(0, 2);
+  const initials = (profile?.name || "U")
+    .split(" ")
+    .map((n) => n[0])
+    .join("")
+    .toUpperCase()
+    .slice(0, 2);
 
-  const Section = ({ title, children }: { title: string; children: React.ReactNode }) => (
+  const Section = ({
+    title,
+    children,
+  }: { title: string; children: React.ReactNode }) => (
     <div className="space-y-4">
       <h2 className="font-display text-xl font-bold text-foreground border-b border-primary/20 pb-2">
         {title}
@@ -345,8 +458,12 @@ export function SettingsPage() {
     <Layout>
       <div className="container mx-auto max-w-2xl space-y-10 px-4 py-8">
         <div>
-          <h1 className="glow-text font-display text-3xl font-bold">Settings</h1>
-          <p className="text-muted-foreground">Configure DJ's personality, rules, and your profile</p>
+          <h1 className="glow-text font-display text-3xl font-bold">
+            Settings
+          </h1>
+          <p className="text-muted-foreground">
+            Configure DJ's personality, rules, and your profile
+          </p>
         </div>
 
         {/* ─── Section A: DJ Profile Card ─── */}
@@ -364,7 +481,9 @@ export function SettingsPage() {
               </div>
               <div className="flex-1 min-w-0">
                 <div className="flex flex-wrap items-center gap-2">
-                  <p className="font-display text-xl font-bold truncate">{profile?.name || "User"}</p>
+                  <p className="font-display text-xl font-bold truncate">
+                    {profile?.name || "User"}
+                  </p>
                   <Badge className="bg-primary/20 text-primary border-primary/40 capitalize">
                     {activePersonality}
                   </Badge>
@@ -381,7 +500,8 @@ export function SettingsPage() {
         {/* ─── Section B: DJ Mood Board ─── */}
         <Section title="DJ Mood Board">
           <p className="text-sm text-muted-foreground">
-            Choose DJ's personality style. Selecting one applies a matching rule bundle.
+            Choose DJ's personality style. Selecting one applies a matching rule
+            bundle.
           </p>
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
             {PERSONALITIES.map(({ id, label, icon: Icon, desc }) => {
@@ -396,19 +516,33 @@ export function SettingsPage() {
                       ? "border-primary bg-primary/15"
                       : "border-muted bg-card/30 hover:border-primary/40"
                   }`}
-                  style={isActive ? { boxShadow: "0 0 15px oklch(0.65 0.25 220 / 0.35)" } : {}}
+                  style={
+                    isActive
+                      ? { boxShadow: "0 0 15px oklch(0.65 0.25 220 / 0.35)" }
+                      : {}
+                  }
                 >
                   {isActive && (
                     <div className="absolute right-2 top-2 flex h-4 w-4 items-center justify-center rounded-full bg-primary">
                       <Check className="h-2.5 w-2.5 text-primary-foreground" />
                     </div>
                   )}
-                  <div className={`flex h-9 w-9 items-center justify-center rounded-md ${isActive ? "bg-primary/25" : "bg-muted"}`}>
-                    <Icon className={`h-5 w-5 ${isActive ? "text-primary" : "text-muted-foreground"}`} />
+                  <div
+                    className={`flex h-9 w-9 items-center justify-center rounded-md ${isActive ? "bg-primary/25" : "bg-muted"}`}
+                  >
+                    <Icon
+                      className={`h-5 w-5 ${isActive ? "text-primary" : "text-muted-foreground"}`}
+                    />
                   </div>
                   <div>
-                    <p className={`text-sm font-semibold ${isActive ? "text-primary" : ""}`}>{label}</p>
-                    <p className="text-xs text-muted-foreground leading-tight">{desc}</p>
+                    <p
+                      className={`text-sm font-semibold ${isActive ? "text-primary" : ""}`}
+                    >
+                      {label}
+                    </p>
+                    <p className="text-xs text-muted-foreground leading-tight">
+                      {desc}
+                    </p>
                   </div>
                 </button>
               );
@@ -435,13 +569,20 @@ export function SettingsPage() {
                         <span className="text-xl">{template.emoji}</span>
                         <p className="font-semibold">{template.name}</p>
                         {applied && (
-                          <Badge className="bg-primary/20 text-primary border-primary/30 text-xs">Applied</Badge>
+                          <Badge className="bg-primary/20 text-primary border-primary/30 text-xs">
+                            Applied
+                          </Badge>
                         )}
                       </div>
-                      <p className="mt-0.5 text-sm text-muted-foreground">{template.desc}</p>
+                      <p className="mt-0.5 text-sm text-muted-foreground">
+                        {template.desc}
+                      </p>
                       <ul className="mt-2 space-y-0.5">
                         {template.rules.map((rule) => (
-                          <li key={rule} className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                          <li
+                            key={rule}
+                            className="flex items-center gap-1.5 text-xs text-muted-foreground"
+                          >
                             <span className="h-1 w-1 rounded-full bg-primary/60 shrink-0" />
                             {rule}
                           </li>
@@ -451,7 +592,11 @@ export function SettingsPage() {
                     <Button
                       size="sm"
                       variant={applied ? "outline" : "default"}
-                      className={applied ? "border-primary/40 text-primary" : "bg-primary"}
+                      className={
+                        applied
+                          ? "border-primary/40 text-primary"
+                          : "bg-primary"
+                      }
                       onClick={() => handleApplyTemplate(template)}
                       disabled={applyingTemplate === template.id}
                     >
@@ -472,7 +617,9 @@ export function SettingsPage() {
 
         {/* ─── Section D: Quick Rule Shortcuts ─── */}
         <Section title="Quick Rule Shortcuts">
-          <p className="text-sm text-muted-foreground">Tap to add a common rule instantly.</p>
+          <p className="text-sm text-muted-foreground">
+            Tap to add a common rule instantly.
+          </p>
           <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
             {QUICK_RULE_SHORTCUTS.map((rule) => {
               const isActive = rulesOrdered.some((r) => r.ruleText === rule);
@@ -486,10 +633,18 @@ export function SettingsPage() {
                       ? "border-primary bg-primary/15 text-foreground"
                       : "border-muted bg-card/30 text-muted-foreground hover:border-primary/40 hover:text-foreground"
                   }`}
-                  style={isActive ? { boxShadow: "0 0 8px oklch(0.65 0.25 220 / 0.25)" } : {}}
+                  style={
+                    isActive
+                      ? { boxShadow: "0 0 8px oklch(0.65 0.25 220 / 0.25)" }
+                      : {}
+                  }
                 >
-                  <div className={`flex h-5 w-5 shrink-0 items-center justify-center rounded border ${isActive ? "border-primary bg-primary" : "border-muted"}`}>
-                    {isActive && <Check className="h-3 w-3 text-primary-foreground" />}
+                  <div
+                    className={`flex h-5 w-5 shrink-0 items-center justify-center rounded border ${isActive ? "border-primary bg-primary" : "border-muted"}`}
+                  >
+                    {isActive && (
+                      <Check className="h-3 w-3 text-primary-foreground" />
+                    )}
                   </div>
                   {rule}
                 </button>
@@ -533,49 +688,94 @@ export function SettingsPage() {
             </div>
             <div className="space-y-3">
               {[
-                { label: "Always use markdown formatting", value: useMarkdown, onChange: setUseMarkdown },
-                { label: "Include relevant examples", value: includeExamples, onChange: setIncludeExamples },
-                { label: "Show confidence level", value: showConfidence, onChange: setShowConfidence },
+                {
+                  label: "Always use markdown formatting",
+                  value: useMarkdown,
+                  onChange: setUseMarkdown,
+                },
+                {
+                  label: "Include relevant examples",
+                  value: includeExamples,
+                  onChange: setIncludeExamples,
+                },
+                {
+                  label: "Show confidence level",
+                  value: showConfidence,
+                  onChange: setShowConfidence,
+                },
               ].map(({ label, value, onChange }) => (
                 <div key={label} className="flex items-center justify-between">
-                  <Label className="text-sm text-muted-foreground">{label}</Label>
-                  <Switch
-                    checked={value}
-                    onCheckedChange={onChange}
-                  />
+                  <Label className="text-sm text-muted-foreground">
+                    {label}
+                  </Label>
+                  <Switch checked={value} onCheckedChange={onChange} />
                 </div>
               ))}
             </div>
-            <Button className="w-full bg-primary/80 hover:bg-primary" onClick={handleSaveStyleSettings}>
+            <Button
+              className="w-full bg-primary/80 hover:bg-primary"
+              onClick={handleSaveStyleSettings}
+            >
               Save Style as Rules
             </Button>
           </div>
         </Section>
 
         {/* ─── Section F: About You Form ─── */}
-        <Section title='Tell DJ About Yourself'>
+        <Section title="Tell DJ About Yourself">
           <div className="space-y-4 rounded-lg border border-muted bg-card/30 p-5">
             <div className="grid gap-4 sm:grid-cols-2">
               <div className="space-y-1">
                 <Label>Your Name</Label>
-                <Input value={editName} onChange={(e) => setEditName(e.target.value)} className="border-primary/30 bg-card/50" placeholder="e.g. Alex" />
+                <Input
+                  value={editName}
+                  onChange={(e) => setEditName(e.target.value)}
+                  className="border-primary/30 bg-card/50"
+                  placeholder="e.g. Alex"
+                />
               </div>
               <div className="space-y-1">
                 <Label>Profession / Role</Label>
-                <Input value={editProfession} onChange={(e) => setEditProfession(e.target.value)} className="border-primary/30 bg-card/50" placeholder="e.g. Designer" />
+                <Input
+                  value={editProfession}
+                  onChange={(e) => setEditProfession(e.target.value)}
+                  className="border-primary/30 bg-card/50"
+                  placeholder="e.g. Designer"
+                />
               </div>
               <div className="space-y-1">
-                <Label>Location <span className="text-xs text-muted-foreground">(optional)</span></Label>
-                <Input value={editLocation} onChange={(e) => setEditLocation(e.target.value)} className="border-primary/30 bg-card/50" placeholder="e.g. London" />
+                <Label>
+                  Location{" "}
+                  <span className="text-xs text-muted-foreground">
+                    (optional)
+                  </span>
+                </Label>
+                <Input
+                  value={editLocation}
+                  onChange={(e) => setEditLocation(e.target.value)}
+                  className="border-primary/30 bg-card/50"
+                  placeholder="e.g. London"
+                />
               </div>
               <div className="space-y-1">
                 <Label>Main Goal</Label>
-                <Input value={editGoal} onChange={(e) => setEditGoal(e.target.value)} className="border-primary/30 bg-card/50" placeholder="e.g. Launch my startup" />
+                <Input
+                  value={editGoal}
+                  onChange={(e) => setEditGoal(e.target.value)}
+                  className="border-primary/30 bg-card/50"
+                  placeholder="e.g. Launch my startup"
+                />
               </div>
             </div>
             <div className="space-y-1">
               <Label>Key Interests</Label>
-              <Textarea value={editInterests} onChange={(e) => setEditInterests(e.target.value)} className="border-primary/30 bg-card/50" placeholder="e.g. AI, fitness, jazz music..." rows={2} />
+              <Textarea
+                value={editInterests}
+                onChange={(e) => setEditInterests(e.target.value)}
+                className="border-primary/30 bg-card/50"
+                placeholder="e.g. AI, fitness, jazz music..."
+                rows={2}
+              />
             </div>
             <div className="space-y-2">
               <Label>Work Style</Label>
@@ -598,7 +798,13 @@ export function SettingsPage() {
             </div>
             <div className="space-y-1">
               <Label>Current Projects</Label>
-              <Textarea value={editProjects} onChange={(e) => setEditProjects(e.target.value)} className="border-primary/30 bg-card/50" placeholder="e.g. Building a SaaS app, writing a book..." rows={2} />
+              <Textarea
+                value={editProjects}
+                onChange={(e) => setEditProjects(e.target.value)}
+                className="border-primary/30 bg-card/50"
+                placeholder="e.g. Building a SaaS app, writing a book..."
+                rows={2}
+              />
             </div>
             <Button
               className="w-full bg-primary"
@@ -607,7 +813,9 @@ export function SettingsPage() {
               style={{ boxShadow: "0 0 15px oklch(0.65 0.25 220 / 0.3)" }}
             >
               {isSavingProfile ? (
-                <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Saving...</>
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Saving...
+                </>
               ) : (
                 "Save & Teach DJ"
               )}
@@ -619,7 +827,8 @@ export function SettingsPage() {
         <Section title="Voice-to-Rule Capture">
           <div className="rounded-lg border border-muted bg-card/30 p-5 space-y-4">
             <p className="text-sm text-muted-foreground">
-              Speak a rule naturally and DJ will save it. Say things like "I like short answers" or "always be direct."
+              Speak a rule naturally and DJ will save it. Say things like "I
+              like short answers" or "always be direct."
             </p>
             <div className="flex flex-col items-center gap-4">
               <button
@@ -631,7 +840,11 @@ export function SettingsPage() {
                     ? "border-primary bg-primary/20 animate-pulse"
                     : "border-primary/50 bg-card hover:border-primary hover:bg-primary/10"
                 }`}
-                style={{ boxShadow: isListening ? "0 0 20px oklch(0.65 0.25 220 / 0.6)" : "" }}
+                style={{
+                  boxShadow: isListening
+                    ? "0 0 20px oklch(0.65 0.25 220 / 0.6)"
+                    : "",
+                }}
               >
                 {isListening ? (
                   <MicOff className="h-7 w-7 text-primary" />
@@ -640,12 +853,16 @@ export function SettingsPage() {
                 )}
               </button>
               <p className="text-sm text-muted-foreground">
-                {isListening ? "Listening... speak your rule" : "Tap to speak a rule"}
+                {isListening
+                  ? "Listening... speak your rule"
+                  : "Tap to speak a rule"}
               </p>
             </div>
             {voiceTranscript && (
               <div className="rounded-lg border border-primary/30 bg-primary/10 p-3">
-                <p className="text-xs text-muted-foreground mb-1">Transcribed rule:</p>
+                <p className="text-xs text-muted-foreground mb-1">
+                  Transcribed rule:
+                </p>
                 <p className="text-sm font-medium">"{voiceTranscript}"</p>
                 <Button
                   className="mt-3 w-full bg-primary"
@@ -654,7 +871,10 @@ export function SettingsPage() {
                   disabled={isSavingVoiceRule}
                 >
                   {isSavingVoiceRule ? (
-                    <><Loader2 className="mr-2 h-3 w-3 animate-spin" /> Saving...</>
+                    <>
+                      <Loader2 className="mr-2 h-3 w-3 animate-spin" />{" "}
+                      Saving...
+                    </>
                   ) : (
                     "Save as Rule"
                   )}
@@ -667,7 +887,8 @@ export function SettingsPage() {
         {/* ─── Section H: Drag-to-Prioritize Rules ─── */}
         <Section title="Prioritize Rules">
           <p className="text-sm text-muted-foreground">
-            Use the arrows to reorder rules by importance. DJ follows higher-priority rules first when there's a conflict.
+            Use the arrows to reorder rules by importance. DJ follows
+            higher-priority rules first when there's a conflict.
           </p>
           {rulesOrdered.length === 0 ? (
             <div className="rounded-lg border border-muted bg-card/30 p-6 text-center text-muted-foreground text-sm">
@@ -701,7 +922,9 @@ export function SettingsPage() {
                   <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded bg-primary/20 text-xs font-bold text-primary">
                     {index + 1}
                   </div>
-                  <p className="flex-1 text-sm min-w-0 truncate">{rule.ruleText}</p>
+                  <p className="flex-1 text-sm min-w-0 truncate">
+                    {rule.ruleText}
+                  </p>
                   <button
                     type="button"
                     onClick={() => handleDeleteRule(rule.id)}
@@ -717,11 +940,17 @@ export function SettingsPage() {
 
         {/* Footer links */}
         <div className="flex justify-center gap-6 pb-8 text-sm text-muted-foreground">
-          <a href="/teach" className="flex items-center gap-1 hover:text-primary">
+          <a
+            href="/teach"
+            className="flex items-center gap-1 hover:text-primary"
+          >
             <GraduationCap className="h-3.5 w-3.5" />
             Teach DJ (Story Mode)
           </a>
-          <a href="/profile" className="flex items-center gap-1 hover:text-primary">
+          <a
+            href="/profile"
+            className="flex items-center gap-1 hover:text-primary"
+          >
             <Users className="h-3.5 w-3.5" />
             View Profile
           </a>

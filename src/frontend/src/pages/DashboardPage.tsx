@@ -1,22 +1,39 @@
-import { useEffect, useState } from "react";
-import { Link } from "react-router-dom";
-import { Layout } from "../components/Layout";
-import {
-  useUserProfile,
-  useActiveModules,
-  useActivateModule,
-  useDeactivateModule,
-  useMemories,
-  useCustomCommands,
-  useImprovementLogs,
-  useBehaviorRules,
-} from "../hooks/useQueries";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Mic, FileSpreadsheet, Code, Globe, Brain, Activity, Settings, GraduationCap } from "lucide-react";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import { Switch } from "@/components/ui/switch";
+import {
+  Activity,
+  BookOpen,
+  Brain,
+  Code,
+  FileSpreadsheet,
+  Globe,
+  GraduationCap,
+  Mic,
+  Settings,
+} from "lucide-react";
+import { useEffect, useState } from "react";
+import { Link } from "react-router-dom";
 import { toast } from "sonner";
+import { Layout } from "../components/Layout";
+import {
+  useActivateModule,
+  useActiveModules,
+  useBehaviorRules,
+  useCustomCommands,
+  useDeactivateModule,
+  useImprovementLogs,
+  useMemories,
+  useUserProfile,
+} from "../hooks/useQueries";
+import { isKnowledgeSource } from "../utils/knowledgeSources";
 
 export function DashboardPage() {
   const { data: profile } = useUserProfile();
@@ -25,6 +42,11 @@ export function DashboardPage() {
   const { data: commands = [] } = useCustomCommands();
   const { data: logs = [] } = useImprovementLogs();
   const { data: rules = [] } = useBehaviorRules();
+
+  const knowledgeSourceCount = memories.filter(isKnowledgeSource).length;
+  const regularMemoryCount = memories.filter(
+    (m) => !isKnowledgeSource(m),
+  ).length;
   const activateModule = useActivateModule();
   const deactivateModule = useDeactivateModule();
 
@@ -67,7 +89,7 @@ export function DashboardPage() {
         await activateModule.mutateAsync(moduleName);
         toast.success(`${moduleName} module activated`);
       }
-    } catch (error) {
+    } catch (_error) {
       toast.error("Failed to toggle module");
     }
   };
@@ -99,13 +121,19 @@ export function DashboardPage() {
     });
   };
 
-  const initials = (profile?.name || "U").split(" ").map((n: string) => n[0]).join("").toUpperCase().slice(0, 2);
+  const initials = (profile?.name || "U")
+    .split(" ")
+    .map((n: string) => n[0])
+    .join("")
+    .toUpperCase()
+    .slice(0, 2);
 
   return (
     <Layout>
       <div className="container mx-auto space-y-8 px-4 py-8">
         {/* DJ Profile Card */}
-        <div className="flex items-center justify-between gap-4 rounded-xl border border-primary/30 bg-gradient-to-br from-card to-muted/30 p-5"
+        <div
+          className="flex items-center justify-between gap-4 rounded-xl border border-primary/30 bg-gradient-to-br from-card to-muted/30 p-5"
           style={{ boxShadow: "0 0 20px oklch(0.65 0.25 220 / 0.15)" }}
         >
           <div className="flex items-center gap-4">
@@ -117,9 +145,12 @@ export function DashboardPage() {
             </div>
             <div>
               <div className="flex flex-wrap items-center gap-2">
-                <p className="font-display text-lg font-bold">{profile?.name || "User"}</p>
+                <p className="font-display text-lg font-bold">
+                  {profile?.name || "User"}
+                </p>
                 <Badge className="bg-primary/20 text-primary border-primary/30 text-xs capitalize">
-                  {profile?.personalitySettings?.communicationStyle || "professional"}
+                  {profile?.personalitySettings?.communicationStyle ||
+                    "professional"}
                 </Badge>
               </div>
               <div className="flex flex-wrap gap-3 mt-0.5 text-xs text-muted-foreground">
@@ -131,12 +162,20 @@ export function DashboardPage() {
           </div>
           <div className="flex gap-2">
             <Link to="/settings">
-              <Button variant="outline" size="sm" className="border-primary/40 text-primary">
+              <Button
+                variant="outline"
+                size="sm"
+                className="border-primary/40 text-primary"
+              >
                 <Settings className="mr-1 h-3.5 w-3.5" /> Settings
               </Button>
             </Link>
             <Link to="/teach">
-              <Button variant="outline" size="sm" className="border-secondary/40 text-secondary">
+              <Button
+                variant="outline"
+                size="sm"
+                className="border-secondary/40 text-secondary"
+              >
                 <GraduationCap className="mr-1 h-3.5 w-3.5" /> Teach
               </Button>
             </Link>
@@ -149,7 +188,9 @@ export function DashboardPage() {
             <p className="glow-text font-display text-5xl font-bold md:text-7xl">
               {formatTime(currentTime)}
             </p>
-            <p className="mt-2 text-lg text-muted-foreground">{formatDate(currentTime)}</p>
+            <p className="mt-2 text-lg text-muted-foreground">
+              {formatDate(currentTime)}
+            </p>
           </div>
           <h1 className="glow-text-cyan mb-2 font-display text-3xl font-bold md:text-4xl">
             Welcome back, {profile?.name || "User"}
@@ -163,8 +204,12 @@ export function DashboardPage() {
           {/* Central Listening Interface */}
           <Card className="glow-border border-primary/50 lg:col-span-2">
             <CardHeader>
-              <CardTitle className="font-display text-2xl">Voice Interface</CardTitle>
-              <CardDescription>Say "Hey DJ" to activate voice commands</CardDescription>
+              <CardTitle className="font-display text-2xl">
+                Voice Interface
+              </CardTitle>
+              <CardDescription>
+                Say "Hey DJ" to activate voice commands
+              </CardDescription>
             </CardHeader>
             <CardContent className="flex flex-col items-center justify-center py-12">
               <div className="relative">
@@ -191,13 +236,31 @@ export function DashboardPage() {
             <CardContent className="space-y-4">
               <div className="flex items-center justify-between">
                 <span className="text-muted-foreground">Memories</span>
-                <Badge variant="outline" className="border-primary text-primary">
-                  {memories.length}
+                <Badge
+                  variant="outline"
+                  className="border-primary text-primary"
+                >
+                  {regularMemoryCount}
+                </Badge>
+              </div>
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-1.5 text-muted-foreground">
+                  <BookOpen className="h-3.5 w-3.5" />
+                  Knowledge Sources
+                </div>
+                <Badge
+                  variant="outline"
+                  className="border-blue-400 text-blue-400"
+                >
+                  {knowledgeSourceCount}
                 </Badge>
               </div>
               <div className="flex items-center justify-between">
                 <span className="text-muted-foreground">Custom Commands</span>
-                <Badge variant="outline" className="border-secondary text-secondary">
+                <Badge
+                  variant="outline"
+                  className="border-secondary text-secondary"
+                >
                   {commands.length}
                 </Badge>
               </div>
@@ -209,13 +272,19 @@ export function DashboardPage() {
               </div>
               <div className="flex items-center justify-between">
                 <span className="text-muted-foreground">Active Rules</span>
-                <Badge variant="outline" className="border-chart-3 text-chart-3">
+                <Badge
+                  variant="outline"
+                  className="border-chart-3 text-chart-3"
+                >
                   {rules.length}
                 </Badge>
               </div>
               <div className="flex items-center justify-between">
                 <span className="text-muted-foreground">Improvements</span>
-                <Badge variant="outline" className="border-chart-5 text-chart-5">
+                <Badge
+                  variant="outline"
+                  className="border-chart-5 text-chart-5"
+                >
                   {logs.length}
                 </Badge>
               </div>
@@ -252,13 +321,19 @@ export function DashboardPage() {
                           />
                         </div>
                         <div>
-                          <CardTitle className="text-lg">{module.name}</CardTitle>
+                          <CardTitle className="text-lg">
+                            {module.name}
+                          </CardTitle>
                         </div>
                       </div>
                       <Switch
                         checked={isActive}
-                        onCheckedChange={() => handleToggleModule(module.id, isActive)}
-                        disabled={activateModule.isPending || deactivateModule.isPending}
+                        onCheckedChange={() =>
+                          handleToggleModule(module.id, isActive)
+                        }
+                        disabled={
+                          activateModule.isPending || deactivateModule.isPending
+                        }
                       />
                     </div>
                     <CardDescription>{module.description}</CardDescription>
@@ -280,7 +355,9 @@ export function DashboardPage() {
           </CardHeader>
           <CardContent>
             {logs.length === 0 ? (
-              <p className="text-center text-muted-foreground">No activity yet</p>
+              <p className="text-center text-muted-foreground">
+                No activity yet
+              </p>
             ) : (
               <div className="space-y-4">
                 {logs.slice(0, 5).map((log) => (

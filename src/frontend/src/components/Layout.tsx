@@ -1,7 +1,18 @@
+import { Button } from "@/components/ui/button";
+import {
+  BookOpen,
+  Code,
+  FileSpreadsheet,
+  Globe,
+  GraduationCap,
+  Home,
+  LogOut,
+  MessageSquare,
+  Settings,
+  User,
+} from "lucide-react";
 import { Link, useLocation } from "react-router-dom";
 import { useInternetIdentity } from "../hooks/useInternetIdentity";
-import { Button } from "@/components/ui/button";
-import { LogOut, Home, MessageSquare, FileSpreadsheet, Code, Globe, User, Settings, GraduationCap } from "lucide-react";
 
 export function Layout({ children }: { children: React.ReactNode }) {
   const { clear } = useInternetIdentity();
@@ -10,6 +21,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
   const navItems = [
     { path: "/", icon: Home, label: "Dashboard" },
     { path: "/chat", icon: MessageSquare, label: "Chat" },
+    { path: "/knowledge", icon: BookOpen, label: "Knowledge" },
     { path: "/excel", icon: FileSpreadsheet, label: "Excel" },
     { path: "/coding", icon: Code, label: "Code" },
     { path: "/website", icon: Globe, label: "Web" },

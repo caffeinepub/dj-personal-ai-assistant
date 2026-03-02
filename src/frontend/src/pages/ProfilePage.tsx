@@ -1,18 +1,3 @@
-import { useState } from "react";
-import { Link } from "react-router-dom";
-import { Layout } from "../components/Layout";
-import { SelfImprovementPanel } from "../components/SelfImprovementPanel";
-import {
-  useUserProfile,
-  useUpdateUserProfile,
-  usePersonalitySettings,
-  useSetPersonalitySettings,
-} from "../hooks/useQueries";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
-import { Button } from "@/components/ui/button";
-import { Label } from "@/components/ui/label";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -24,8 +9,35 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
-import { Loader2, User, Settings, GraduationCap } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { GraduationCap, Loader2, Settings, User } from "lucide-react";
+import { useState } from "react";
+import { Link } from "react-router-dom";
 import { toast } from "sonner";
+import { Layout } from "../components/Layout";
+import { SelfImprovementPanel } from "../components/SelfImprovementPanel";
+import {
+  usePersonalitySettings,
+  useSetPersonalitySettings,
+  useUpdateUserProfile,
+  useUserProfile,
+} from "../hooks/useQueries";
 
 export function ProfilePage() {
   const { data: profile } = useUserProfile();
@@ -34,7 +46,9 @@ export function ProfilePage() {
   const updatePersonality = useSetPersonalitySettings();
 
   const [name, setName] = useState(profile?.name || "");
-  const [style, setStyle] = useState(personalitySettings?.communicationStyle || "professional");
+  const [style, setStyle] = useState(
+    personalitySettings?.communicationStyle || "professional",
+  );
 
   const handleUpdateProfile = async () => {
     if (!name.trim()) {
@@ -45,11 +59,13 @@ export function ProfilePage() {
       await updateProfile.mutateAsync({
         name: name.trim(),
         preferences: profile?.preferences || "",
-        personalitySettings: profile?.personalitySettings || { communicationStyle: "professional" },
+        personalitySettings: profile?.personalitySettings || {
+          communicationStyle: "professional",
+        },
         onboardingComplete: profile?.onboardingComplete ?? true,
       });
       toast.success("Profile updated successfully!");
-    } catch (error) {
+    } catch (_error) {
       toast.error("Failed to update profile");
     }
   };
@@ -58,7 +74,7 @@ export function ProfilePage() {
     try {
       await updatePersonality.mutateAsync(style);
       toast.success("Communication style updated!");
-    } catch (error) {
+    } catch (_error) {
       toast.error("Failed to update communication style");
     }
   };
@@ -73,17 +89,27 @@ export function ProfilePage() {
       <div className="container mx-auto space-y-6 px-4 py-8">
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div>
-            <h1 className="glow-text font-display text-3xl font-bold">Profile</h1>
-            <p className="text-muted-foreground">Manage your account and DJ's behavior</p>
+            <h1 className="glow-text font-display text-3xl font-bold">
+              Profile
+            </h1>
+            <p className="text-muted-foreground">
+              Manage your account and DJ's behavior
+            </p>
           </div>
           <div className="flex gap-3">
             <Link to="/settings">
-              <Button variant="outline" className="border-primary/40 text-primary">
+              <Button
+                variant="outline"
+                className="border-primary/40 text-primary"
+              >
                 <Settings className="mr-2 h-4 w-4" /> Full Settings
               </Button>
             </Link>
             <Link to="/teach">
-              <Button variant="outline" className="border-secondary/40 text-secondary">
+              <Button
+                variant="outline"
+                className="border-secondary/40 text-secondary"
+              >
                 <GraduationCap className="mr-2 h-4 w-4" /> Teach DJ
               </Button>
             </Link>
@@ -177,15 +203,21 @@ export function ProfilePage() {
                 </AlertDialogTrigger>
                 <AlertDialogContent>
                   <AlertDialogHeader>
-                    <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
+                    <AlertDialogTitle>
+                      Are you absolutely sure?
+                    </AlertDialogTitle>
                     <AlertDialogDescription>
-                      This will permanently delete all your memories, commands, behavior rules, and
-                      improvement logs. This action cannot be undone.
+                      This will permanently delete all your memories, commands,
+                      behavior rules, and improvement logs. This action cannot
+                      be undone.
                     </AlertDialogDescription>
                   </AlertDialogHeader>
                   <AlertDialogFooter>
                     <AlertDialogCancel>Cancel</AlertDialogCancel>
-                    <AlertDialogAction onClick={handleResetAll} className="bg-destructive">
+                    <AlertDialogAction
+                      onClick={handleResetAll}
+                      className="bg-destructive"
+                    >
                       Reset Everything
                     </AlertDialogAction>
                   </AlertDialogFooter>
