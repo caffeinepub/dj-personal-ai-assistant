@@ -1,7 +1,7 @@
 import { Toaster } from "@/components/ui/sonner";
-import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
 import { useInternetIdentity } from "./hooks/useInternetIdentity";
 import { useUserProfile } from "./hooks/useQueries";
+import { BrowserRouter, Navigate, Route, Routes } from "./lib/router-shim";
 import { ChatPage } from "./pages/ChatPage";
 import { CodingPage } from "./pages/CodingPage";
 import { DashboardPage } from "./pages/DashboardPage";

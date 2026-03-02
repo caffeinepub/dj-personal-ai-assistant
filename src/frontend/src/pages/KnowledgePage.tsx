@@ -13,6 +13,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import {
   BookOpen,
+  CheckCircle,
   FileText,
   FileType,
   Globe,
@@ -21,6 +22,7 @@ import {
   Plus,
   Presentation,
   Search,
+  Sparkles,
   Trash2,
   Upload,
   X,
@@ -356,6 +358,212 @@ export function KnowledgePage() {
     }
   };
 
+  // ─── Research a Topic ───
+  const [researchTopic, setResearchTopic] = useState("");
+  const [researchSuggestions, setResearchSuggestions] = useState<
+    { title: string; url: string; description: string }[]
+  >([]);
+  const [isGeneratingSuggestions, setIsGeneratingSuggestions] = useState(false);
+  const [fetchingUrls, setFetchingUrls] = useState<Record<string, boolean>>({});
+  const [addedUrls, setAddedUrls] = useState<Set<string>>(new Set());
+
+  const CURATED_SOURCES: Record<
+    string,
+    { title: string; url: string; description: string }[]
+  > = {
+    bitcoin: [
+      {
+        title: "Bitcoin - Wikipedia",
+        url: "https://en.wikipedia.org/wiki/Bitcoin",
+        description:
+          "Comprehensive overview of Bitcoin, history, and technology",
+      },
+      {
+        title: "Bitcoin.org",
+        url: "https://bitcoin.org/en/",
+        description: "Official Bitcoin project homepage",
+      },
+      {
+        title: "Bitcoin - Investopedia",
+        url: "https://www.investopedia.com/terms/b/bitcoin.asp",
+        description: "Financial guide to Bitcoin investing and trading",
+      },
+      {
+        title: "Bitcoin Whitepaper",
+        url: "https://bitcoin.org/bitcoin.pdf",
+        description: "Satoshi Nakamoto's original Bitcoin whitepaper",
+      },
+      {
+        title: "CoinDesk Bitcoin News",
+        url: "https://www.coindesk.com/tag/bitcoin/",
+        description: "Latest Bitcoin news and analysis",
+      },
+    ],
+    "icp internet computer": [
+      {
+        title: "Internet Computer - Wikipedia",
+        url: "https://en.wikipedia.org/wiki/Internet_Computer",
+        description: "Overview of the Internet Computer blockchain",
+      },
+      {
+        title: "DFINITY Foundation",
+        url: "https://dfinity.org/",
+        description: "The organization behind ICP development",
+      },
+      {
+        title: "ICP Developer Docs",
+        url: "https://internetcomputer.org/docs/current/developer-docs/",
+        description: "Official ICP developer documentation",
+      },
+      {
+        title: "ICP Overview",
+        url: "https://internetcomputer.org/",
+        description: "Internet Computer Protocol official site",
+      },
+      {
+        title: "ICP on CoinGecko",
+        url: "https://www.coingecko.com/en/coins/internet-computer",
+        description: "ICP token price and market data",
+      },
+    ],
+    ethereum: [
+      {
+        title: "Ethereum - Wikipedia",
+        url: "https://en.wikipedia.org/wiki/Ethereum",
+        description: "Complete guide to Ethereum blockchain",
+      },
+      {
+        title: "Ethereum.org",
+        url: "https://ethereum.org/en/",
+        description: "Official Ethereum foundation site",
+      },
+      {
+        title: "Ethereum Docs",
+        url: "https://ethereum.org/en/developers/docs/",
+        description: "Official Ethereum developer documentation",
+      },
+      {
+        title: "Ethereum - Investopedia",
+        url: "https://www.investopedia.com/terms/e/ethereum.asp",
+        description: "Ethereum investing guide",
+      },
+      {
+        title: "Etherscan",
+        url: "https://etherscan.io/",
+        description: "Ethereum blockchain explorer",
+      },
+    ],
+    "artificial intelligence": [
+      {
+        title: "Artificial Intelligence - Wikipedia",
+        url: "https://en.wikipedia.org/wiki/Artificial_intelligence",
+        description: "Comprehensive overview of AI",
+      },
+      {
+        title: "AI - Britannica",
+        url: "https://www.britannica.com/technology/artificial-intelligence",
+        description: "Encyclopedia article on AI",
+      },
+      {
+        title: "MIT AI Lab",
+        url: "https://www.csail.mit.edu/research/artificial-intelligence",
+        description: "MIT's AI research overview",
+      },
+      {
+        title: "AI News - BBC",
+        url: "https://www.bbc.com/news/topics/ce1qrvleleqt/artificial-intelligence",
+        description: "Latest AI news from BBC",
+      },
+      {
+        title: "AI - Stanford",
+        url: "https://ai.stanford.edu/",
+        description: "Stanford University AI research",
+      },
+    ],
+  };
+
+  const generateResearchSources = () => {
+    if (!researchTopic.trim()) {
+      toast.error("Please enter a topic to research");
+      return;
+    }
+    setIsGeneratingSuggestions(true);
+    setResearchSuggestions([]);
+    setAddedUrls(new Set());
+
+    setTimeout(() => {
+      const key = researchTopic.trim().toLowerCase();
+      const exact = CURATED_SOURCES[key];
+      if (exact) {
+        setResearchSuggestions(exact);
+      } else {
+        // Generic fallback sources
+        const encoded = encodeURIComponent(researchTopic.trim());
+        setResearchSuggestions([
+          {
+            title: `${researchTopic} - Wikipedia`,
+            url: `https://en.wikipedia.org/wiki/${encodeURIComponent(researchTopic.trim().replace(/\s+/g, "_"))}`,
+            description: `Wikipedia article about ${researchTopic}`,
+          },
+          {
+            title: `${researchTopic} - Britannica`,
+            url: `https://www.britannica.com/search?query=${encoded}`,
+            description: `Encyclopaedia Britannica on ${researchTopic}`,
+          },
+          {
+            title: `${researchTopic} - BBC News`,
+            url: `https://www.bbc.com/search?q=${encoded}`,
+            description: `Latest BBC news about ${researchTopic}`,
+          },
+          {
+            title: `${researchTopic} - Investopedia`,
+            url: `https://www.investopedia.com/search#q=${encoded}`,
+            description: `Investopedia financial guide on ${researchTopic}`,
+          },
+          {
+            title: `${researchTopic} - MIT News`,
+            url: `https://news.mit.edu/search/node/${encoded}`,
+            description: `MIT academic articles about ${researchTopic}`,
+          },
+        ]);
+      }
+      setIsGeneratingSuggestions(false);
+      toast.success(`5 sources found for "${researchTopic}"`);
+    }, 1200);
+  };
+
+  const handleFetchResearchSource = async (source: {
+    title: string;
+    url: string;
+    description: string;
+  }) => {
+    setFetchingUrls((prev) => ({ ...prev, [source.url]: true }));
+    try {
+      let content = "";
+      try {
+        const resp = await fetch(source.url);
+        const html = await resp.text();
+        content = extractTextFromHtml(html).slice(0, 2000);
+      } catch {
+        // CORS fallback — use description
+        content = `${source.title}\n\n${source.description}\n\nSource: ${source.url}`;
+      }
+      const encoded = encodeKnowledgeSource(
+        "website",
+        source.title,
+        source.url,
+        content || source.description,
+      );
+      await addMemory.mutateAsync(encoded);
+      setAddedUrls((prev) => new Set([...prev, source.url]));
+      toast.success(`"${source.title}" added to DJ's memory`);
+    } catch {
+      toast.error(`Failed to add "${source.title}"`);
+    } finally {
+      setFetchingUrls((prev) => ({ ...prev, [source.url]: false }));
+    }
+  };
+
   return (
     <Layout>
       <div className="container mx-auto max-w-4xl space-y-8 px-4 py-8">
@@ -391,28 +599,178 @@ export function KnowledgePage() {
           )}
         </div>
 
-        <Tabs defaultValue="add">
-          <TabsList className="mb-6 grid w-full grid-cols-2 border border-primary/30 bg-card/80">
+        <Tabs defaultValue="research">
+          <TabsList className="mb-6 grid w-full grid-cols-3 border border-primary/30 bg-card/80">
+            <TabsTrigger
+              value="research"
+              className="data-[state=active]:bg-primary/20 data-[state=active]:text-primary"
+            >
+              <Sparkles className="mr-1.5 h-4 w-4" />
+              Research
+            </TabsTrigger>
             <TabsTrigger
               value="add"
               className="data-[state=active]:bg-primary/20 data-[state=active]:text-primary"
             >
-              <Plus className="mr-2 h-4 w-4" />
+              <Plus className="mr-1.5 h-4 w-4" />
               Add Source
             </TabsTrigger>
             <TabsTrigger
               value="sources"
               className="data-[state=active]:bg-primary/20 data-[state=active]:text-primary"
             >
-              <BookOpen className="mr-2 h-4 w-4" />
+              <BookOpen className="mr-1.5 h-4 w-4" />
               My Sources
               {knowledgeSources.length > 0 && (
-                <Badge className="ml-2 border-primary/30 bg-primary/20 text-primary text-xs">
+                <Badge className="ml-1.5 border-primary/30 bg-primary/20 text-primary text-xs">
                   {knowledgeSources.length}
                 </Badge>
               )}
             </TabsTrigger>
           </TabsList>
+
+          {/* ─── RESEARCH A TOPIC TAB ─── */}
+          <TabsContent value="research" className="space-y-6">
+            <Card className="glow-border border-primary/40">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2 font-display">
+                  <Sparkles className="h-5 w-5 text-secondary" />
+                  Research a Topic
+                </CardTitle>
+                <CardDescription>
+                  Type any topic and DJ will suggest 5 trusted sources to add to
+                  its memory instantly.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="flex gap-2">
+                  <div className="relative flex-1">
+                    <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                    <Input
+                      placeholder='e.g. "Bitcoin", "ICP Internet Computer", "AI"'
+                      value={researchTopic}
+                      onChange={(e) => setResearchTopic(e.target.value)}
+                      onKeyDown={(e) =>
+                        e.key === "Enter" && generateResearchSources()
+                      }
+                      className="border-primary/30 bg-card/50 pl-9"
+                    />
+                  </div>
+                  <Button
+                    onClick={generateResearchSources}
+                    disabled={isGeneratingSuggestions || !researchTopic.trim()}
+                    className="shrink-0 bg-secondary/20 border border-secondary/40 text-secondary hover:bg-secondary/30"
+                  >
+                    {isGeneratingSuggestions ? (
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    ) : (
+                      <Sparkles className="mr-2 h-4 w-4" />
+                    )}
+                    Generate Sources
+                  </Button>
+                </div>
+
+                {/* Quick topic suggestions */}
+                <div className="flex flex-wrap gap-2">
+                  {[
+                    "Bitcoin",
+                    "ICP Internet Computer",
+                    "Ethereum",
+                    "Artificial Intelligence",
+                  ].map((topic) => (
+                    <button
+                      key={topic}
+                      type="button"
+                      onClick={() => setResearchTopic(topic)}
+                      className="rounded-full border border-primary/30 bg-primary/10 px-3 py-1 text-xs text-primary transition-all hover:bg-primary/20 hover:border-primary/60"
+                    >
+                      {topic}
+                    </button>
+                  ))}
+                </div>
+
+                {isGeneratingSuggestions && (
+                  <div className="flex flex-col items-center gap-3 rounded-xl border border-primary/20 bg-primary/5 py-10">
+                    <Loader2 className="h-8 w-8 animate-spin text-primary" />
+                    <p className="text-sm text-muted-foreground">
+                      Finding the best sources for "{researchTopic}"...
+                    </p>
+                  </div>
+                )}
+
+                {researchSuggestions.length > 0 && (
+                  <div className="space-y-3">
+                    <p className="text-sm font-medium text-muted-foreground">
+                      {researchSuggestions.length} sources found — tap to add to
+                      DJ's memory:
+                    </p>
+                    {researchSuggestions.map((source) => {
+                      const isAdded = addedUrls.has(source.url);
+                      const isFetching = fetchingUrls[source.url];
+                      return (
+                        <div
+                          key={source.url}
+                          className={`flex items-start gap-3 rounded-xl border p-4 transition-all ${
+                            isAdded
+                              ? "border-green-500/40 bg-green-500/5"
+                              : "border-primary/30 bg-card/50 hover:border-primary/60"
+                          }`}
+                        >
+                          <div className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-primary/30 bg-primary/10">
+                            <Globe className="h-4 w-4 text-blue-400" />
+                          </div>
+                          <div className="min-w-0 flex-1">
+                            <p className="font-semibold text-sm text-foreground truncate">
+                              {source.title}
+                            </p>
+                            <p className="mt-0.5 text-xs text-muted-foreground line-clamp-2">
+                              {source.description}
+                            </p>
+                            <p className="mt-1 truncate text-xs text-primary/60">
+                              {source.url}
+                            </p>
+                          </div>
+                          <Button
+                            size="sm"
+                            onClick={() => handleFetchResearchSource(source)}
+                            disabled={isFetching || isAdded}
+                            className={`shrink-0 ${
+                              isAdded
+                                ? "bg-green-500/20 border-green-500/40 text-green-400"
+                                : "bg-primary/20 border border-primary/40 text-primary hover:bg-primary/30"
+                            }`}
+                            variant="outline"
+                          >
+                            {isFetching ? (
+                              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                            ) : isAdded ? (
+                              <>
+                                <CheckCircle className="mr-1.5 h-3.5 w-3.5" />
+                                Added
+                              </>
+                            ) : (
+                              <>
+                                <Plus className="mr-1.5 h-3.5 w-3.5" />
+                                Add
+                              </>
+                            )}
+                          </Button>
+                        </div>
+                      );
+                    })}
+
+                    {addedUrls.size > 0 && (
+                      <div className="rounded-lg border border-green-500/30 bg-green-500/5 p-3 text-center text-sm text-green-400">
+                        {addedUrls.size} source{addedUrls.size !== 1 ? "s" : ""}{" "}
+                        added to DJ's memory. Ask DJ: "What do you know about{" "}
+                        {researchTopic}?"
+                      </div>
+                    )}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </TabsContent>
 
           {/* ─── ADD SOURCE TAB ─── */}
           <TabsContent value="add" className="space-y-6">

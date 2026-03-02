@@ -28,7 +28,6 @@ import {
 } from "@/components/ui/select";
 import { GraduationCap, Loader2, Settings, User } from "lucide-react";
 import { useState } from "react";
-import { Link } from "react-router-dom";
 import { toast } from "sonner";
 import { Layout } from "../components/Layout";
 import { SelfImprovementPanel } from "../components/SelfImprovementPanel";
@@ -38,6 +37,7 @@ import {
   useUpdateUserProfile,
   useUserProfile,
 } from "../hooks/useQueries";
+import { Link } from "../lib/router-shim";
 
 export function ProfilePage() {
   const { data: profile } = useUserProfile();

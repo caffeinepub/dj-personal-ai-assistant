@@ -11,7 +11,6 @@ import {
   X,
 } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Link } from "react-router-dom";
 import { toast } from "sonner";
 import { Layout } from "../components/Layout";
 import {
@@ -28,6 +27,7 @@ import {
   useSetBehaviorRule,
   useSetPersonalitySettings,
 } from "../hooks/useQueries";
+import { Link } from "../lib/router-shim";
 import {
   getRelevantContext,
   parseKnowledgeSource,
@@ -74,7 +74,11 @@ function MessageContent({ content }: { content: string }) {
 }
 
 export function ChatPage() {
-  const { data: messages = [] } = useChatMessages();
+  const { data: rawMessages = [] } = useChatMessages();
+  // Sort messages oldest-first so the latest message always appears at the bottom
+  const messages = [...rawMessages].sort((a, b) =>
+    a.timestamp < b.timestamp ? -1 : a.timestamp > b.timestamp ? 1 : 0,
+  );
   const { data: memories = [] } = useMemories();
   const { data: rules = [] } = useBehaviorRules();
   const { data: personalitySettings } = usePersonalitySettings();
@@ -94,11 +98,19 @@ export function ChatPage() {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const synthRef = useRef<SpeechSynthesis | null>(null);
 
-  // Auto-scroll to bottom on new messages
-  // biome-ignore lint/correctness/useExhaustiveDependencies: messages.length is intentional to scroll on new messages
+  const isFirstLoad = useRef(true);
+
+  // Auto-scroll to bottom: instant on initial load, smooth on new messages
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages.length]);
+    if (messages.length > 0) {
+      if (isFirstLoad.current) {
+        messagesEndRef.current?.scrollIntoView({ behavior: "instant" });
+        isFirstLoad.current = false;
+      } else {
+        messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+      }
+    }
+  }, [messages]);
 
   // Show smart suggestions after 3+ messages
   useEffect(() => {
@@ -408,9 +420,12 @@ export function ChatPage() {
         </div>
       )}
 
-      <div className="flex h-[calc(100vh-4rem)] flex-col">
+      <div
+        className="flex h-[calc(100vh-4rem)] flex-col md:h-[calc(100vh-4rem)]"
+        style={{ height: "calc(100dvh - 4rem)" }}
+      >
         {/* Messages area - scrollable, fills remaining space */}
-        <div className="flex-1 overflow-y-auto px-4 py-4">
+        <div className="flex-1 overflow-y-auto px-4 py-4 pb-4">
           <div className="container mx-auto max-w-3xl space-y-4">
             {messages.length === 0 ? (
               <div className="flex h-64 items-center justify-center">

@@ -19,7 +19,6 @@ import {
 } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
-import JSZip from "jszip";
 import { Download, Eye, Loader2 } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
@@ -316,25 +315,30 @@ export function WebsitePage() {
     }
   };
 
-  const handleDownload = async () => {
+  const downloadFile = (content: string, filename: string, type: string) => {
+    const blob = new Blob([content], { type });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = filename;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const handleDownload = () => {
     if (!generatedHtml) {
       toast.error("Please generate a website first");
       return;
     }
 
-    const zip = new JSZip();
-    zip.file("index.html", generatedHtml);
-    zip.file("styles.css", generatedCss);
-    zip.file("script.js", generatedJs);
-
-    const blob = await zip.generateAsync({ type: "blob" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `${title.replace(/\s+/g, "-").toLowerCase()}.zip`;
-    a.click();
-    URL.revokeObjectURL(url);
-    toast.success("Website downloaded!");
+    // Download all three files individually (no zip library available)
+    downloadFile(generatedHtml, "index.html", "text/html");
+    setTimeout(() => downloadFile(generatedCss, "styles.css", "text/css"), 300);
+    setTimeout(
+      () => downloadFile(generatedJs, "script.js", "text/javascript"),
+      600,
+    );
+    toast.success("Website files downloaded (3 files)!");
   };
 
   const handleLoadWebsite = (website: (typeof websites)[0]) => {

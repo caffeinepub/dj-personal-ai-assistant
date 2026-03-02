@@ -4,7 +4,6 @@ import { Input } from "@/components/ui/input";
 import { ArrowLeft, Brain, Check, Loader2, Send } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
 import { useEffect, useRef, useState } from "react";
-import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import { Layout } from "../components/Layout";
 import {
@@ -14,6 +13,7 @@ import {
   useUpdateUserProfile,
   useUserProfile,
 } from "../hooks/useQueries";
+import { useNavigate } from "../lib/router-shim";
 
 interface Message {
   id: string;

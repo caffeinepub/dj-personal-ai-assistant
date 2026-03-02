@@ -16,8 +16,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import Editor from "@monaco-editor/react";
+
 import { Copy, Download, Loader2, Save } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
@@ -231,18 +230,12 @@ export function CodingPage() {
                 onChange={(e) => setTitle(e.target.value)}
               />
               <div className="glow-border h-[500px] overflow-hidden rounded-lg border border-primary/30">
-                <Editor
-                  height="100%"
-                  language={language}
+                <textarea
+                  className="h-full w-full resize-none bg-[#1e1e1e] p-4 font-mono text-sm text-[#d4d4d4] outline-none"
                   value={code}
-                  onChange={(value) => setCode(value || "")}
-                  theme="vs-dark"
-                  options={{
-                    minimap: { enabled: false },
-                    fontSize: 14,
-                    lineNumbers: "on",
-                    scrollBeyondLastLine: false,
-                  }}
+                  onChange={(e) => setCode(e.target.value)}
+                  spellCheck={false}
+                  placeholder={`// Start typing ${language} code here...`}
                 />
               </div>
               <Button

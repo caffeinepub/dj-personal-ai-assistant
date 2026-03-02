@@ -11,8 +11,8 @@ import {
   Settings,
   User,
 } from "lucide-react";
-import { Link, useLocation } from "react-router-dom";
 import { useInternetIdentity } from "../hooks/useInternetIdentity";
+import { Link, useLocation } from "../lib/router-shim";
 
 export function Layout({ children }: { children: React.ReactNode }) {
   const { clear } = useInternetIdentity();

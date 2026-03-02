@@ -32,7 +32,46 @@ import {
   YAxis,
 } from "recharts";
 import { toast } from "sonner";
-import * as XLSX from "xlsx";
+// Native CSV/spreadsheet parser (no external deps)
+const parseSpreadsheet = {
+  read: (
+    buffer: ArrayBuffer,
+    filename: string,
+  ): { SheetNames: string[]; Sheets: Record<string, unknown[]> } => {
+    const text = new TextDecoder("utf-8").decode(buffer);
+    const isCSV = filename.toLowerCase().endsWith(".csv");
+    const rows = isCSV ? parseCSV(text) : parseCSV(text); // fallback: treat all as CSV-like
+    return { SheetNames: ["Sheet1"], Sheets: { Sheet1: rows } };
+  },
+  sheetToJson: (rows: unknown[]): Record<string, unknown>[] =>
+    rows as Record<string, unknown>[],
+  jsonToCSV: (data: Record<string, unknown>[]): string => {
+    if (data.length === 0) return "";
+    const keys = Object.keys(data[0]);
+    const header = keys.join(",");
+    const body = data
+      .map((row) => keys.map((k) => JSON.stringify(row[k] ?? "")).join(","))
+      .join("\n");
+    return `${header}\n${body}`;
+  },
+};
+
+function parseCSV(text: string): Record<string, unknown>[] {
+  const lines = text.trim().split(/\r?\n/);
+  if (lines.length < 2) return [];
+  const headers = lines[0]
+    .split(",")
+    .map((h) => h.trim().replace(/^"|"$/g, ""));
+  return lines.slice(1).map((line) => {
+    const values = line.split(",").map((v) => v.trim().replace(/^"|"$/g, ""));
+    const row: Record<string, unknown> = {};
+    headers.forEach((h, i) => {
+      const val = values[i] ?? "";
+      row[h] = Number.isNaN(Number(val)) || val === "" ? val : Number(val);
+    });
+    return row;
+  });
+}
 import { Layout } from "../components/Layout";
 import { useExcelFiles, useSaveExcelFile } from "../hooks/useQueries";
 
@@ -52,13 +91,13 @@ export function ExcelPage() {
 
     try {
       const arrayBuffer = await file.arrayBuffer();
-      const workbook = XLSX.read(arrayBuffer);
+      const workbook = parseSpreadsheet.read(arrayBuffer, file.name);
       const sheetName = workbook.SheetNames[0];
-      const worksheet = workbook.Sheets[sheetName];
-      const jsonData = XLSX.utils.sheet_to_json(worksheet);
+      const rawRows = workbook.Sheets[sheetName];
+      const jsonData = parseSpreadsheet.sheetToJson(rawRows);
 
       if (jsonData.length > 0) {
-        const cols = Object.keys(jsonData[0] as any);
+        const cols = Object.keys(jsonData[0]);
         setColumns(cols);
         setUploadedData(jsonData);
         setFileName(file.name);
@@ -69,7 +108,7 @@ export function ExcelPage() {
         toast.success("File uploaded successfully!");
       }
     } catch (_error) {
-      toast.error("Failed to parse file");
+      toast.error("Failed to parse file. Please use a CSV file.");
     }
   };
 
@@ -129,10 +168,14 @@ export function ExcelPage() {
   };
 
   const downloadData = () => {
-    const worksheet = XLSX.utils.json_to_sheet(uploadedData);
-    const workbook = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(workbook, worksheet, "Data");
-    XLSX.writeFile(workbook, fileName || "export.xlsx");
+    const csvContent = parseSpreadsheet.jsonToCSV(uploadedData);
+    const blob = new Blob([csvContent], { type: "text/csv" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = fileName?.replace(/\.(xlsx|xls)$/i, ".csv") || "export.csv";
+    a.click();
+    URL.revokeObjectURL(url);
   };
 
   return (

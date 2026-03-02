@@ -9,10 +9,10 @@ import {
 import { Input } from "@/components/ui/input";
 import { Loader2 } from "lucide-react";
 import { useEffect, useState } from "react";
-import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import { useInternetIdentity } from "../hooks/useInternetIdentity";
 import { useCreateUserProfile, useUserProfile } from "../hooks/useQueries";
+import { useNavigate } from "../lib/router-shim";
 
 export function LoginPage() {
   const { login, loginStatus } = useInternetIdentity();

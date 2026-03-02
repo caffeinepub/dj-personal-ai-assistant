@@ -15,7 +15,6 @@ import {
 } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
 import { useState } from "react";
-import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import {
   useBehaviorRules,
@@ -26,6 +25,7 @@ import {
   useUpdateUserProfile,
   useUserProfile,
 } from "../hooks/useQueries";
+import { useNavigate } from "../lib/router-shim";
 
 const PERSONALITIES = [
   {

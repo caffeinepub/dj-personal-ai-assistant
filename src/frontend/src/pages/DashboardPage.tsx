@@ -20,7 +20,6 @@ import {
   Settings,
 } from "lucide-react";
 import { useEffect, useState } from "react";
-import { Link } from "react-router-dom";
 import { toast } from "sonner";
 import { Layout } from "../components/Layout";
 import {
@@ -33,6 +32,7 @@ import {
   useMemories,
   useUserProfile,
 } from "../hooks/useQueries";
+import { Link } from "../lib/router-shim";
 import { isKnowledgeSource } from "../utils/knowledgeSources";
 
 export function DashboardPage() {
