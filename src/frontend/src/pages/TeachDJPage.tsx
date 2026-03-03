@@ -60,19 +60,30 @@ export function TeachDJPage() {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
-  // Start with DJ's first question (run once on mount)
-  const profileName = profile?.name;
+  // Guard against double-firing — fire intro only once regardless of profileName loading
+  const hasStarted = useRef(false);
+  // Use a ref to capture profile name without adding it as a dependency
+  const profileNameRef = useRef<string | undefined>(undefined);
+  profileNameRef.current = profile?.name;
+
+  // Start with DJ's first question — fires once on mount using a ref guard
   useEffect(() => {
+    if (hasStarted.current) return;
+    hasStarted.current = true;
+
     const timer = setTimeout(() => {
-      const greeting = profileName
-        ? `Hello ${profileName}! I'm here to learn more about you so I can serve you better. Let's have a quick conversation. ${QUESTIONS[0].question}`
+      // Read the name via ref so we don't depend on profile in the dep array
+      const name = profileNameRef.current;
+      const greeting = name
+        ? `Hello ${name}! I'm here to learn more about you so I can serve you better. Let's have a quick conversation. ${QUESTIONS[0].question}`
         : `Hello! I'm ready to learn more about you. Let's have a quick conversation. ${QUESTIONS[0].question}`;
       setMessages([{ id: "intro", role: "dj", content: greeting }]);
       inputRef.current?.focus();
     }, 500);
     return () => clearTimeout(timer);
-  }, [profileName]);
+  }, []); // Intentionally empty — fires once on mount only
 
+  // Scroll to bottom when new messages are added
   // biome-ignore lint/correctness/useExhaustiveDependencies: messages.length is intentional to scroll on new messages
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -130,7 +141,8 @@ export function TeachDJPage() {
       addDJMessage(
         "That's everything I need! I now have a much better picture of who you are and how to help you. Tap the button below to save all of this to my memory.",
       );
-      setTimeout(() => setIsComplete(true), 2000);
+      // Reduced delay (500ms) so the summary card appears quickly
+      setTimeout(() => setIsComplete(true), 500);
     }
   };
 
@@ -194,6 +206,11 @@ export function TeachDJPage() {
     answers.rule && { label: "Custom rule", value: answers.rule },
   ].filter(Boolean) as { label: string; value: string }[];
 
+  // Progress counter: show current position (1-indexed) while session is active
+  const progressDisplay = isComplete
+    ? QUESTIONS.length
+    : Math.min(currentQuestionIndex + 1, QUESTIONS.length);
+
   const progressPct = Math.min(
     (currentQuestionIndex / QUESTIONS.length) * 100,
     100,
@@ -210,6 +227,7 @@ export function TeachDJPage() {
               size="icon"
               onClick={() => navigate(-1)}
               className="h-8 w-8 shrink-0"
+              data-ocid="teach.button"
             >
               <ArrowLeft className="h-4 w-4" />
             </Button>
@@ -229,7 +247,7 @@ export function TeachDJPage() {
                 />
               </div>
               <span className="text-xs text-muted-foreground">
-                {currentQuestionIndex}/{QUESTIONS.length}
+                {progressDisplay}/{QUESTIONS.length}
               </span>
             </div>
           </div>
@@ -302,7 +320,7 @@ export function TeachDJPage() {
               </motion.div>
             )}
 
-            {/* Summary card when complete */}
+            {/* Summary card when complete — visible immediately (delay 0.3s only for animation) */}
             {isComplete && answerSummary.length > 0 && (
               <motion.div
                 initial={{ opacity: 0, y: 15 }}
@@ -310,6 +328,7 @@ export function TeachDJPage() {
                 transition={{ delay: 0.3 }}
                 className="rounded-xl border border-primary/30 bg-gradient-to-br from-card to-muted/30 p-5"
                 style={{ boxShadow: "0 0 15px oklch(0.65 0.25 220 / 0.15)" }}
+                data-ocid="teach.card"
               >
                 <p className="mb-3 font-display text-sm font-bold text-primary">
                   Here's what I learned about you:
@@ -328,6 +347,7 @@ export function TeachDJPage() {
                   onClick={handleSaveToMemory}
                   disabled={isSaving}
                   style={{ boxShadow: "0 0 12px oklch(0.65 0.25 220 / 0.4)" }}
+                  data-ocid="teach.submit_button"
                 >
                   {isSaving ? (
                     <>
@@ -347,7 +367,7 @@ export function TeachDJPage() {
           </div>
         </div>
 
-        {/* Input */}
+        {/* Input — hidden after completion so summary card can be used */}
         {!isComplete && (
           <div className="border-t border-primary/20 bg-card/95 px-4 py-3 backdrop-blur">
             <div className="container mx-auto max-w-2xl flex gap-2">
@@ -361,11 +381,13 @@ export function TeachDJPage() {
                 }
                 className="flex-1 border-primary/40 bg-card/50"
                 disabled={isTyping}
+                data-ocid="teach.input"
               />
               <Button
                 onClick={handleSend}
                 disabled={!input.trim() || isTyping}
                 className="shrink-0 bg-primary"
+                data-ocid="teach.submit_button"
               >
                 <Send className="h-4 w-4" />
               </Button>

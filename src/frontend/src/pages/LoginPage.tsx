@@ -15,22 +15,29 @@ import { useCreateUserProfile, useUserProfile } from "../hooks/useQueries";
 import { useNavigate } from "../lib/router-shim";
 
 export function LoginPage() {
-  const { login, loginStatus } = useInternetIdentity();
+  const { login, loginStatus, identity } = useInternetIdentity();
   const navigate = useNavigate();
   const { data: profile, isLoading: isProfileLoading } = useUserProfile();
   const createProfile = useCreateUserProfile();
   const [name, setName] = useState("");
   const [showNamePrompt, setShowNamePrompt] = useState(false);
 
+  // Consider authenticated for either fresh login or stored identity
+  const isAuthenticated =
+    loginStatus === "success" ||
+    (loginStatus === "idle" &&
+      identity !== undefined &&
+      !identity.getPrincipal().isAnonymous());
+
   useEffect(() => {
-    if (loginStatus === "success") {
+    if (isAuthenticated) {
       if (!isProfileLoading && profile === null) {
         setShowNamePrompt(true);
       } else if (profile) {
         navigate("/");
       }
     }
-  }, [loginStatus, profile, isProfileLoading, navigate]);
+  }, [isAuthenticated, profile, isProfileLoading, navigate]);
 
   const handleLogin = async () => {
     try {

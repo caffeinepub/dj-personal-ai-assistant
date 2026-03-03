@@ -65,6 +65,14 @@ interface SpeechRecognitionResult {
   [index: number]: { transcript: string };
 }
 
+interface OptimisticMessage {
+  id: string;
+  role: "user" | "assistant";
+  content: string;
+  timestamp: bigint;
+  isOptimistic: true;
+}
+
 function MessageContent({ content }: { content: string }) {
   return (
     <div className="whitespace-pre-wrap break-words text-sm leading-relaxed">
@@ -76,7 +84,7 @@ function MessageContent({ content }: { content: string }) {
 export function ChatPage() {
   const { data: rawMessages = [] } = useChatMessages();
   // Sort messages oldest-first so the latest message always appears at the bottom
-  const messages = [...rawMessages].sort((a, b) =>
+  const persistedMessages = [...rawMessages].sort((a, b) =>
     a.timestamp < b.timestamp ? -1 : a.timestamp > b.timestamp ? 1 : 0,
   );
   const { data: memories = [] } = useMemories();
@@ -95,29 +103,44 @@ export function ChatPage() {
   const [isListening, setIsListening] = useState(false);
   const [isSpeaking, setIsSpeaking] = useState(false);
   const [showSuggestions, setShowSuggestions] = useState(false);
+  // Separate processing state — stays true from user send until DJ's reply is saved
+  const [isProcessing, setIsProcessing] = useState(false);
+  // Optimistic messages shown immediately before backend confirms
+  const [optimisticMessages, setOptimisticMessages] = useState<
+    OptimisticMessage[]
+  >([]);
+
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const synthRef = useRef<SpeechSynthesis | null>(null);
 
   const isFirstLoad = useRef(true);
+  const prevMessageCount = useRef(0);
 
-  // Auto-scroll to bottom: instant on initial load, smooth on new messages
+  // Auto-scroll to bottom: instant on initial load, smooth only when a new message is added
   useEffect(() => {
-    if (messages.length > 0) {
-      if (isFirstLoad.current) {
-        messagesEndRef.current?.scrollIntoView({ behavior: "instant" });
-        isFirstLoad.current = false;
-      } else {
-        messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-      }
+    const totalCount =
+      persistedMessages.length + (isProcessing ? optimisticMessages.length : 0);
+    if (totalCount === 0 && optimisticMessages.length === 0) return;
+
+    if (isFirstLoad.current) {
+      messagesEndRef.current?.scrollIntoView({ behavior: "instant" });
+      isFirstLoad.current = false;
+      prevMessageCount.current = persistedMessages.length;
+    } else if (
+      persistedMessages.length > prevMessageCount.current ||
+      isProcessing
+    ) {
+      messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+      prevMessageCount.current = persistedMessages.length;
     }
-  }, [messages]);
+  }, [persistedMessages.length, optimisticMessages.length, isProcessing]);
 
   // Show smart suggestions after 3+ messages
   useEffect(() => {
-    if (messages.length >= 3 && rules.length === 0) {
+    if (persistedMessages.length >= 3 && rules.length === 0) {
       setShowSuggestions(true);
     }
-  }, [messages.length, rules.length]);
+  }, [persistedMessages.length, rules.length]);
 
   useEffect(() => {
     synthRef.current = window.speechSynthesis;
@@ -171,14 +194,29 @@ export function ChatPage() {
     utterance.volume = 1.0;
     utterance.onstart = () => setIsSpeaking(true);
     utterance.onend = () => setIsSpeaking(false);
+    // Fallback timeout: reset isSpeaking if speech synthesis hangs
+    utterance.onerror = () => setIsSpeaking(false);
     synthRef.current.speak(utterance);
+    // Safety timeout in case onend never fires
+    setTimeout(() => setIsSpeaking(false), 30000);
   };
+
+  // Use current ref values to avoid stale closures in parseCommand
+  const memoriesRef = useRef(memories);
+  const rulesRef = useRef(rules);
+  const personalitySettingsRef = useRef(personalitySettings);
+  memoriesRef.current = memories;
+  rulesRef.current = rules;
+  personalitySettingsRef.current = personalitySettings;
 
   const parseCommand = async (userMessage: string): Promise<string> => {
     const lowerMessage = userMessage.toLowerCase().trim();
+    // Use refs to get latest values at call time — avoids stale closures
+    const currentMemories = memoriesRef.current;
+    const currentRules = rulesRef.current;
 
     // Knowledge search commands
-    const knowledgeSources = memories
+    const knowledgeSources = currentMemories
       .map(parseKnowledgeSource)
       .filter((s) => s !== null);
 
@@ -217,7 +255,7 @@ export function ChatPage() {
       lowerMessage.startsWith("forget ")
     ) {
       const content = userMessage.replace(/^(dj,?\s*)?forget\s*/i, "").trim();
-      const matchingMemory = memories.find(
+      const matchingMemory = currentMemories.find(
         (m) =>
           !m.content.startsWith("[KNOWLEDGE_SOURCE]") &&
           m.content.toLowerCase().includes(content.toLowerCase()),
@@ -233,7 +271,7 @@ export function ChatPage() {
       lowerMessage.includes("what do you remember") ||
       lowerMessage.includes("show memories")
     ) {
-      const regularMemories = memories.filter(
+      const regularMemories = currentMemories.filter(
         (m) => !m.content.startsWith("[KNOWLEDGE_SOURCE]"),
       );
       if (regularMemories.length === 0) {
@@ -264,7 +302,7 @@ export function ChatPage() {
       if (rule) {
         await setBehaviorRule.mutateAsync({
           ruleText: rule,
-          priority: BigInt(rules.length + 1),
+          priority: BigInt(currentRules.length + 1),
         });
         return "Understood. I've set that as a new behavior rule and will follow it going forward.";
       }
@@ -310,7 +348,8 @@ export function ChatPage() {
     userMessage: string,
     knowledgeSources: ReturnType<typeof parseKnowledgeSource>[] = [],
   ): string => {
-    const style = personalitySettings?.communicationStyle || "professional";
+    const style =
+      personalitySettingsRef.current?.communicationStyle || "professional";
     const lowerMessage = userMessage.toLowerCase();
 
     if (
@@ -355,10 +394,22 @@ export function ChatPage() {
   };
 
   const handleSend = async () => {
-    if (!input.trim() || saveMessage.isPending) return;
+    if (!input.trim() || isProcessing) return;
 
     const userMessage = input.trim();
     setInput("");
+    setIsProcessing(true);
+
+    // Add optimistic user message immediately so UI feels instant
+    const optimisticId = `optimistic-${Date.now()}`;
+    const optimisticUserMsg: OptimisticMessage = {
+      id: optimisticId,
+      role: "user",
+      content: userMessage,
+      timestamp: BigInt(Date.now()) * 1_000_000n,
+      isOptimistic: true,
+    };
+    setOptimisticMessages([optimisticUserMsg]);
 
     try {
       await saveMessage.mutateAsync({ role: "user", content: userMessage });
@@ -367,6 +418,10 @@ export function ChatPage() {
       speak(response);
     } catch (_error) {
       toast.error("Failed to process message");
+    } finally {
+      setIsProcessing(false);
+      // Clear optimistic messages — persisted ones from backend will display
+      setOptimisticMessages([]);
     }
   };
 
@@ -384,6 +439,14 @@ export function ChatPage() {
     "Always greet me by name",
   ];
 
+  // What to actually render in the messages area
+  const renderedMessages =
+    persistedMessages.length > 0 ? persistedMessages : [];
+  const showOptimistic =
+    isProcessing &&
+    optimisticMessages.length > 0 &&
+    renderedMessages.length === 0;
+
   return (
     <Layout>
       {/* Smart suggestions banner */}
@@ -399,10 +462,11 @@ export function ChatPage() {
                 <button
                   key={rule}
                   type="button"
+                  data-ocid="chat.suggestion.button"
                   onClick={async () => {
                     await setBehaviorRule.mutateAsync({
                       ruleText: rule,
-                      priority: BigInt(rules.length + 1),
+                      priority: BigInt(rulesRef.current.length + 1),
                     });
                     toast.success(`Rule applied: ${rule}`);
                     setShowSuggestions(false);
@@ -427,8 +491,11 @@ export function ChatPage() {
         {/* Messages area - scrollable, fills remaining space */}
         <div className="flex-1 overflow-y-auto px-4 py-4 pb-4">
           <div className="container mx-auto max-w-3xl space-y-4">
-            {messages.length === 0 ? (
-              <div className="flex h-64 items-center justify-center">
+            {renderedMessages.length === 0 && !isProcessing ? (
+              <div
+                className="flex h-64 items-center justify-center"
+                data-ocid="chat.empty_state"
+              >
                 <div className="glow-border rounded-lg border border-primary/50 p-8 text-center">
                   <p className="glow-text font-display text-xl">
                     Start a conversation with DJ
@@ -453,44 +520,90 @@ export function ChatPage() {
                 </div>
               </div>
             ) : (
-              messages.map((message) => (
-                <div
-                  key={message.id.toString()}
-                  className={`flex ${message.role === "user" ? "justify-end" : "justify-start"}`}
-                >
+              <>
+                {/* Render persisted messages */}
+                {renderedMessages.map((message) => (
                   <div
-                    className={`max-w-[80%] rounded-lg px-4 py-3 ${
-                      message.role === "user"
-                        ? "border border-primary/40 bg-primary/15 text-foreground"
-                        : "border border-secondary/40 bg-card/80 text-foreground"
-                    }`}
-                    style={
-                      message.role === "user"
-                        ? { boxShadow: "0 0 8px oklch(0.65 0.25 220 / 0.3)" }
-                        : { boxShadow: "0 0 8px oklch(0.75 0.18 195 / 0.2)" }
-                    }
+                    key={message.id.toString()}
+                    className={`flex ${message.role === "user" ? "justify-end" : "justify-start"}`}
                   >
-                    <div className="mb-1 flex items-center gap-2">
-                      <Badge
-                        variant={
-                          message.role === "user" ? "default" : "secondary"
-                        }
-                        className="text-xs"
-                      >
-                        {message.role === "user" ? "You" : "DJ"}
-                      </Badge>
-                      <span className="text-xs text-muted-foreground">
-                        {formatTimestamp(message.timestamp)}
-                      </span>
+                    <div
+                      className={`max-w-[80%] rounded-lg px-4 py-3 ${
+                        message.role === "user"
+                          ? "border border-primary/40 bg-primary/15 text-foreground"
+                          : "border border-secondary/40 bg-card/80 text-foreground"
+                      }`}
+                      style={
+                        message.role === "user"
+                          ? { boxShadow: "0 0 8px oklch(0.65 0.25 220 / 0.3)" }
+                          : { boxShadow: "0 0 8px oklch(0.75 0.18 195 / 0.2)" }
+                      }
+                    >
+                      <div className="mb-1 flex items-center gap-2">
+                        <Badge
+                          variant={
+                            message.role === "user" ? "default" : "secondary"
+                          }
+                          className="text-xs"
+                        >
+                          {message.role === "user" ? "You" : "DJ"}
+                        </Badge>
+                        <span className="text-xs text-muted-foreground">
+                          {formatTimestamp(message.timestamp)}
+                        </span>
+                      </div>
+                      <MessageContent content={message.content} />
                     </div>
-                    <MessageContent content={message.content} />
                   </div>
-                </div>
-              ))
+                ))}
+
+                {/* Render optimistic user message while processing (only if no persisted messages yet) */}
+                {showOptimistic &&
+                  optimisticMessages.map((message) => (
+                    <div key={message.id} className="flex justify-end">
+                      <div
+                        className="max-w-[80%] rounded-lg border border-primary/40 bg-primary/15 px-4 py-3 text-foreground opacity-80"
+                        style={{
+                          boxShadow: "0 0 8px oklch(0.65 0.25 220 / 0.3)",
+                        }}
+                      >
+                        <div className="mb-1 flex items-center gap-2">
+                          <Badge variant="default" className="text-xs">
+                            You
+                          </Badge>
+                          <span className="text-xs text-muted-foreground">
+                            sending...
+                          </span>
+                        </div>
+                        <MessageContent content={message.content} />
+                      </div>
+                    </div>
+                  ))}
+              </>
             )}
 
-            {/* Typing indicator */}
-            {(saveMessage.isPending || isSpeaking) && (
+            {/* DJ is thinking indicator — shown whenever isProcessing, not tied to saveMessage.isPending */}
+            {isProcessing && (
+              <div
+                className="flex justify-start"
+                data-ocid="chat.loading_state"
+              >
+                <div
+                  className="rounded-lg border border-secondary/40 bg-card/80 px-4 py-3"
+                  style={{ boxShadow: "0 0 8px oklch(0.75 0.18 195 / 0.2)" }}
+                >
+                  <div className="flex items-center gap-2">
+                    <Loader2 className="h-4 w-4 animate-spin text-secondary" />
+                    <span className="text-sm text-muted-foreground">
+                      DJ is thinking...
+                    </span>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Speaking indicator — separate from processing */}
+            {!isProcessing && isSpeaking && (
               <div className="flex justify-start">
                 <div
                   className="rounded-lg border border-secondary/40 bg-card/80 px-4 py-3"
@@ -499,7 +612,7 @@ export function ChatPage() {
                   <div className="flex items-center gap-2">
                     <Loader2 className="h-4 w-4 animate-spin text-secondary" />
                     <span className="text-sm text-muted-foreground">
-                      {isSpeaking ? "DJ is speaking..." : "DJ is thinking..."}
+                      DJ is speaking...
                     </span>
                   </div>
                 </div>
@@ -519,7 +632,8 @@ export function ChatPage() {
                 size="icon"
                 variant={isListening ? "default" : "outline"}
                 onClick={startVoiceInput}
-                disabled={isListening}
+                disabled={isListening || isProcessing}
+                data-ocid="chat.toggle"
                 className={`shrink-0 ${isListening ? "animate-pulse bg-primary" : "border-primary/50"}`}
               >
                 {isListening ? (
@@ -536,14 +650,16 @@ export function ChatPage() {
                   e.key === "Enter" && !e.shiftKey && handleSend()
                 }
                 className="flex-1 border-primary/40 bg-card/50"
-                disabled={saveMessage.isPending}
+                disabled={isProcessing}
+                data-ocid="chat.input"
               />
               <Button
                 onClick={handleSend}
-                disabled={!input.trim() || saveMessage.isPending}
+                disabled={!input.trim() || isProcessing}
                 className="shrink-0 bg-primary hover:bg-primary/90"
+                data-ocid="chat.submit_button"
               >
-                {saveMessage.isPending ? (
+                {isProcessing ? (
                   <Loader2 className="h-5 w-5 animate-spin" />
                 ) : (
                   <Send className="h-5 w-5" />

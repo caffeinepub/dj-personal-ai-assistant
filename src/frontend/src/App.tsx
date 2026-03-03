@@ -15,8 +15,15 @@ import { TeachDJPage } from "./pages/TeachDJPage";
 import { WebsitePage } from "./pages/WebsitePage";
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
-  const { loginStatus, isInitializing } = useInternetIdentity();
+  const { loginStatus, isInitializing, identity } = useInternetIdentity();
   const { data: profile, isLoading: profileLoading } = useUserProfile();
+
+  // Consider authenticated if: login was successful OR identity is loaded from storage (idle with identity)
+  const isAuthenticated =
+    loginStatus === "success" ||
+    (loginStatus === "idle" &&
+      identity !== undefined &&
+      !identity.getPrincipal().isAnonymous());
 
   if (isInitializing || profileLoading) {
     return (
@@ -28,12 +35,17 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
     );
   }
 
-  if (loginStatus !== "success") {
+  if (!isAuthenticated) {
     return <Navigate to="/login" replace />;
   }
 
-  // Redirect to setup if onboarding is not complete
-  if (profile && !profile.onboardingComplete) {
+  // Redirect to setup if profile loaded and onboarding is not complete
+  // Use explicit null check: null = profile confirmed not to exist, undefined = still loading
+  if (
+    profile !== undefined &&
+    !profileLoading &&
+    !profile?.onboardingComplete
+  ) {
     return <Navigate to="/setup" replace />;
   }
 

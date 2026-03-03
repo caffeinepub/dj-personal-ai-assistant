@@ -65,18 +65,21 @@ export function DashboardPage() {
       name: "Excel Analysis",
       icon: FileSpreadsheet,
       description: "Upload and analyze spreadsheets",
+      path: "/excel",
     },
     {
       id: "coding",
       name: "Coding Assistant",
       icon: Code,
       description: "Write and debug code",
+      path: "/coding",
     },
     {
       id: "website",
       name: "Website Builder",
       icon: Globe,
       description: "Generate websites instantly",
+      path: "/website",
     },
   ];
 
@@ -310,9 +313,12 @@ export function DashboardPage() {
                 >
                   <CardHeader>
                     <div className="flex items-start justify-between">
-                      <div className="flex items-center gap-3">
+                      <Link
+                        to={module.path}
+                        className="flex items-center gap-3 flex-1 min-w-0"
+                      >
                         <div
-                          className={`flex h-12 w-12 items-center justify-center rounded-lg ${
+                          className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-lg ${
                             isActive ? "bg-primary/20" : "bg-muted"
                           }`}
                         >
@@ -321,11 +327,13 @@ export function DashboardPage() {
                           />
                         </div>
                         <div>
-                          <CardTitle className="text-lg">
+                          <CardTitle
+                            className={`text-lg ${isActive ? "text-primary" : ""}`}
+                          >
                             {module.name}
                           </CardTitle>
                         </div>
-                      </div>
+                      </Link>
                       <Switch
                         checked={isActive}
                         onCheckedChange={() =>

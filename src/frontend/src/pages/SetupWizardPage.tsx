@@ -355,7 +355,7 @@ export function SetupWizardPage() {
                     key={id}
                     type="button"
                     onClick={() => setSelectedPersonality(id)}
-                    className={`flex flex-col items-start gap-2 rounded-lg border p-4 text-left transition-all ${
+                    className={`relative flex flex-col items-start gap-2 rounded-lg border p-4 text-left transition-all ${
                       selectedPersonality === id
                         ? "border-primary bg-primary/15"
                         : "border-muted bg-card/30 hover:border-primary/40"

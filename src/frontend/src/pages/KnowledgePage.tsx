@@ -191,7 +191,16 @@ export function KnowledgePage() {
       toast.error("No content to save — please paste the website content");
       return;
     }
-    const title = websiteTitle.trim() || new URL(websiteUrl).hostname;
+    // Safe hostname extraction — guard against missing protocol
+    let hostname = websiteUrl;
+    try {
+      hostname = new URL(
+        websiteUrl.startsWith("http") ? websiteUrl : `https://${websiteUrl}`,
+      ).hostname;
+    } catch {
+      // keep original url as fallback
+    }
+    const title = websiteTitle.trim() || hostname;
     const encoded = encodeKnowledgeSource(
       "website",
       title,
@@ -1172,7 +1181,7 @@ export function KnowledgePage() {
                             handleDeleteSource(source.id, source.title)
                           }
                           disabled={deleteMemory.isPending}
-                          className="shrink-0 opacity-0 transition-opacity group-hover:opacity-100 hover:bg-destructive/20 hover:text-destructive"
+                          className="shrink-0 transition-opacity opacity-100 sm:opacity-0 sm:group-hover:opacity-100 hover:bg-destructive/20 hover:text-destructive"
                         >
                           <Trash2 className="h-4 w-4" />
                         </Button>

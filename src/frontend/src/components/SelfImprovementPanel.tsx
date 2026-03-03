@@ -38,7 +38,11 @@ import {
 } from "../hooks/useQueries";
 
 export function SelfImprovementPanel() {
-  const { data: memories = [] } = useMemories();
+  const { data: allMemories = [] } = useMemories();
+  // Exclude encoded knowledge sources — they show on the Knowledge page
+  const memories = allMemories.filter(
+    (m) => !m.content.startsWith("[KNOWLEDGE_SOURCE]"),
+  );
   const { data: commands = [] } = useCustomCommands();
   const { data: rules = [] } = useBehaviorRules();
   const { data: logs = [] } = useImprovementLogs();
@@ -154,7 +158,7 @@ export function SelfImprovementPanel() {
       </CardHeader>
       <CardContent>
         <Tabs defaultValue="memories" className="w-full">
-          <TabsList className="grid w-full grid-cols-4">
+          <TabsList className="grid w-full grid-cols-2 sm:grid-cols-4">
             <TabsTrigger value="memories">Memories</TabsTrigger>
             <TabsTrigger value="commands">Commands</TabsTrigger>
             <TabsTrigger value="rules">Rules</TabsTrigger>

@@ -19,10 +19,13 @@ export function useUserProfile() {
   return useQuery<UserProfile | null>({
     queryKey: ["userProfile"],
     queryFn: async () => {
-      if (!actor) return null;
+      if (!actor) throw new Error("Actor not ready");
       return actor.getCallerUserProfile();
     },
     enabled: !!actor && !isFetching,
+    // Return undefined (not null) while disabled so downstream code can distinguish
+    // "loading" from "no profile found"
+    retry: false,
   });
 }
 
