@@ -7,7 +7,9 @@ import {
 } from "@/components/ui/dropdown-menu";
 import {
   BookOpen,
+  CheckSquare,
   Code,
+  DollarSign,
   FileSpreadsheet,
   Globe,
   GraduationCap,
@@ -16,6 +18,7 @@ import {
   MessageSquare,
   MoreHorizontal,
   Settings,
+  StickyNote,
   User,
 } from "lucide-react";
 import { useInternetIdentity } from "../hooks/useInternetIdentity";
@@ -25,33 +28,35 @@ export function Layout({ children }: { children: React.ReactNode }) {
   const { clear } = useInternetIdentity();
   const location = useLocation();
 
-  // All nav items for desktop header
   const allNavItems = [
     { path: "/", icon: Home, label: "Dashboard" },
     { path: "/chat", icon: MessageSquare, label: "Chat" },
     { path: "/knowledge", icon: BookOpen, label: "Knowledge" },
+    { path: "/tasks", icon: CheckSquare, label: "Tasks" },
+    { path: "/notes", icon: StickyNote, label: "Notes" },
+    { path: "/finance", icon: DollarSign, label: "Finance" },
     { path: "/excel", icon: FileSpreadsheet, label: "Excel" },
     { path: "/coding", icon: Code, label: "Code" },
     { path: "/website", icon: Globe, label: "Web" },
     { path: "/settings", icon: Settings, label: "Settings" },
-    { path: "/teach", icon: GraduationCap, label: "Teach" },
     { path: "/profile", icon: User, label: "Profile" },
   ];
 
-  // Primary 5 items for mobile bottom nav
   const mobileNavItems = [
     { path: "/", icon: Home, label: "Home" },
     { path: "/chat", icon: MessageSquare, label: "Chat" },
-    { path: "/knowledge", icon: BookOpen, label: "Knowledge" },
-    { path: "/settings", icon: Settings, label: "Settings" },
+    { path: "/tasks", icon: CheckSquare, label: "Tasks" },
+    { path: "/notes", icon: StickyNote, label: "Notes" },
     { path: "/profile", icon: User, label: "Profile" },
   ];
 
-  // Secondary items shown in "More" dropdown on mobile
   const mobileMoreItems = [
+    { path: "/finance", icon: DollarSign, label: "Finance" },
+    { path: "/knowledge", icon: BookOpen, label: "Knowledge" },
     { path: "/excel", icon: FileSpreadsheet, label: "Excel" },
     { path: "/coding", icon: Code, label: "Code" },
     { path: "/website", icon: Globe, label: "Website" },
+    { path: "/settings", icon: Settings, label: "Settings" },
     { path: "/teach", icon: GraduationCap, label: "Teach DJ" },
   ];
 
@@ -60,7 +65,6 @@ export function Layout({ children }: { children: React.ReactNode }) {
 
   return (
     <div className="flex min-h-screen flex-col">
-      {/* Header */}
       <header className="glow-border sticky top-0 z-50 border-b border-primary/30 bg-card/95 backdrop-blur supports-[backdrop-filter]:bg-card/80">
         <div className="container flex h-16 items-center justify-between px-4">
           <Link to="/" className="flex items-center gap-3">
@@ -69,7 +73,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
             </span>
           </Link>
 
-          <nav className="hidden items-center gap-1 md:flex">
+          <nav className="hidden items-center gap-1 md:flex overflow-x-auto">
             {allNavItems.map((item) => {
               const Icon = item.icon;
               return (
@@ -95,7 +99,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
             variant="outline"
             size="sm"
             onClick={() => clear()}
-            className="border-destructive/50 text-destructive hover:bg-destructive/10"
+            className="border-destructive/50 text-destructive hover:bg-destructive/10 shrink-0"
           >
             <LogOut className="mr-2 h-4 w-4" />
             <span className="hidden sm:inline">Logout</span>
@@ -103,10 +107,8 @@ export function Layout({ children }: { children: React.ReactNode }) {
         </div>
       </header>
 
-      {/* Main content */}
       <main className="flex-1">{children}</main>
 
-      {/* Mobile bottom navigation — 5 primary items + "More" dropdown */}
       <nav className="glow-border fixed bottom-0 left-0 right-0 z-50 border-t border-primary/30 bg-card/95 backdrop-blur md:hidden">
         <div className="flex items-center justify-around px-1 py-1">
           {mobileNavItems.map((item) => {
@@ -130,7 +132,6 @@ export function Layout({ children }: { children: React.ReactNode }) {
             );
           })}
 
-          {/* More dropdown */}
           <div className="flex-1">
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
@@ -172,7 +173,6 @@ export function Layout({ children }: { children: React.ReactNode }) {
         </div>
       </nav>
 
-      {/* Mobile spacer */}
       <div className="h-16 md:hidden" />
     </div>
   );

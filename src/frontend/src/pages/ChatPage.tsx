@@ -8,6 +8,8 @@ import {
   Mic,
   MicOff,
   Send,
+  Volume2,
+  VolumeX,
   X,
 } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -36,20 +38,22 @@ import {
 
 declare global {
   interface Window {
-    SpeechRecognition: new () => SpeechRecognition;
-    webkitSpeechRecognition: new () => SpeechRecognition;
+    SpeechRecognition: new () => SpeechRecognitionInstance;
+    webkitSpeechRecognition: new () => SpeechRecognitionInstance;
   }
 }
 
-interface SpeechRecognition extends EventTarget {
+interface SpeechRecognitionInstance extends EventTarget {
   continuous: boolean;
   interimResults: boolean;
+  lang: string;
   onstart: (() => void) | null;
   onresult: ((event: SpeechRecognitionEvent) => void) | null;
   onerror: (() => void) | null;
   onend: (() => void) | null;
   start(): void;
   stop(): void;
+  abort(): void;
 }
 
 interface SpeechRecognitionEvent {
@@ -65,28 +69,64 @@ interface SpeechRecognitionResult {
   [index: number]: { transcript: string };
 }
 
-interface OptimisticMessage {
+interface DisplayMessage {
   id: string;
   role: "user" | "assistant";
   content: string;
   timestamp: bigint;
-  isOptimistic: true;
+  isOptimistic?: boolean;
+}
+
+// Pick the best available TTS voice — prefer a natural English voice
+function selectBestVoice(
+  voices: SpeechSynthesisVoice[],
+): SpeechSynthesisVoice | null {
+  if (voices.length === 0) return null;
+  // Prefer Google/Microsoft natural voices
+  const preferred = voices.find(
+    (v) =>
+      v.lang.startsWith("en") &&
+      (v.name.includes("Google") ||
+        v.name.includes("Microsoft") ||
+        v.name.includes("Natural") ||
+        v.name.includes("Enhanced")),
+  );
+  if (preferred) return preferred;
+  // Fallback: any English voice
+  return voices.find((v) => v.lang.startsWith("en")) ?? voices[0];
 }
 
 function MessageContent({ content }: { content: string }) {
+  // Minimal markdown-like rendering: bold, code, newlines
+  const parts = content.split("\n");
   return (
     <div className="whitespace-pre-wrap break-words text-sm leading-relaxed">
-      {content}
+      {parts.map((line, i) => (
+        // biome-ignore lint/suspicious/noArrayIndexKey: line index is stable within a single message
+        <span key={i}>
+          {line}
+          {i < parts.length - 1 && <br />}
+        </span>
+      ))}
     </div>
   );
 }
 
 export function ChatPage() {
-  const { data: rawMessages = [] } = useChatMessages();
-  // Sort messages oldest-first so the latest message always appears at the bottom
-  const persistedMessages = [...rawMessages].sort((a, b) =>
-    a.timestamp < b.timestamp ? -1 : a.timestamp > b.timestamp ? 1 : 0,
-  );
+  const { data: rawMessages = [], isLoading: messagesLoading } =
+    useChatMessages();
+  // Sort oldest-first so latest message always appears at the bottom
+  const persistedMessages: DisplayMessage[] = [...rawMessages]
+    .sort((a, b) =>
+      a.timestamp < b.timestamp ? -1 : a.timestamp > b.timestamp ? 1 : 0,
+    )
+    .map((m) => ({
+      id: m.id.toString(),
+      role: m.role as "user" | "assistant",
+      content: m.content,
+      timestamp: m.timestamp,
+    }));
+
   const { data: memories = [] } = useMemories();
   const { data: rules = [] } = useBehaviorRules();
   const { data: personalitySettings } = usePersonalitySettings();
@@ -102,106 +142,76 @@ export function ChatPage() {
   const [input, setInput] = useState("");
   const [isListening, setIsListening] = useState(false);
   const [isSpeaking, setIsSpeaking] = useState(false);
+  const [voiceEnabled, setVoiceEnabled] = useState(true);
   const [showSuggestions, setShowSuggestions] = useState(false);
-  // Separate processing state — stays true from user send until DJ's reply is saved
   const [isProcessing, setIsProcessing] = useState(false);
-  // Optimistic messages shown immediately before backend confirms
+  // Optimistic messages shown immediately while waiting for backend
   const [optimisticMessages, setOptimisticMessages] = useState<
-    OptimisticMessage[]
+    DisplayMessage[]
   >([]);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const synthRef = useRef<SpeechSynthesis | null>(null);
+  const voicesRef = useRef<SpeechSynthesisVoice[]>([]);
+  const recognitionRef = useRef<SpeechRecognitionInstance | null>(null);
+  const _wakeWordRef = useRef<SpeechRecognitionInstance | null>(null);
 
   const isFirstLoad = useRef(true);
   const prevMessageCount = useRef(0);
 
-  // Auto-scroll to bottom: instant on initial load, smooth only when a new message is added
-  useEffect(() => {
-    const totalCount =
-      persistedMessages.length + (isProcessing ? optimisticMessages.length : 0);
-    if (totalCount === 0 && optimisticMessages.length === 0) return;
+  // Combined visible messages: persisted + optimistic
+  const allVisibleMessages: DisplayMessage[] = [
+    ...persistedMessages,
+    ...optimisticMessages,
+  ];
 
-    if (isFirstLoad.current) {
+  // Auto-scroll: instant on first load, smooth on new messages
+  useEffect(() => {
+    if (messagesLoading) return;
+    if (allVisibleMessages.length === 0 && !isProcessing) return;
+
+    if (isFirstLoad.current && !messagesLoading) {
       messagesEndRef.current?.scrollIntoView({ behavior: "instant" });
       isFirstLoad.current = false;
       prevMessageCount.current = persistedMessages.length;
-    } else if (
-      persistedMessages.length > prevMessageCount.current ||
-      isProcessing
-    ) {
+      return;
+    }
+
+    const totalNow = persistedMessages.length + optimisticMessages.length;
+    const totalPrev = prevMessageCount.current;
+    if (totalNow > totalPrev || isProcessing) {
       messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
       prevMessageCount.current = persistedMessages.length;
     }
-  }, [persistedMessages.length, optimisticMessages.length, isProcessing]);
+  }, [
+    persistedMessages.length,
+    optimisticMessages.length,
+    isProcessing,
+    messagesLoading,
+    allVisibleMessages.length,
+  ]);
 
-  // Show smart suggestions after 3+ messages
+  // Show smart suggestions after 3+ messages with no rules
   useEffect(() => {
     if (persistedMessages.length >= 3 && rules.length === 0) {
       setShowSuggestions(true);
     }
   }, [persistedMessages.length, rules.length]);
 
+  // Initialize speech synthesis + load voices
   useEffect(() => {
     synthRef.current = window.speechSynthesis;
+    const loadVoices = () => {
+      voicesRef.current = window.speechSynthesis.getVoices();
+    };
+    loadVoices();
+    window.speechSynthesis.onvoiceschanged = loadVoices;
     return () => {
-      if (synthRef.current) {
-        synthRef.current.cancel();
-      }
+      synthRef.current?.cancel();
     };
   }, []);
 
-  const startVoiceInput = useCallback(() => {
-    const SpeechRecognition =
-      window.SpeechRecognition || window.webkitSpeechRecognition;
-    if (!SpeechRecognition) {
-      toast.error("Speech recognition not supported in this browser");
-      return;
-    }
-
-    const recognition = new SpeechRecognition();
-    recognition.continuous = false;
-    recognition.interimResults = false;
-
-    recognition.onstart = () => {
-      setIsListening(true);
-    };
-
-    recognition.onresult = (event: SpeechRecognitionEvent) => {
-      const transcript = event.results[0][0].transcript;
-      setInput(transcript);
-      setIsListening(false);
-    };
-
-    recognition.onerror = () => {
-      setIsListening(false);
-      toast.error("Voice recognition error");
-    };
-
-    recognition.onend = () => {
-      setIsListening(false);
-    };
-
-    recognition.start();
-  }, []);
-
-  const speak = (text: string) => {
-    if (!synthRef.current) return;
-    synthRef.current.cancel();
-    const utterance = new SpeechSynthesisUtterance(text);
-    utterance.rate = 0.95;
-    utterance.pitch = 1.0;
-    utterance.volume = 1.0;
-    utterance.onstart = () => setIsSpeaking(true);
-    utterance.onend = () => setIsSpeaking(false);
-    // Fallback timeout: reset isSpeaking if speech synthesis hangs
-    utterance.onerror = () => setIsSpeaking(false);
-    synthRef.current.speak(utterance);
-    // Safety timeout in case onend never fires
-    setTimeout(() => setIsSpeaking(false), 30000);
-  };
-
-  // Use current ref values to avoid stale closures in parseCommand
+  // Use refs for latest values to avoid stale closures
   const memoriesRef = useRef(memories);
   const rulesRef = useRef(rules);
   const personalitySettingsRef = useRef(personalitySettings);
@@ -209,13 +219,109 @@ export function ChatPage() {
   rulesRef.current = rules;
   personalitySettingsRef.current = personalitySettings;
 
+  // Keep ref to persisted messages for context building
+  const persistedMessagesRef = useRef(persistedMessages);
+  persistedMessagesRef.current = persistedMessages;
+
+  const speak = useCallback(
+    (text: string) => {
+      if (!synthRef.current || !voiceEnabled) return;
+      synthRef.current.cancel();
+      const utterance = new SpeechSynthesisUtterance(text);
+      const bestVoice = selectBestVoice(voicesRef.current);
+      if (bestVoice) utterance.voice = bestVoice;
+      utterance.rate = 0.92;
+      utterance.pitch = 1.0;
+      utterance.volume = 1.0;
+      utterance.onstart = () => setIsSpeaking(true);
+      utterance.onend = () => setIsSpeaking(false);
+      utterance.onerror = () => setIsSpeaking(false);
+      synthRef.current.speak(utterance);
+      // Safety fallback in case onend never fires
+      setTimeout(() => setIsSpeaking(false), 60000);
+    },
+    [voiceEnabled],
+  );
+
+  const stopSpeaking = useCallback(() => {
+    synthRef.current?.cancel();
+    setIsSpeaking(false);
+  }, []);
+
+  const startVoiceInput = useCallback(() => {
+    const SpeechRecognition =
+      window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (!SpeechRecognition) {
+      toast.error(
+        "Speech recognition is not supported in this browser. Try Chrome or Edge.",
+      );
+      return;
+    }
+    if (recognitionRef.current) {
+      recognitionRef.current.abort();
+    }
+    const recognition = new SpeechRecognition();
+    recognition.continuous = false;
+    recognition.interimResults = false;
+    recognition.lang = "en-US";
+    recognitionRef.current = recognition;
+
+    recognition.onstart = () => setIsListening(true);
+    recognition.onresult = (event: SpeechRecognitionEvent) => {
+      const transcript = event.results[0][0].transcript;
+      setInput(transcript);
+      setIsListening(false);
+    };
+    recognition.onerror = () => {
+      setIsListening(false);
+      toast.error("Voice recognition error. Please try again.");
+    };
+    recognition.onend = () => setIsListening(false);
+    recognition.start();
+  }, []);
+
+  const stopVoiceInput = useCallback(() => {
+    recognitionRef.current?.stop();
+    setIsListening(false);
+  }, []);
+
+  // Build conversation context from recent messages for smarter responses
+  const buildConversationContext = (): string => {
+    const recent = persistedMessagesRef.current.slice(-6); // last 3 pairs
+    if (recent.length === 0) return "";
+    return recent
+      .map(
+        (m) =>
+          `${m.role === "user" ? "User" : "DJ"}: ${m.content.slice(0, 200)}`,
+      )
+      .join("\n");
+  };
+
+  // Build DJ's active personality context from rules and settings
+  const buildPersonalityContext = (): string => {
+    const currentRules = rulesRef.current;
+    const style =
+      personalitySettingsRef.current?.communicationStyle || "professional";
+    const regularRules = currentRules.filter(
+      (r) => !r.ruleText.startsWith("[KNOWLEDGE_SOURCE]"),
+    );
+    let context = `DJ's style: ${style}`;
+    if (regularRules.length > 0) {
+      const topRules = regularRules
+        .slice(0, 5)
+        .map((r) => r.ruleText)
+        .join("; ");
+      context += `\nActive rules: ${topRules}`;
+    }
+    return context;
+  };
+
   const parseCommand = async (userMessage: string): Promise<string> => {
     const lowerMessage = userMessage.toLowerCase().trim();
-    // Use refs to get latest values at call time — avoids stale closures
     const currentMemories = memoriesRef.current;
     const currentRules = rulesRef.current;
 
-    // Knowledge search commands
+    // Knowledge search
     const knowledgeSources = currentMemories
       .map(parseKnowledgeSource)
       .filter((s) => s !== null);
@@ -239,22 +345,17 @@ export function ChatPage() {
       return `Here's what I found in your knowledge base for "${query}":\n\n${summary}`;
     }
 
-    if (
-      lowerMessage.startsWith("dj, remember ") ||
-      lowerMessage.startsWith("remember ")
-    ) {
-      const content = userMessage.replace(/^(dj,?\s*)?remember\s*/i, "").trim();
+    // Memory commands
+    if (lowerMessage.match(/^(dj,?\s*)?remember\s+/i)) {
+      const content = userMessage.replace(/^(dj,?\s*)?remember\s+/i, "").trim();
       if (content) {
         await addMemory.mutateAsync(content);
-        return "Understood. I've updated myself accordingly. This memory has been stored.";
+        return "Understood. I've updated myself accordingly. This memory has been stored permanently.";
       }
     }
 
-    if (
-      lowerMessage.startsWith("dj, forget ") ||
-      lowerMessage.startsWith("forget ")
-    ) {
-      const content = userMessage.replace(/^(dj,?\s*)?forget\s*/i, "").trim();
+    if (lowerMessage.match(/^(dj,?\s*)?forget\s+/i)) {
+      const content = userMessage.replace(/^(dj,?\s*)?forget\s+/i, "").trim();
       const matchingMemory = currentMemories.find(
         (m) =>
           !m.content.startsWith("[KNOWLEDGE_SOURCE]") &&
@@ -262,20 +363,21 @@ export function ChatPage() {
       );
       if (matchingMemory) {
         await deleteMemory.mutateAsync(matchingMemory.id);
-        return "Understood. I've deleted that memory from my records.";
+        return "Understood. I've removed that from my memory.";
       }
       return "I couldn't find a matching memory to forget.";
     }
 
     if (
       lowerMessage.includes("what do you remember") ||
-      lowerMessage.includes("show memories")
+      lowerMessage.includes("show memories") ||
+      lowerMessage.includes("list memories")
     ) {
       const regularMemories = currentMemories.filter(
         (m) => !m.content.startsWith("[KNOWLEDGE_SOURCE]"),
       );
       if (regularMemories.length === 0) {
-        return "I don't have any stored memories yet. You can teach me by saying 'DJ, remember [something]'.";
+        return "I don't have any stored memories yet. Teach me by saying 'DJ, remember [something]'.";
       }
       const memoryList = regularMemories
         .map((m, i) => `${i + 1}. ${m.content}`)
@@ -283,15 +385,28 @@ export function ChatPage() {
       return `Here's everything I remember:\n\n${memoryList}`;
     }
 
+    // Reset memories
+    if (lowerMessage.includes("reset all") && lowerMessage.includes("memor")) {
+      const regularMemories = currentMemories.filter(
+        (m) => !m.content.startsWith("[KNOWLEDGE_SOURCE]"),
+      );
+      for (const m of regularMemories) {
+        await deleteMemory.mutateAsync(m.id);
+      }
+      return "Done. All memories have been cleared. I'm starting fresh.";
+    }
+
+    // Custom command creation
     const commandMatch = userMessage.match(
       /(?:dj,?\s*)?create\s+(?:a\s+)?command\s+called\s+"([^"]+)"\s+that\s+(.+)/i,
     );
     if (commandMatch) {
       const [, name, action] = commandMatch;
       await createCommand.mutateAsync({ name, action });
-      return `Understood. I've created the custom command "${name}". You can activate it by saying "${name}".`;
+      return `Understood. I've created the custom command "${name}". Activate it by saying "${name}".`;
     }
 
+    // Rule setting
     if (
       lowerMessage.includes("your new rule is") ||
       lowerMessage.includes("set rule:")
@@ -304,15 +419,17 @@ export function ChatPage() {
           ruleText: rule,
           priority: BigInt(currentRules.length + 1),
         });
-        return "Understood. I've set that as a new behavior rule and will follow it going forward.";
+        return "Understood. I've set that as a new behavior rule and will follow it in every future response.";
       }
     }
 
+    // Personality adjustment
     if (
       lowerMessage.includes("be more formal") ||
       lowerMessage.includes("be more casual") ||
       lowerMessage.includes("be more concise") ||
-      lowerMessage.includes("be more detailed")
+      lowerMessage.includes("be more detailed") ||
+      lowerMessage.includes("be more professional")
     ) {
       let style = "professional";
       if (lowerMessage.includes("casual")) style = "casual";
@@ -320,16 +437,17 @@ export function ChatPage() {
       else if (lowerMessage.includes("detailed")) style = "detailed";
       else if (lowerMessage.includes("formal")) style = "formal";
       await setPersonality.mutateAsync(style);
-      return `Understood. I've adjusted my communication style to be more ${style}.`;
+      return `Understood. I've adjusted my communication style to be more ${style}. This applies to all future responses.`;
     }
 
+    // Module activation
     const activateMatch = userMessage.match(
       /(?:dj,?\s*)?activate\s+(?:the\s+)?(\w+)\s+module/i,
     );
     if (activateMatch) {
       const moduleName = activateMatch[1].toLowerCase();
       await activateModule.mutateAsync(moduleName);
-      return `The ${moduleName} module has been activated and is now ready for use.`;
+      return `The ${moduleName} module has been activated.`;
     }
 
     const deactivateMatch = userMessage.match(
@@ -341,38 +459,97 @@ export function ChatPage() {
       return `The ${moduleName} module has been deactivated.`;
     }
 
-    return generateResponse(userMessage, knowledgeSources);
+    return generateContextualResponse(userMessage, knowledgeSources);
   };
 
-  const generateResponse = (
+  const generateContextualResponse = (
     userMessage: string,
     knowledgeSources: ReturnType<typeof parseKnowledgeSource>[] = [],
   ): string => {
     const style =
       personalitySettingsRef.current?.communicationStyle || "professional";
     const lowerMessage = userMessage.toLowerCase();
+    const currentMemories = memoriesRef.current;
+    const currentRules = rulesRef.current;
+    const conversationContext = buildConversationContext();
+    const personalityContext = buildPersonalityContext();
 
+    // Build personalized context from memories
+    const regularMemories = currentMemories.filter(
+      (m) => !m.content.startsWith("[KNOWLEDGE_SOURCE]"),
+    );
+
+    // Greeting detection
     if (
-      lowerMessage.includes("hello") ||
-      lowerMessage.includes("hi") ||
-      lowerMessage.includes("hey")
+      lowerMessage.match(
+        /^(hello|hi|hey|good morning|good evening|good afternoon)[\s!.]*$/,
+      )
+    ) {
+      const userName = regularMemories
+        .find((m) => m.content.toLowerCase().includes("my name is"))
+        ?.content.replace(/.*my name is\s+/i, "")
+        .split(/[,. ]/)[0];
+      const greeting = userName ? `Hello, ${userName}!` : "Hello!";
+      if (style === "casual") {
+        return `${greeting} What's up? How can I help you today?`;
+      }
+      return `${greeting} I'm DJ, your personal AI assistant. All systems are operational. How may I assist you?`;
+    }
+
+    // How are you
+    if (
+      lowerMessage.includes("how are you") ||
+      lowerMessage.includes("how do you feel")
     ) {
       return style === "casual"
-        ? "Hey! What's up? How can I help?"
-        : "Greetings. I'm DJ, your personal AI assistant. How may I assist you today?";
+        ? "All good! Always ready to help. What do you need?"
+        : "All systems operational and functioning optimally. How can I assist you today?";
     }
 
-    if (lowerMessage.includes("how are you")) {
-      return style === "casual"
-        ? "I'm doing great! Always ready to help. What do you need?"
-        : "All systems operational. I'm functioning optimally and ready to assist you.";
-    }
-
+    // Help / capabilities
     if (
       lowerMessage.includes("help") ||
-      lowerMessage.includes("what can you do")
+      lowerMessage.includes("what can you do") ||
+      lowerMessage.includes("capabilities")
     ) {
-      return `I can help you with:\n\n- Memory: "DJ, remember [something]"\n- Knowledge: "DJ, search my knowledge for [topic]" or "DJ, what do you know about [topic]"\n- Commands: "DJ, create command called [name] that does [action]"\n- Rules: "DJ, your new rule is [rule]"\n- Modules: Activate/deactivate Excel, Coding, and Website modules\n\nWhat would you like to do?`;
+      return `Here's what I can do:\n\n- **Memory**: "DJ, remember [something]" / "DJ, forget [something]"\n- **Knowledge**: "DJ, what do you know about [topic]"\n- **Rules**: "DJ, your new rule is [rule]"\n- **Commands**: Create custom commands for tasks\n- **Modules**: Activate Excel, Coding, and Website modules\n- **Style**: "DJ, be more casual/formal/concise/detailed"\n\nI currently have ${regularMemories.length} memories stored. What would you like to do?`;
+    }
+
+    // Context-aware "tell me more about that" type messages
+    if (
+      (lowerMessage.includes("tell me more") ||
+        lowerMessage.includes("explain that") ||
+        lowerMessage.includes("more about") ||
+        lowerMessage.includes("go on") ||
+        lowerMessage.includes("continue")) &&
+      conversationContext
+    ) {
+      // Find the last assistant message to expand on
+      const lastAssistant = persistedMessagesRef.current
+        .filter((m) => m.role === "assistant")
+        .slice(-1)[0];
+      if (lastAssistant) {
+        return `Expanding on what I mentioned: ${lastAssistant.content}\n\nIs there a specific aspect you'd like me to elaborate on further?`;
+      }
+    }
+
+    // What did I say / recap
+    if (
+      lowerMessage.includes("what did i say") ||
+      lowerMessage.includes("recap") ||
+      lowerMessage.includes("summarize our conversation") ||
+      lowerMessage.includes("what have we discussed")
+    ) {
+      if (persistedMessagesRef.current.length === 0) {
+        return "This is the beginning of our conversation. Nothing has been said yet.";
+      }
+      const recentUserMessages = persistedMessagesRef.current
+        .filter((m) => m.role === "user")
+        .slice(-5);
+      const summary = recentUserMessages
+        .map((m, i) => `${i + 1}. "${m.content.slice(0, 100)}"`)
+        .join("\n");
+      return `Here's a summary of your recent messages:\n\n${summary}`;
     }
 
     // Check knowledge sources for relevant context
@@ -380,53 +557,114 @@ export function ChatPage() {
     if (validSources.length > 0) {
       const { context, titles } = getRelevantContext(validSources, userMessage);
       if (context) {
-        const baseResponse =
+        const intro =
           style === "concise"
-            ? "Based on your knowledge sources:"
-            : "I found relevant information in your knowledge base that may help:";
-        return `${baseResponse}\n\n${context.slice(0, 800)}\n\n---\n*Based on your knowledge sources: ${titles.join(", ")}*`;
+            ? "From your knowledge base:"
+            : "I found relevant information in your knowledge base:";
+        return `${intro}\n\n${context.slice(0, 800)}\n\n---\n*Sources: ${titles.join(", ")}*`;
       }
     }
 
-    return style === "concise"
-      ? "I'm here to help. Please specify what you need."
-      : "I understand your message. For specific tasks, please use commands like 'DJ, remember [something]' or ask me to activate a module. How can I assist you further?";
+    // Use memories to personalize
+    if (regularMemories.length > 0) {
+      const relevantMemory = regularMemories.find((m) =>
+        m.content
+          .toLowerCase()
+          .split(" ")
+          .some((word) => word.length > 4 && lowerMessage.includes(word)),
+      );
+      if (relevantMemory) {
+        const intro =
+          style === "concise"
+            ? "Based on what I know about you:"
+            : "Based on what I know about you, I can provide better context:";
+        return `${intro} ${relevantMemory.content}\n\nFor more specific help, please ask a more detailed question. Current rules: ${personalityContext}`;
+      }
+    }
+
+    // Rules acknowledgment
+    if (
+      currentRules.length > 0 &&
+      lowerMessage.includes("what are your rules")
+    ) {
+      const ruleList = currentRules
+        .slice(0, 5)
+        .map((r, i) => `${i + 1}. ${r.ruleText}`)
+        .join("\n");
+      return `My current behavior rules:\n\n${ruleList}`;
+    }
+
+    // Default contextual response
+    const suggestions = [
+      'Try: "DJ, remember [something important about you]"',
+      'Try: "DJ, your new rule is [always use bullet points]"',
+      'Try: "DJ, what do you know about [topic]"',
+      'Try: "DJ, be more concise"',
+    ];
+    const suggestionIndex =
+      persistedMessagesRef.current.length % suggestions.length;
+
+    if (style === "concise") {
+      return "Got it. Please use a specific command like 'DJ, remember...' or 'DJ, your new rule is...' for best results.";
+    }
+
+    return `I understand your message. I'm here to help with specific tasks and commands. ${suggestions[suggestionIndex]}\n\nI currently have ${regularMemories.length} memories and ${currentRules.length} behavior rules active.`;
   };
 
-  const handleSend = async () => {
-    if (!input.trim() || isProcessing) return;
+  const handleSend = async (messageOverride?: string) => {
+    const messageText = messageOverride ?? input.trim();
+    if (!messageText || isProcessing) return;
 
-    const userMessage = input.trim();
     setInput("");
     setIsProcessing(true);
 
-    // Add optimistic user message immediately so UI feels instant
-    const optimisticId = `optimistic-${Date.now()}`;
-    const optimisticUserMsg: OptimisticMessage = {
-      id: optimisticId,
+    // Immediately show the user's message as optimistic
+    const optimisticUserMsg: DisplayMessage = {
+      id: `optimistic-user-${Date.now()}`,
       role: "user",
-      content: userMessage,
+      content: messageText,
       timestamp: BigInt(Date.now()) * 1_000_000n,
       isOptimistic: true,
     };
     setOptimisticMessages([optimisticUserMsg]);
 
     try {
-      await saveMessage.mutateAsync({ role: "user", content: userMessage });
-      const response = await parseCommand(userMessage);
+      await saveMessage.mutateAsync({ role: "user", content: messageText });
+      const response = await parseCommand(messageText);
+
+      // Add optimistic DJ response too so user sees it instantly
+      const optimisticDJMsg: DisplayMessage = {
+        id: `optimistic-dj-${Date.now()}`,
+        role: "assistant",
+        content: response,
+        timestamp: BigInt(Date.now() + 1) * 1_000_000n,
+        isOptimistic: true,
+      };
+      setOptimisticMessages([optimisticUserMsg, optimisticDJMsg]);
+
       await saveMessage.mutateAsync({ role: "assistant", content: response });
-      speak(response);
+
+      if (voiceEnabled) {
+        speak(response);
+      }
     } catch (_error) {
-      toast.error("Failed to process message");
+      toast.error("Failed to process message. Please try again.");
+      setInput(messageText);
     } finally {
       setIsProcessing(false);
-      // Clear optimistic messages — persisted ones from backend will display
       setOptimisticMessages([]);
     }
   };
 
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === "Enter" && !e.shiftKey) {
+      e.preventDefault();
+      handleSend();
+    }
+  };
+
   const formatTimestamp = (timestamp: bigint) => {
-    const date = new Date(Number(timestamp) / 1000000);
+    const date = new Date(Number(timestamp) / 1_000_000);
     return date.toLocaleTimeString("en-US", {
       hour: "2-digit",
       minute: "2-digit",
@@ -439,14 +677,6 @@ export function ChatPage() {
     "Always greet me by name",
   ];
 
-  // What to actually render in the messages area
-  const renderedMessages =
-    persistedMessages.length > 0 ? persistedMessages : [];
-  const showOptimistic =
-    isProcessing &&
-    optimisticMessages.length > 0 &&
-    renderedMessages.length === 0;
-
   return (
     <Layout>
       {/* Smart suggestions banner */}
@@ -456,7 +686,7 @@ export function ChatPage() {
             <div className="flex flex-wrap items-center gap-2">
               <Lightbulb className="h-4 w-4 shrink-0 text-primary" />
               <span className="text-sm text-muted-foreground">
-                Smart suggestion:
+                Suggested rule:
               </span>
               {quickRuleSuggestions.map((rule) => (
                 <button
@@ -477,21 +707,29 @@ export function ChatPage() {
                 </button>
               ))}
             </div>
-            <button type="button" onClick={() => setShowSuggestions(false)}>
-              <X className="h-4 w-4 text-muted-foreground" />
+            <button
+              type="button"
+              onClick={() => setShowSuggestions(false)}
+              className="text-muted-foreground hover:text-foreground"
+            >
+              <X className="h-4 w-4" />
             </button>
           </div>
         </div>
       )}
 
-      <div
-        className="flex h-[calc(100vh-4rem)] flex-col md:h-[calc(100vh-4rem)]"
-        style={{ height: "calc(100dvh - 4rem)" }}
-      >
-        {/* Messages area - scrollable, fills remaining space */}
-        <div className="flex-1 overflow-y-auto px-4 py-4 pb-4">
+      <div className="flex flex-col" style={{ height: "calc(100dvh - 4rem)" }}>
+        {/* Messages area */}
+        <div className="flex-1 overflow-y-auto px-4 py-4">
           <div className="container mx-auto max-w-3xl space-y-4">
-            {renderedMessages.length === 0 && !isProcessing ? (
+            {messagesLoading ? (
+              <div
+                className="flex h-64 items-center justify-center"
+                data-ocid="chat.loading_state"
+              >
+                <Loader2 className="h-6 w-6 animate-spin text-primary" />
+              </div>
+            ) : allVisibleMessages.length === 0 && !isProcessing ? (
               <div
                 className="flex h-64 items-center justify-center"
                 data-ocid="chat.empty_state"
@@ -500,8 +738,8 @@ export function ChatPage() {
                   <p className="glow-text font-display text-xl">
                     Start a conversation with DJ
                   </p>
-                  <p className="mt-2 text-muted-foreground">
-                    Try: "DJ, what do you know about [topic]"
+                  <p className="mt-2 text-sm text-muted-foreground">
+                    Try: "DJ, remember my name is [your name]"
                   </p>
                   <p className="mt-2 text-sm text-muted-foreground">
                     Go to{" "}
@@ -511,7 +749,7 @@ export function ChatPage() {
                     >
                       <BookOpen className="inline h-3.5 w-3.5" /> Knowledge
                     </Link>{" "}
-                    to add websites & documents, or{" "}
+                    to add sources, or{" "}
                     <Link to="/teach" className="text-primary hover:underline">
                       Teach DJ
                     </Link>{" "}
@@ -521,25 +759,28 @@ export function ChatPage() {
               </div>
             ) : (
               <>
-                {/* Render persisted messages */}
-                {renderedMessages.map((message) => (
+                {allVisibleMessages.map((message) => (
                   <div
-                    key={message.id.toString()}
-                    className={`flex ${message.role === "user" ? "justify-end" : "justify-start"}`}
+                    key={message.id}
+                    className={`flex ${message.role === "user" ? "justify-end" : "justify-start"} ${message.isOptimistic ? "opacity-80" : ""}`}
                   >
                     <div
-                      className={`max-w-[80%] rounded-lg px-4 py-3 ${
+                      className={`max-w-[85%] rounded-2xl px-4 py-3 ${
                         message.role === "user"
-                          ? "border border-primary/40 bg-primary/15 text-foreground"
-                          : "border border-secondary/40 bg-card/80 text-foreground"
+                          ? "rounded-br-sm border border-primary/40 bg-primary/15 text-foreground"
+                          : "rounded-bl-sm border border-secondary/40 bg-card/80 text-foreground"
                       }`}
                       style={
                         message.role === "user"
-                          ? { boxShadow: "0 0 8px oklch(0.65 0.25 220 / 0.3)" }
-                          : { boxShadow: "0 0 8px oklch(0.75 0.18 195 / 0.2)" }
+                          ? {
+                              boxShadow: "0 0 10px oklch(0.65 0.25 220 / 0.25)",
+                            }
+                          : {
+                              boxShadow: "0 0 10px oklch(0.75 0.18 195 / 0.15)",
+                            }
                       }
                     >
-                      <div className="mb-1 flex items-center gap-2">
+                      <div className="mb-1.5 flex items-center gap-2">
                         <Badge
                           variant={
                             message.role === "user" ? "default" : "secondary"
@@ -549,7 +790,11 @@ export function ChatPage() {
                           {message.role === "user" ? "You" : "DJ"}
                         </Badge>
                         <span className="text-xs text-muted-foreground">
-                          {formatTimestamp(message.timestamp)}
+                          {message.isOptimistic
+                            ? message.role === "user"
+                              ? "sending..."
+                              : "just now"
+                            : formatTimestamp(message.timestamp)}
                         </span>
                       </div>
                       <MessageContent content={message.content} />
@@ -557,66 +802,67 @@ export function ChatPage() {
                   </div>
                 ))}
 
-                {/* Render optimistic user message while processing (only if no persisted messages yet) */}
-                {showOptimistic &&
-                  optimisticMessages.map((message) => (
-                    <div key={message.id} className="flex justify-end">
-                      <div
-                        className="max-w-[80%] rounded-lg border border-primary/40 bg-primary/15 px-4 py-3 text-foreground opacity-80"
-                        style={{
-                          boxShadow: "0 0 8px oklch(0.65 0.25 220 / 0.3)",
-                        }}
-                      >
-                        <div className="mb-1 flex items-center gap-2">
-                          <Badge variant="default" className="text-xs">
-                            You
-                          </Badge>
-                          <span className="text-xs text-muted-foreground">
-                            sending...
-                          </span>
+                {/* DJ thinking indicator */}
+                {isProcessing && optimisticMessages.length < 2 && (
+                  <div
+                    className="flex justify-start"
+                    data-ocid="chat.loading_state"
+                  >
+                    <div
+                      className="rounded-2xl rounded-bl-sm border border-secondary/40 bg-card/80 px-4 py-3"
+                      style={{
+                        boxShadow: "0 0 10px oklch(0.75 0.18 195 / 0.15)",
+                      }}
+                    >
+                      <div className="flex items-center gap-2">
+                        <div className="flex gap-1">
+                          <span
+                            className="h-2 w-2 rounded-full bg-secondary animate-bounce"
+                            style={{ animationDelay: "0ms" }}
+                          />
+                          <span
+                            className="h-2 w-2 rounded-full bg-secondary animate-bounce"
+                            style={{ animationDelay: "150ms" }}
+                          />
+                          <span
+                            className="h-2 w-2 rounded-full bg-secondary animate-bounce"
+                            style={{ animationDelay: "300ms" }}
+                          />
                         </div>
-                        <MessageContent content={message.content} />
+                        <span className="text-sm text-muted-foreground">
+                          DJ is thinking...
+                        </span>
                       </div>
                     </div>
-                  ))}
+                  </div>
+                )}
+
+                {/* Speaking indicator */}
+                {!isProcessing && isSpeaking && (
+                  <div className="flex justify-start">
+                    <div
+                      className="rounded-2xl rounded-bl-sm border border-secondary/40 bg-card/80 px-4 py-3"
+                      style={{
+                        boxShadow: "0 0 10px oklch(0.75 0.18 195 / 0.15)",
+                      }}
+                    >
+                      <div className="flex items-center gap-2">
+                        <Volume2 className="h-4 w-4 animate-pulse text-secondary" />
+                        <span className="text-sm text-muted-foreground">
+                          DJ is speaking...
+                        </span>
+                        <button
+                          type="button"
+                          onClick={stopSpeaking}
+                          className="ml-1 text-xs text-muted-foreground hover:text-destructive"
+                        >
+                          Stop
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                )}
               </>
-            )}
-
-            {/* DJ is thinking indicator — shown whenever isProcessing, not tied to saveMessage.isPending */}
-            {isProcessing && (
-              <div
-                className="flex justify-start"
-                data-ocid="chat.loading_state"
-              >
-                <div
-                  className="rounded-lg border border-secondary/40 bg-card/80 px-4 py-3"
-                  style={{ boxShadow: "0 0 8px oklch(0.75 0.18 195 / 0.2)" }}
-                >
-                  <div className="flex items-center gap-2">
-                    <Loader2 className="h-4 w-4 animate-spin text-secondary" />
-                    <span className="text-sm text-muted-foreground">
-                      DJ is thinking...
-                    </span>
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {/* Speaking indicator — separate from processing */}
-            {!isProcessing && isSpeaking && (
-              <div className="flex justify-start">
-                <div
-                  className="rounded-lg border border-secondary/40 bg-card/80 px-4 py-3"
-                  style={{ boxShadow: "0 0 8px oklch(0.75 0.18 195 / 0.2)" }}
-                >
-                  <div className="flex items-center gap-2">
-                    <Loader2 className="h-4 w-4 animate-spin text-secondary" />
-                    <span className="text-sm text-muted-foreground">
-                      DJ is speaking...
-                    </span>
-                  </div>
-                </div>
-              </div>
             )}
 
             {/* Scroll anchor */}
@@ -628,44 +874,85 @@ export function ChatPage() {
         <div className="border-t border-primary/20 bg-card/95 px-4 py-3 backdrop-blur">
           <div className="container mx-auto max-w-3xl">
             <div className="flex gap-2">
+              {/* Voice input button */}
               <Button
                 size="icon"
                 variant={isListening ? "default" : "outline"}
-                onClick={startVoiceInput}
-                disabled={isListening || isProcessing}
+                onClick={isListening ? stopVoiceInput : startVoiceInput}
+                disabled={isProcessing}
                 data-ocid="chat.toggle"
-                className={`shrink-0 ${isListening ? "animate-pulse bg-primary" : "border-primary/50"}`}
+                title={isListening ? "Stop listening" : "Start voice input"}
+                className={`shrink-0 ${
+                  isListening
+                    ? "animate-pulse bg-primary text-primary-foreground"
+                    : "border-primary/50 hover:border-primary"
+                }`}
               >
                 {isListening ? (
-                  <MicOff className="h-5 w-5" />
+                  <MicOff className="h-4 w-4" />
                 ) : (
-                  <Mic className="h-5 w-5" />
+                  <Mic className="h-4 w-4" />
                 )}
               </Button>
+
+              {/* TTS toggle */}
+              <Button
+                size="icon"
+                variant="outline"
+                onClick={() => {
+                  if (isSpeaking) stopSpeaking();
+                  setVoiceEnabled((v) => !v);
+                }}
+                data-ocid="chat.secondary_button"
+                title={voiceEnabled ? "Mute DJ voice" : "Enable DJ voice"}
+                className={`shrink-0 ${
+                  voiceEnabled
+                    ? "border-secondary/50 text-secondary hover:border-secondary"
+                    : "border-muted text-muted-foreground"
+                }`}
+              >
+                {voiceEnabled ? (
+                  <Volume2 className="h-4 w-4" />
+                ) : (
+                  <VolumeX className="h-4 w-4" />
+                )}
+              </Button>
+
               <Input
-                placeholder="Type a message or use voice..."
+                placeholder={
+                  isListening
+                    ? "Listening..."
+                    : "Message DJ... (or tap mic to speak)"
+                }
                 value={input}
                 onChange={(e) => setInput(e.target.value)}
-                onKeyDown={(e) =>
-                  e.key === "Enter" && !e.shiftKey && handleSend()
-                }
-                className="flex-1 border-primary/40 bg-card/50"
-                disabled={isProcessing}
+                onKeyDown={handleKeyDown}
+                className="flex-1 border-primary/40 bg-card/50 focus-visible:ring-primary/50"
+                disabled={isProcessing || isListening}
                 data-ocid="chat.input"
+                autoComplete="off"
               />
+
               <Button
-                onClick={handleSend}
+                onClick={() => handleSend()}
                 disabled={!input.trim() || isProcessing}
                 className="shrink-0 bg-primary hover:bg-primary/90"
                 data-ocid="chat.submit_button"
               >
                 {isProcessing ? (
-                  <Loader2 className="h-5 w-5 animate-spin" />
+                  <Loader2 className="h-4 w-4 animate-spin" />
                 ) : (
-                  <Send className="h-5 w-5" />
+                  <Send className="h-4 w-4" />
                 )}
               </Button>
             </div>
+
+            {/* Listening hint */}
+            {isListening && (
+              <p className="mt-1.5 text-center text-xs text-primary animate-pulse">
+                Listening... speak now, then wait for the result
+              </p>
+            )}
           </div>
         </div>
       </div>

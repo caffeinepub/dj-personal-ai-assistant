@@ -6,11 +6,14 @@ import { ChatPage } from "./pages/ChatPage";
 import { CodingPage } from "./pages/CodingPage";
 import { DashboardPage } from "./pages/DashboardPage";
 import { ExcelPage } from "./pages/ExcelPage";
+import { FinancePage } from "./pages/FinancePage";
 import { KnowledgePage } from "./pages/KnowledgePage";
 import { LoginPage } from "./pages/LoginPage";
+import { NotesPage } from "./pages/NotesPage";
 import { ProfilePage } from "./pages/ProfilePage";
 import { SettingsPage } from "./pages/SettingsPage";
 import { SetupWizardPage } from "./pages/SetupWizardPage";
+import { TasksPage } from "./pages/TasksPage";
 import { TeachDJPage } from "./pages/TeachDJPage";
 import { WebsitePage } from "./pages/WebsitePage";
 
@@ -18,7 +21,6 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { loginStatus, isInitializing, identity } = useInternetIdentity();
   const { data: profile, isLoading: profileLoading } = useUserProfile();
 
-  // Consider authenticated if: login was successful OR identity is loaded from storage (idle with identity)
   const isAuthenticated =
     loginStatus === "success" ||
     (loginStatus === "idle" &&
@@ -39,8 +41,6 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
     return <Navigate to="/login" replace />;
   }
 
-  // Redirect to setup if profile loaded and onboarding is not complete
-  // Use explicit null check: null = profile confirmed not to exist, undefined = still loading
   if (
     profile !== undefined &&
     !profileLoading &&
@@ -128,6 +128,30 @@ function App() {
             element={
               <ProtectedRoute>
                 <KnowledgePage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/tasks"
+            element={
+              <ProtectedRoute>
+                <TasksPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/notes"
+            element={
+              <ProtectedRoute>
+                <NotesPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/finance"
+            element={
+              <ProtectedRoute>
+                <FinancePage />
               </ProtectedRoute>
             }
           />

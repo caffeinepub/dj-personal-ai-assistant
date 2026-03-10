@@ -8,6 +8,8 @@ export interface KnowledgeSource {
   title: string;
   url: string;
   content: string;
+  summary: string;
+  category: string;
   timestamp: bigint;
 }
 
@@ -18,13 +20,20 @@ export function encodeKnowledgeSource(
   title: string,
   url: string,
   content: string,
+  category = "General",
 ): string {
   const truncatedContent = content.slice(0, 2000);
-  // Sanitize fields to avoid pipe/colon conflicts
   const safeTitle = title.replace(/\|/g, " ").replace(/\n/g, " ").trim();
   const safeUrl = url.replace(/\|/g, " ").trim();
   const safeContent = truncatedContent.replace(/\n/g, " \\n ");
-  return `${KNOWLEDGE_PREFIX} type:${type} | title:${safeTitle} | url:${safeUrl} | content:${safeContent}`;
+  const safeCategory = category.replace(/\|/g, " ").replace(/\n/g, " ").trim();
+  const summary = content
+    .replace(/\n/g, " ")
+    .replace(/\s+/g, " ")
+    .trim()
+    .slice(0, 200);
+  const safeSummary = summary.replace(/\|/g, " ");
+  return `${KNOWLEDGE_PREFIX} type:${type} | title:${safeTitle} | url:${safeUrl} | category:${safeCategory} | summary:${safeSummary} | content:${safeContent}`;
 }
 
 export function parseKnowledgeSource(memory: Memory): KnowledgeSource | null {
@@ -35,6 +44,8 @@ export function parseKnowledgeSource(memory: Memory): KnowledgeSource | null {
     const typeMatch = rest.match(/type:(\w+)/);
     const titleMatch = rest.match(/\|\s*title:(.+?)\s*\|/);
     const urlMatch = rest.match(/\|\s*url:(.+?)\s*\|/);
+    const categoryMatch = rest.match(/\|\s*category:(.+?)\s*\|/);
+    const summaryMatch = rest.match(/\|\s*summary:(.+?)\s*\|/);
     const contentMatch = rest.match(/\|\s*content:(.+)$/s);
 
     if (!typeMatch) return null;
@@ -45,6 +56,10 @@ export function parseKnowledgeSource(memory: Memory): KnowledgeSource | null {
     const content = contentMatch
       ? contentMatch[1].trim().replace(/ \\n /g, "\n")
       : "";
+    const category = categoryMatch ? categoryMatch[1].trim() : "General";
+    const summary = summaryMatch
+      ? summaryMatch[1].trim()
+      : content.replace(/\n/g, " ").replace(/\s+/g, " ").trim().slice(0, 200);
 
     return {
       id: memory.id,
@@ -52,6 +67,8 @@ export function parseKnowledgeSource(memory: Memory): KnowledgeSource | null {
       title,
       url,
       content,
+      summary,
+      category,
       timestamp: memory.timestamp,
     };
   } catch {
@@ -69,7 +86,9 @@ export function searchKnowledgeSources(
     (s) =>
       s.title.toLowerCase().includes(lower) ||
       s.content.toLowerCase().includes(lower) ||
-      s.url.toLowerCase().includes(lower),
+      s.summary.toLowerCase().includes(lower) ||
+      s.url.toLowerCase().includes(lower) ||
+      s.category.toLowerCase().includes(lower),
   );
 }
 
@@ -117,7 +136,6 @@ export function isKnowledgeSource(memory: Memory): boolean {
 }
 
 export function extractTextFromHtml(html: string): string {
-  // Remove script/style tags and their content
   let text = html
     .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, "")
     .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, "")

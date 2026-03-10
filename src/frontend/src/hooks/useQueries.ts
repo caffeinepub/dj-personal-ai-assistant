@@ -13,6 +13,36 @@ import type {
 } from "../backend.d.ts";
 import { useActor } from "./useActor";
 
+// Local type definitions for new modules (not yet in generated backend.ts)
+export interface Task {
+  id: bigint;
+  title: string;
+  description: string;
+  deadline?: bigint;
+  priority: string;
+  completed: boolean;
+  createdAt: bigint;
+}
+
+export interface Note {
+  id: bigint;
+  title: string;
+  content: string;
+  summary: string;
+  tags: string[];
+  createdAt: bigint;
+  updatedAt: bigint;
+}
+
+export interface FinanceEntry {
+  id: bigint;
+  amount: bigint;
+  category: string;
+  description: string;
+  entryDate: bigint;
+  createdAt: bigint;
+}
+
 // User Profile Queries
 export function useUserProfile() {
   const { actor, isFetching } = useActor();
@@ -23,8 +53,6 @@ export function useUserProfile() {
       return actor.getCallerUserProfile();
     },
     enabled: !!actor && !isFetching,
-    // Return undefined (not null) while disabled so downstream code can distinguish
-    // "loading" from "no profile found"
     retry: false,
   });
 }
@@ -499,6 +527,207 @@ export function useSaveWebsite() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["websites"] });
+    },
+  });
+}
+
+// Tasks Queries
+export function useTasks() {
+  const { actor, isFetching } = useActor();
+  return useQuery<Task[]>({
+    queryKey: ["tasks"],
+    queryFn: async () => {
+      if (!actor) return [];
+      return (actor as any).getAllTasks() as Promise<Task[]>;
+    },
+    enabled: !!actor && !isFetching,
+  });
+}
+
+export function useAddTask() {
+  const { actor } = useActor();
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({
+      title,
+      description,
+      deadline,
+      priority,
+    }: {
+      title: string;
+      description: string;
+      deadline: bigint | null;
+      priority: string;
+    }) => {
+      if (!actor) throw new Error("Actor not available");
+      await (actor as any).addTask(title, description, deadline, priority);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["tasks"] });
+    },
+  });
+}
+
+export function useUpdateTaskCompletion() {
+  const { actor } = useActor();
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({
+      id,
+      completed,
+    }: { id: bigint; completed: boolean }) => {
+      if (!actor) throw new Error("Actor not available");
+      await (actor as any).updateTaskCompletion(id, completed);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["tasks"] });
+    },
+  });
+}
+
+export function useDeleteTask() {
+  const { actor } = useActor();
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (id: bigint) => {
+      if (!actor) throw new Error("Actor not available");
+      await (actor as any).deleteTask(id);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["tasks"] });
+    },
+  });
+}
+
+// Notes Queries
+export function useNotes() {
+  const { actor, isFetching } = useActor();
+  return useQuery<Note[]>({
+    queryKey: ["notes"],
+    queryFn: async () => {
+      if (!actor) return [];
+      return (actor as any).getAllNotes() as Promise<Note[]>;
+    },
+    enabled: !!actor && !isFetching,
+  });
+}
+
+export function useAddNote() {
+  const { actor } = useActor();
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({
+      title,
+      content,
+      summary,
+      tags,
+    }: {
+      title: string;
+      content: string;
+      summary: string;
+      tags: string[];
+    }) => {
+      if (!actor) throw new Error("Actor not available");
+      await (actor as any).addNote(title, content, summary, tags);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["notes"] });
+    },
+  });
+}
+
+export function useUpdateNote() {
+  const { actor } = useActor();
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({
+      id,
+      title,
+      content,
+      summary,
+      tags,
+    }: {
+      id: bigint;
+      title: string;
+      content: string;
+      summary: string;
+      tags: string[];
+    }) => {
+      if (!actor) throw new Error("Actor not available");
+      await (actor as any).updateNote(id, title, content, summary, tags);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["notes"] });
+    },
+  });
+}
+
+export function useDeleteNote() {
+  const { actor } = useActor();
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (id: bigint) => {
+      if (!actor) throw new Error("Actor not available");
+      await (actor as any).deleteNote(id);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["notes"] });
+    },
+  });
+}
+
+// Finance Queries
+export function useFinanceEntries() {
+  const { actor, isFetching } = useActor();
+  return useQuery<FinanceEntry[]>({
+    queryKey: ["financeEntries"],
+    queryFn: async () => {
+      if (!actor) return [];
+      return (actor as any).getAllFinanceEntries() as Promise<FinanceEntry[]>;
+    },
+    enabled: !!actor && !isFetching,
+  });
+}
+
+export function useAddFinanceEntry() {
+  const { actor } = useActor();
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({
+      amount,
+      category,
+      description,
+      entryDate,
+    }: {
+      amount: bigint;
+      category: string;
+      description: string;
+      entryDate: bigint;
+    }) => {
+      if (!actor) throw new Error("Actor not available");
+      await (actor as any).addFinanceEntry(
+        amount,
+        category,
+        description,
+        entryDate,
+      );
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["financeEntries"] });
+    },
+  });
+}
+
+export function useDeleteFinanceEntry() {
+  const { actor } = useActor();
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (id: bigint) => {
+      if (!actor) throw new Error("Actor not available");
+      await (actor as any).deleteFinanceEntry(id);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["financeEntries"] });
     },
   });
 }

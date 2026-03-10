@@ -1,57 +1,43 @@
 # DJ Personal AI Assistant
 
 ## Current State
-
-The app has:
-- Internet Identity login with authorization component
-- Dashboard, Chat, Profile, Settings pages
-- Setup Wizard and Teach DJ Story Mode
-- Self-improvement engine: memories, custom commands, behavior rules, personality settings
-- Three modules: Excel analysis, Coding assistant, Website generation
-- Plugin activation/deactivation system
-- Chat history persistence
-- Improvement log
-
-Backend stores: UserProfile, Memory, Command, BehaviorRule, ChatMessage, ImprovementLog, ExcelFile, CodeSnippet, Website.
-
-No blob-storage component is currently selected.
+- Knowledge page stores items as encoded memory strings with fields: type, title, url, content
+- `knowledgeSources.ts` encodes/parses these strings; search already covers title/url/content
+- No category field in KnowledgeSource; no summary field
+- KnowledgePage has a "My Sources" tab with search bar, but no category filter
+- No auto-summary card shown after adding a PDF or website
 
 ## Requested Changes (Diff)
 
 ### Add
-- **ExternalSource** type in backend to store metadata about external knowledge sources (URL, PDF, Word doc, PowerPoint)
-- `addExternalSource(sourceType, title, url, extractedContent)` - saves a source with extracted text content
-- `getAllExternalSources()` - returns all saved sources
-- `deleteExternalSource(id)` - removes a source
-- `searchExternalSources(query)` - searches source content by keyword
-- **Knowledge Sources page** (new page `/knowledge`) - UI for managing all external sources
-  - Tab/section: "Add Website" - paste URL, app fetches page content (via fetch in browser) and saves title + extracted text
-  - Tab/section: "Upload File" - drag-and-drop for PDF, Word (.docx), PowerPoint (.pptx) files; client-side text extraction then saves to backend
-  - List of all saved sources with title, type icon, date added, content preview, and delete button
-  - Search bar to find sources by keyword
-- **Chat integration**: when DJ replies, it searches saved external sources for relevant content and appends matching context to responses with a "Based on: [source title]" citation
-- Navigation link to Knowledge Sources page in sidebar/nav
-- blob-storage component selection for future file storage scalability
+- `category` field to `KnowledgeSource` interface (default: "General")
+- `summary` field to `KnowledgeSource` interface (short auto-generated excerpt)
+- Preset categories: Work, Personal, Technical, Research, Other
+- Ability for users to create custom categories (stored in localStorage)
+- Category selector when adding a website or file (before saving)
+- Summary card shown immediately after saving a knowledge item: title, short summary (first ~200 chars of content), source type badge
+- Category filter tabs/chips above the sources list
+- Search already covers content; confirm it works and is visible
 
 ### Modify
-- **ChatPage** - DJ response logic now queries external sources and weaves relevant content into replies
-- **DashboardPage** - Add "Knowledge Sources" stat card showing count of saved sources
-- **App.tsx / navigation** - Add route and nav item for `/knowledge`
+- `encodeKnowledgeSource` to include `category` and `summary` fields
+- `parseKnowledgeSource` to extract `category` and `summary` (backward compatible: missing = defaults)
+- KnowledgePage "My Sources" tab: add category filter bar above grid
+- Website save flow: add category picker step before saving
+- File upload review step: add category picker
+- Source cards: show summary text and category badge
 
 ### Remove
 - Nothing removed
 
 ## Implementation Plan
-
-1. Select blob-storage component (for file uploads)
-2. Update backend (main.mo) to add ExternalSource type and CRUD + search functions
-3. Generate updated backend.d.ts
-4. Create KnowledgePage.tsx with:
-   - Add Website tab: URL input → browser fetch → text extraction → save to backend
-   - Upload File tab: drag-drop file input → client-side PDF/DOCX/PPTX text extraction → save to backend
-   - Source list with type icons, previews, delete
-   - Search across all sources
-5. Update ChatPage.tsx: when building DJ response, load all external sources, search for relevance, inject matching content as context with citation
-6. Update DashboardPage.tsx: add knowledge sources count card
-7. Update App.tsx: add /knowledge route
-8. Update navigation component to include Knowledge Sources link
+1. Update `knowledgeSources.ts`: add category/summary to interface, encode/parse functions (backward compat)
+2. Update `KnowledgePage.tsx`:
+   a. Add category state (preset list + custom categories from localStorage)
+   b. Add custom category creation UI
+   c. Website flow: add category dropdown before Save
+   d. File upload review: add category dropdown
+   e. On save: generate summary from first 200 chars of content, store with category
+   f. After saving: show a summary card (toast-style or inline) with title, summary, source type
+   g. My Sources tab: add category filter chips above grid
+   h. Source cards: show category badge and summary snippet

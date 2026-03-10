@@ -18,7 +18,7 @@ actor {
   // ----- Types -----
 
   type PersonalitySettings = {
-    communicationStyle : Text; // formal, casual, etc.
+    communicationStyle : Text;
   };
 
   type Memory = {
@@ -43,14 +43,14 @@ actor {
 
   type ChatMessage = {
     id : Nat;
-    role : Text; // user or assistant
+    role : Text;
     content : Text;
     timestamp : Time.Time;
   };
 
   type ImprovementLog = {
     id : Nat;
-    entryType : Text; // memory, command, etc.
+    entryType : Text;
     description : Text;
     timestamp : Time.Time;
   };
@@ -80,6 +80,35 @@ actor {
     timestamp : Time.Time;
   };
 
+  type Task = {
+    id : Nat;
+    title : Text;
+    description : Text;
+    deadline : ?Time.Time;
+    priority : Text; // low, medium, high
+    completed : Bool;
+    createdAt : Time.Time;
+  };
+
+  type Note = {
+    id : Nat;
+    title : Text;
+    content : Text;
+    summary : Text;
+    tags : [Text];
+    createdAt : Time.Time;
+    updatedAt : Time.Time;
+  };
+
+  type FinanceEntry = {
+    id : Nat;
+    amount : Int; // positive = income, negative = expense
+    category : Text;
+    description : Text;
+    entryDate : Time.Time;
+    createdAt : Time.Time;
+  };
+
   public type UserProfile = {
     name : Text;
     preferences : Text;
@@ -95,13 +124,13 @@ actor {
 
   module ChatMessage {
     public func compareByTimestampReversed(msg1 : ChatMessage, msg2 : ChatMessage) : Order.Order {
-      Int.compare(msg2.timestamp, msg1.timestamp); // Reverse order (newest first)
+      Int.compare(msg2.timestamp, msg1.timestamp);
     };
   };
 
   module ImprovementLog {
     public func compareByTimestampReversed(log1 : ImprovementLog, log2 : ImprovementLog) : Order.Order {
-      Int.compare(log2.timestamp, log1.timestamp); // Reverse order (newest first)
+      Int.compare(log2.timestamp, log1.timestamp);
     };
   };
 
@@ -122,6 +151,9 @@ actor {
   let userExcelFiles = Map.empty<Principal, List.List<ExcelFile>>();
   let userCodeSnippets = Map.empty<Principal, List.List<CodeSnippet>>();
   let userWebsites = Map.empty<Principal, List.List<Website>>();
+  let userTasks = Map.empty<Principal, List.List<Task>>();
+  let userNotes = Map.empty<Principal, List.List<Note>>();
+  let userFinanceEntries = Map.empty<Principal, List.List<FinanceEntry>>();
 
   // ----- ID Counters -----
   var nextMemoryId = 1;
@@ -132,12 +164,15 @@ actor {
   var nextExcelFileId = 1;
   var nextSnippetId = 1;
   var nextWebsiteId = 1;
+  var nextTaskId = 1;
+  var nextNoteId = 1;
+  var nextFinanceEntryId = 1;
 
   // ----- Authorization -----
   let accessControlState = AccessControl.initState();
   include MixinAuthorization(accessControlState);
 
-  // ----- User Profile Management (Required Interface) -----
+  // ----- User Profile Management -----
   public query ({ caller }) func getCallerUserProfile() : async ?UserProfile {
     if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
       Runtime.trap("Unauthorized: Only users can access profiles");
@@ -159,7 +194,6 @@ actor {
     userProfiles.add(caller, profile);
   };
 
-  // ----- Legacy Profile Functions -----
   public shared ({ caller }) func createUserProfile(name : Text) : async () {
     if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
       Runtime.trap("Unauthorized: Only users can create profiles");
@@ -221,12 +255,10 @@ actor {
       timestamp = Time.now();
     };
     nextMemoryId += 1;
-
     let currentMemories = switch (userMemories.get(caller)) {
       case (null) { List.empty<Memory>() };
       case (?memories) { memories };
     };
-
     currentMemories.add(memory);
     userMemories.add(caller, currentMemories);
   };
@@ -266,12 +298,10 @@ actor {
       timestamp = Time.now();
     };
     nextCommandId += 1;
-
     let currentCommands = switch (userCommands.get(caller)) {
       case (null) { List.empty<Command>() };
       case (?commands) { commands };
     };
-
     currentCommands.add(command);
     userCommands.add(caller, currentCommands);
   };
@@ -326,12 +356,10 @@ actor {
       timestamp = Time.now();
     };
     nextRuleId += 1;
-
     let currentRules = switch (userRules.get(caller)) {
       case (null) { List.empty<BehaviorRule>() };
       case (?rules) { rules };
     };
-
     currentRules.add(rule);
     userRules.add(caller, currentRules);
   };
@@ -355,9 +383,7 @@ actor {
       case (?rules) {
         let updatedRules = rules.map<BehaviorRule, BehaviorRule>(
           func(rule) {
-            if (rule.id == id) { { rule with priority = newPriority } } else {
-              rule;
-            };
+            if (rule.id == id) { { rule with priority = newPriority } } else { rule };
           }
         );
         userRules.add(caller, updatedRules);
@@ -396,13 +422,10 @@ actor {
     switch (userProfiles.get(caller)) {
       case (null) { Runtime.trap("User profile not found") };
       case (?profile) {
-        let newSettings : PersonalitySettings = {
-          communicationStyle = style;
-        };
         let updatedProfile : UserProfile = {
           name = profile.name;
           preferences = profile.preferences;
-          personalitySettings = newSettings;
+          personalitySettings = { communicationStyle = style };
           onboardingComplete = profile.onboardingComplete;
         };
         userProfiles.add(caller, updatedProfile);
@@ -432,12 +455,10 @@ actor {
       timestamp = Time.now();
     };
     nextChatMessageId += 1;
-
     let currentHistory = switch (userChatHistory.get(caller)) {
       case (null) { List.empty<ChatMessage>() };
       case (?history) { history };
     };
-
     currentHistory.add(message);
     userChatHistory.add(caller, currentHistory);
   };
@@ -467,7 +488,6 @@ actor {
       case (null) { Set.empty<Text>() };
       case (?modules) { modules };
     };
-
     currentModules.add(moduleName);
     userModules.add(caller, currentModules);
   };
@@ -507,12 +527,10 @@ actor {
       timestamp = Time.now();
     };
     nextLogId += 1;
-
     let currentLogs = switch (userImprovementLogs.get(caller)) {
       case (null) { List.empty<ImprovementLog>() };
       case (?logs) { logs };
     };
-
     currentLogs.add(log);
     userImprovementLogs.add(caller, currentLogs);
   };
@@ -546,12 +564,10 @@ actor {
       analysisResult = null;
     };
     nextExcelFileId += 1;
-
     let currentFiles = switch (userExcelFiles.get(caller)) {
       case (null) { List.empty<ExcelFile>() };
       case (?files) { files };
     };
-
     currentFiles.add(file);
     userExcelFiles.add(caller, currentFiles);
   };
@@ -604,12 +620,10 @@ actor {
       timestamp = Time.now();
     };
     nextSnippetId += 1;
-
     let currentSnippets = switch (userCodeSnippets.get(caller)) {
       case (null) { List.empty<CodeSnippet>() };
       case (?snippets) { snippets };
     };
-
     currentSnippets.add(snippet);
     userCodeSnippets.add(caller, currentSnippets);
   };
@@ -638,12 +652,10 @@ actor {
       timestamp = Time.now();
     };
     nextWebsiteId += 1;
-
     let currentWebsites = switch (userWebsites.get(caller)) {
       case (null) { List.empty<Website>() };
       case (?websites) { websites };
     };
-
     currentWebsites.add(website);
     userWebsites.add(caller, currentWebsites);
   };
@@ -655,6 +667,176 @@ actor {
     switch (userWebsites.get(caller)) {
       case (null) { [] };
       case (?websites) { websites.toArray() };
+    };
+  };
+
+  // ----- Tasks Module -----
+  public shared ({ caller }) func addTask(title : Text, description : Text, deadline : ?Time.Time, priority : Text) : async () {
+    if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
+      Runtime.trap("Unauthorized");
+    };
+    let task : Task = {
+      id = nextTaskId;
+      title;
+      description;
+      deadline;
+      priority;
+      completed = false;
+      createdAt = Time.now();
+    };
+    nextTaskId += 1;
+    let current = switch (userTasks.get(caller)) {
+      case (null) { List.empty<Task>() };
+      case (?t) { t };
+    };
+    current.add(task);
+    userTasks.add(caller, current);
+  };
+
+  public query ({ caller }) func getAllTasks() : async [Task] {
+    if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
+      Runtime.trap("Unauthorized");
+    };
+    switch (userTasks.get(caller)) {
+      case (null) { [] };
+      case (?tasks) { tasks.toArray() };
+    };
+  };
+
+  public shared ({ caller }) func updateTaskCompletion(id : Nat, completed : Bool) : async () {
+    if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
+      Runtime.trap("Unauthorized");
+    };
+    switch (userTasks.get(caller)) {
+      case (null) { Runtime.trap("No tasks found") };
+      case (?tasks) {
+        let updated = tasks.map<Task, Task>(func(t) {
+          if (t.id == id) { { t with completed } } else { t };
+        });
+        userTasks.add(caller, updated);
+      };
+    };
+  };
+
+  public shared ({ caller }) func deleteTask(id : Nat) : async () {
+    if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
+      Runtime.trap("Unauthorized");
+    };
+    switch (userTasks.get(caller)) {
+      case (null) { Runtime.trap("No tasks found") };
+      case (?tasks) {
+        let filtered = tasks.filter(func(t) { t.id != id });
+        userTasks.add(caller, filtered);
+      };
+    };
+  };
+
+  // ----- Notes Module -----
+  public shared ({ caller }) func addNote(title : Text, content : Text, summary : Text, tags : [Text]) : async () {
+    if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
+      Runtime.trap("Unauthorized");
+    };
+    let now = Time.now();
+    let note : Note = {
+      id = nextNoteId;
+      title;
+      content;
+      summary;
+      tags;
+      createdAt = now;
+      updatedAt = now;
+    };
+    nextNoteId += 1;
+    let current = switch (userNotes.get(caller)) {
+      case (null) { List.empty<Note>() };
+      case (?n) { n };
+    };
+    current.add(note);
+    userNotes.add(caller, current);
+  };
+
+  public query ({ caller }) func getAllNotes() : async [Note] {
+    if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
+      Runtime.trap("Unauthorized");
+    };
+    switch (userNotes.get(caller)) {
+      case (null) { [] };
+      case (?notes) { notes.toArray() };
+    };
+  };
+
+  public shared ({ caller }) func updateNote(id : Nat, title : Text, content : Text, summary : Text, tags : [Text]) : async () {
+    if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
+      Runtime.trap("Unauthorized");
+    };
+    switch (userNotes.get(caller)) {
+      case (null) { Runtime.trap("No notes found") };
+      case (?notes) {
+        let updated = notes.map<Note, Note>(func(n) {
+          if (n.id == id) {
+            { n with title; content; summary; tags; updatedAt = Time.now() };
+          } else { n };
+        });
+        userNotes.add(caller, updated);
+      };
+    };
+  };
+
+  public shared ({ caller }) func deleteNote(id : Nat) : async () {
+    if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
+      Runtime.trap("Unauthorized");
+    };
+    switch (userNotes.get(caller)) {
+      case (null) { Runtime.trap("No notes found") };
+      case (?notes) {
+        let filtered = notes.filter(func(n) { n.id != id });
+        userNotes.add(caller, filtered);
+      };
+    };
+  };
+
+  // ----- Finance Tracker Module -----
+  public shared ({ caller }) func addFinanceEntry(amount : Int, category : Text, description : Text, entryDate : Time.Time) : async () {
+    if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
+      Runtime.trap("Unauthorized");
+    };
+    let entry : FinanceEntry = {
+      id = nextFinanceEntryId;
+      amount;
+      category;
+      description;
+      entryDate;
+      createdAt = Time.now();
+    };
+    nextFinanceEntryId += 1;
+    let current = switch (userFinanceEntries.get(caller)) {
+      case (null) { List.empty<FinanceEntry>() };
+      case (?f) { f };
+    };
+    current.add(entry);
+    userFinanceEntries.add(caller, current);
+  };
+
+  public query ({ caller }) func getAllFinanceEntries() : async [FinanceEntry] {
+    if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
+      Runtime.trap("Unauthorized");
+    };
+    switch (userFinanceEntries.get(caller)) {
+      case (null) { [] };
+      case (?entries) { entries.toArray() };
+    };
+  };
+
+  public shared ({ caller }) func deleteFinanceEntry(id : Nat) : async () {
+    if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
+      Runtime.trap("Unauthorized");
+    };
+    switch (userFinanceEntries.get(caller)) {
+      case (null) { Runtime.trap("No finance entries found") };
+      case (?entries) {
+        let filtered = entries.filter(func(e) { e.id != id });
+        userFinanceEntries.add(caller, filtered);
+      };
     };
   };
 };

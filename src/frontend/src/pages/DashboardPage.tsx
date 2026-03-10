@@ -12,12 +12,15 @@ import {
   Activity,
   BookOpen,
   Brain,
+  CheckSquare,
   Code,
+  DollarSign,
   FileSpreadsheet,
   Globe,
   GraduationCap,
   Mic,
   Settings,
+  StickyNote,
 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
@@ -53,9 +56,7 @@ export function DashboardPage() {
   const [currentTime, setCurrentTime] = useState(new Date());
 
   useEffect(() => {
-    const timer = setInterval(() => {
-      setCurrentTime(new Date());
-    }, 1000);
+    const timer = setInterval(() => setCurrentTime(new Date()), 1000);
     return () => clearInterval(timer);
   }, []);
 
@@ -81,6 +82,27 @@ export function DashboardPage() {
       description: "Generate websites instantly",
       path: "/website",
     },
+    {
+      id: "tasks",
+      name: "Tasks & Reminders",
+      icon: CheckSquare,
+      description: "Set tasks with deadlines",
+      path: "/tasks",
+    },
+    {
+      id: "notes",
+      name: "Notes",
+      icon: StickyNote,
+      description: "Quick capture and organize notes",
+      path: "/notes",
+    },
+    {
+      id: "finance",
+      name: "Finance Tracker",
+      icon: DollarSign,
+      description: "Track income and expenses",
+      path: "/finance",
+    },
   ];
 
   const handleToggleModule = async (moduleName: string, isActive: boolean) => {
@@ -97,32 +119,28 @@ export function DashboardPage() {
     }
   };
 
-  const formatTime = (date: Date) => {
-    return date.toLocaleTimeString("en-US", {
+  const formatTime = (date: Date) =>
+    date.toLocaleTimeString("en-US", {
       hour: "2-digit",
       minute: "2-digit",
       second: "2-digit",
     });
-  };
 
-  const formatDate = (date: Date) => {
-    return date.toLocaleDateString("en-US", {
+  const formatDate = (date: Date) =>
+    date.toLocaleDateString("en-US", {
       weekday: "long",
       year: "numeric",
       month: "long",
       day: "numeric",
     });
-  };
 
-  const formatTimestamp = (timestamp: bigint) => {
-    const date = new Date(Number(timestamp) / 1000000);
-    return date.toLocaleString("en-US", {
+  const formatTimestamp = (timestamp: bigint) =>
+    new Date(Number(timestamp) / 1000000).toLocaleString("en-US", {
       month: "short",
       day: "numeric",
       hour: "2-digit",
       minute: "2-digit",
     });
-  };
 
   const initials = (profile?.name || "U")
     .split(" ")
@@ -185,7 +203,7 @@ export function DashboardPage() {
           </div>
         </div>
 
-        {/* Hero Section with Time and Greeting */}
+        {/* Hero Section */}
         <div className="glow-border rounded-lg border-2 border-primary bg-gradient-to-br from-card to-muted p-8 text-center">
           <div className="mb-6">
             <p className="glow-text font-display text-5xl font-bold md:text-7xl">
@@ -204,7 +222,7 @@ export function DashboardPage() {
         </div>
 
         <div className="grid gap-8 lg:grid-cols-3">
-          {/* Central Listening Interface */}
+          {/* Voice Interface */}
           <Card className="glow-border border-primary/50 lg:col-span-2">
             <CardHeader>
               <CardTitle className="font-display text-2xl">
@@ -231,8 +249,7 @@ export function DashboardPage() {
           <Card className="glow-border border-primary/50">
             <CardHeader>
               <CardTitle className="flex items-center gap-2 font-display">
-                <Brain className="h-6 w-6 text-primary" />
-                DJ Brain
+                <Brain className="h-6 w-6 text-primary" /> DJ Brain
               </CardTitle>
               <CardDescription>Self-improvement metrics</CardDescription>
             </CardHeader>
@@ -248,8 +265,7 @@ export function DashboardPage() {
               </div>
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-1.5 text-muted-foreground">
-                  <BookOpen className="h-3.5 w-3.5" />
-                  Knowledge Sources
+                  <BookOpen className="h-3.5 w-3.5" /> Knowledge Sources
                 </div>
                 <Badge
                   variant="outline"
@@ -356,8 +372,7 @@ export function DashboardPage() {
         <Card className="glow-border border-primary/50">
           <CardHeader>
             <CardTitle className="flex items-center gap-2 font-display">
-              <Activity className="h-6 w-6 text-primary" />
-              Recent Activity
+              <Activity className="h-6 w-6 text-primary" /> Recent Activity
             </CardTitle>
             <CardDescription>Latest improvements and changes</CardDescription>
           </CardHeader>

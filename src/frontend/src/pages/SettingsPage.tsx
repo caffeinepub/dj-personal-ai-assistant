@@ -37,6 +37,7 @@ import {
   useUpdateUserProfile,
   useUserProfile,
 } from "../hooks/useQueries";
+import { Link } from "../lib/router-shim";
 
 interface SpeechRecognitionEvent {
   results: { [key: number]: { [key: number]: { transcript: string } } };
@@ -940,24 +941,24 @@ export function SettingsPage() {
 
         {/* Footer links */}
         <div className="flex justify-center gap-6 pb-8 text-sm text-muted-foreground">
-          <a
-            href="/teach"
+          <Link
+            to="/teach"
             className="flex items-center gap-1 hover:text-primary"
           >
             <GraduationCap className="h-3.5 w-3.5" />
             Teach DJ (Story Mode)
-          </a>
-          <a
-            href="/profile"
+          </Link>
+          <Link
+            to="/profile"
             className="flex items-center gap-1 hover:text-primary"
           >
             <Users className="h-3.5 w-3.5" />
             View Profile
-          </a>
-          <a href="/" className="flex items-center gap-1 hover:text-primary">
+          </Link>
+          <Link to="/" className="flex items-center gap-1 hover:text-primary">
             <Settings className="h-3.5 w-3.5" />
             Dashboard
-          </a>
+          </Link>
         </div>
 
         {/* Caffeine footer */}

@@ -68,6 +68,32 @@ export interface ExcelFile {
     filename: string;
     rawData: Uint8Array;
 }
+export interface Task {
+    id: bigint;
+    title: string;
+    description: string;
+    deadline?: Time;
+    priority: string;
+    completed: boolean;
+    createdAt: Time;
+}
+export interface Note {
+    id: bigint;
+    title: string;
+    content: string;
+    summary: string;
+    tags: string[];
+    createdAt: Time;
+    updatedAt: Time;
+}
+export interface FinanceEntry {
+    id: bigint;
+    amount: bigint;
+    category: string;
+    description: string;
+    entryDate: Time;
+    createdAt: Time;
+}
 export enum UserRole {
     admin = "admin",
     user = "user",
@@ -111,4 +137,18 @@ export interface backendInterface {
     setPersonalitySettings(style: string): Promise<void>;
     updatePreferences(preferences: string): Promise<void>;
     updateRulePriority(id: bigint, newPriority: bigint): Promise<void>;
+    // Tasks
+    addTask(title: string, description: string, deadline: Time | null, priority: string): Promise<void>;
+    getAllTasks(): Promise<Array<Task>>;
+    updateTaskCompletion(id: bigint, completed: boolean): Promise<void>;
+    deleteTask(id: bigint): Promise<void>;
+    // Notes
+    addNote(title: string, content: string, summary: string, tags: string[]): Promise<void>;
+    getAllNotes(): Promise<Array<Note>>;
+    updateNote(id: bigint, title: string, content: string, summary: string, tags: string[]): Promise<void>;
+    deleteNote(id: bigint): Promise<void>;
+    // Finance
+    addFinanceEntry(amount: bigint, category: string, description: string, entryDate: Time): Promise<void>;
+    getAllFinanceEntries(): Promise<Array<FinanceEntry>>;
+    deleteFinanceEntry(id: bigint): Promise<void>;
 }

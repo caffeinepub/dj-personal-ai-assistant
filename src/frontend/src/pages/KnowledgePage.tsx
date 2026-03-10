@@ -9,6 +9,13 @@ import {
 } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import {
@@ -16,6 +23,7 @@ import {
   CheckCircle,
   FileText,
   FileType,
+  FolderOpen,
   Globe,
   Link,
   Loader2,
@@ -23,6 +31,7 @@ import {
   Presentation,
   Search,
   Sparkles,
+  Tag,
   Trash2,
   Upload,
   X,
@@ -43,6 +52,14 @@ import {
   searchKnowledgeSources,
 } from "../utils/knowledgeSources";
 
+const PRESET_CATEGORIES = [
+  "Work",
+  "Personal",
+  "Technical",
+  "Research",
+  "Other",
+];
+
 type UploadState =
   | { stage: "idle" }
   | { stage: "reading" }
@@ -53,6 +70,13 @@ type UploadState =
       fileType: string;
     }
   | { stage: "saving" };
+
+type SummaryCard = {
+  title: string;
+  summary: string;
+  sourceType: string;
+  category: string;
+} | null;
 
 function SourceTypeIcon({ type }: { type: string }) {
   switch (type) {
@@ -96,15 +120,130 @@ function SourceTypeBadge({ type }: { type: string }) {
   );
 }
 
+function CategorySelector({
+  value,
+  onChange,
+  allCategories,
+  onAddCustom,
+}: {
+  value: string;
+  onChange: (v: string) => void;
+  allCategories: string[];
+  onAddCustom: (name: string) => void;
+}) {
+  const [showCustomInput, setShowCustomInput] = useState(false);
+  const [customInput, setCustomInput] = useState("");
+
+  const handleAdd = () => {
+    const trimmed = customInput.trim();
+    if (!trimmed) return;
+    onAddCustom(trimmed);
+    onChange(trimmed);
+    setCustomInput("");
+    setShowCustomInput(false);
+  };
+
+  return (
+    <div className="space-y-2">
+      <Label className="flex items-center gap-1.5">
+        <Tag className="h-3.5 w-3.5" />
+        Category
+      </Label>
+      <Select
+        value={value}
+        onValueChange={(v) => {
+          if (v === "__custom__") {
+            setShowCustomInput(true);
+          } else {
+            onChange(v);
+            setShowCustomInput(false);
+          }
+        }}
+      >
+        <SelectTrigger
+          data-ocid="knowledge.category_select"
+          className="border-primary/30 bg-card/50"
+        >
+          <SelectValue placeholder="Select a category" />
+        </SelectTrigger>
+        <SelectContent className="border-primary/30 bg-card">
+          {allCategories.map((cat) => (
+            <SelectItem key={cat} value={cat}>
+              {cat}
+            </SelectItem>
+          ))}
+          <SelectItem value="__custom__" className="text-primary">
+            <span className="flex items-center gap-1.5">
+              <Plus className="h-3.5 w-3.5" />
+              Add custom category...
+            </span>
+          </SelectItem>
+        </SelectContent>
+      </Select>
+      {showCustomInput && (
+        <div className="flex gap-2">
+          <Input
+            data-ocid="knowledge.custom_category_input"
+            placeholder="New category name"
+            value={customInput}
+            onChange={(e) => setCustomInput(e.target.value)}
+            onKeyDown={(e) => e.key === "Enter" && handleAdd()}
+            className="border-primary/30 bg-card/50 text-sm"
+            autoFocus
+          />
+          <Button
+            data-ocid="knowledge.custom_category_button"
+            size="sm"
+            onClick={handleAdd}
+            disabled={!customInput.trim()}
+            className="shrink-0 bg-primary/20 border border-primary/40 text-primary hover:bg-primary/30"
+          >
+            <Plus className="h-4 w-4" />
+          </Button>
+          <Button
+            size="sm"
+            variant="ghost"
+            onClick={() => {
+              setShowCustomInput(false);
+              setCustomInput("");
+            }}
+            className="shrink-0 text-muted-foreground"
+          >
+            <X className="h-4 w-4" />
+          </Button>
+        </div>
+      )}
+    </div>
+  );
+}
+
 export function KnowledgePage() {
   const { data: memories = [] } = useMemories();
   const addMemory = useAddMemory();
   const deleteMemory = useDeleteMemory();
 
+  // Categories
+  const [customCategories, setCustomCategories] = useState<string[]>(() => {
+    try {
+      return JSON.parse(localStorage.getItem("dj_custom_categories") || "[]");
+    } catch {
+      return [];
+    }
+  });
+  const allCategories = [...PRESET_CATEGORIES, ...customCategories];
+
+  const handleAddCustomCategory = (name: string) => {
+    if (allCategories.includes(name)) return;
+    const updated = [...customCategories, name];
+    setCustomCategories(updated);
+    localStorage.setItem("dj_custom_categories", JSON.stringify(updated));
+  };
+
   // Website section
   const [websiteUrl, setWebsiteUrl] = useState("");
   const [websiteTitle, setWebsiteTitle] = useState("");
   const [websiteContent, setWebsiteContent] = useState("");
+  const [websiteCategory, setWebsiteCategory] = useState("General");
   const [showManualPaste, setShowManualPaste] = useState(false);
   const [isFetchingUrl, setIsFetchingUrl] = useState(false);
 
@@ -114,17 +253,30 @@ export function KnowledgePage() {
   });
   const [editedContent, setEditedContent] = useState("");
   const [editedTitle, setEditedTitle] = useState("");
+  const [fileCategory, setFileCategory] = useState("General");
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [isDragging, setIsDragging] = useState(false);
 
-  // My sources section
+  // Post-save summary card
+  const [lastSavedSummary, setLastSavedSummary] = useState<SummaryCard>(null);
+
+  // My sources
   const [searchQuery, setSearchQuery] = useState("");
+  const [selectedCategory, setSelectedCategory] = useState("All");
 
   const knowledgeSources: KnowledgeSource[] = memories
     .map(parseKnowledgeSource)
     .filter((s): s is KnowledgeSource => s !== null);
 
-  const filteredSources = searchKnowledgeSources(knowledgeSources, searchQuery);
+  const searchFiltered = searchKnowledgeSources(knowledgeSources, searchQuery);
+  const filteredSources =
+    selectedCategory === "All"
+      ? searchFiltered
+      : searchFiltered.filter((s) => s.category === selectedCategory);
+
+  const storedCategories = Array.from(
+    new Set(knowledgeSources.map((s) => s.category).filter(Boolean)),
+  );
 
   const formatTimestamp = (ts: bigint) => {
     const d = new Date(Number(ts) / 1_000_000);
@@ -140,16 +292,12 @@ export function KnowledgePage() {
       toast.error("Please enter a URL");
       return;
     }
-
     let url = websiteUrl.trim();
-    if (!url.startsWith("http://") && !url.startsWith("https://")) {
+    if (!url.startsWith("http://") && !url.startsWith("https://"))
       url = `https://${url}`;
-    }
-
     setIsFetchingUrl(true);
     setShowManualPaste(false);
     setWebsiteContent("");
-
     try {
       const resp = await fetch(url);
       const html = await resp.text();
@@ -157,20 +305,17 @@ export function KnowledgePage() {
       setWebsiteContent(text.slice(0, 2000));
       if (!websiteTitle.trim()) {
         try {
-          const hostname = new URL(url).hostname;
-          setWebsiteTitle(hostname);
+          setWebsiteTitle(new URL(url).hostname);
         } catch {
           setWebsiteTitle(url);
         }
       }
       toast.success("Website content fetched successfully");
     } catch {
-      // CORS or fetch error — ask user to paste
       setShowManualPaste(true);
       if (!websiteTitle.trim()) {
         try {
-          const hostname = new URL(url).hostname;
-          setWebsiteTitle(hostname);
+          setWebsiteTitle(new URL(url).hostname);
         } catch {
           setWebsiteTitle(url);
         }
@@ -191,28 +336,32 @@ export function KnowledgePage() {
       toast.error("No content to save — please paste the website content");
       return;
     }
-    // Safe hostname extraction — guard against missing protocol
     let hostname = websiteUrl;
     try {
       hostname = new URL(
         websiteUrl.startsWith("http") ? websiteUrl : `https://${websiteUrl}`,
       ).hostname;
     } catch {
-      // keep original url as fallback
+      /* keep */
     }
     const title = websiteTitle.trim() || hostname;
+    const category = websiteCategory || "General";
     const encoded = encodeKnowledgeSource(
       "website",
       title,
       websiteUrl,
       content,
+      category,
     );
     try {
       await addMemory.mutateAsync(encoded);
+      const summary = content.replace(/\s+/g, " ").trim().slice(0, 200);
+      setLastSavedSummary({ title, summary, sourceType: "website", category });
       toast.success("Website content stored in DJ's memory");
       setWebsiteUrl("");
       setWebsiteTitle("");
       setWebsiteContent("");
+      setWebsiteCategory("General");
       setShowManualPaste(false);
     } catch {
       toast.error("Failed to save website content");
@@ -222,9 +371,7 @@ export function KnowledgePage() {
   const processFile = useCallback(async (file: File) => {
     setUploadState({ stage: "reading" });
     setEditedTitle(file.name.replace(/\.[^.]+$/, ""));
-
     const ext = file.name.split(".").pop()?.toLowerCase() || "";
-
     try {
       if (ext === "txt" || ext === "md") {
         const text = await file.text();
@@ -236,29 +383,22 @@ export function KnowledgePage() {
           fileType: "txt",
         });
       } else if (ext === "pdf") {
-        // Try to extract some text from PDF binary — show textarea for review
         const arrayBuffer = await file.arrayBuffer();
         const bytes = new Uint8Array(arrayBuffer);
-        // Attempt naive text extraction from PDF (works for simple PDFs)
-        let extracted = "";
         const decoder = new TextDecoder("latin1");
         const raw = decoder.decode(bytes);
-        // Extract text between BT/ET markers (basic PDF text extraction)
         const btEtMatches = raw.match(/BT[\s\S]*?ET/g) || [];
+        let extracted = "";
         for (const block of btEtMatches) {
           const strMatches = block.match(/\(([^)]+)\)/g) || [];
-          for (const str of strMatches) {
-            extracted += `${str.slice(1, -1)} `;
-          }
+          for (const str of strMatches) extracted += `${str.slice(1, -1)} `;
         }
-        // If nothing extracted, look for readable ASCII sequences
-        if (!extracted.trim()) {
+        if (!extracted.trim())
           extracted = raw
             .replace(/[^\x20-\x7E\n\r\t]/g, " ")
             .replace(/\s+/g, " ")
             .trim()
             .slice(0, 2000);
-        }
         setEditedContent(extracted.slice(0, 2000));
         setUploadState({
           stage: "review",
@@ -268,12 +408,10 @@ export function KnowledgePage() {
         });
       } else if (ext === "docx" || ext === "pptx") {
         const fileType = ext === "docx" ? "word" : "pptx";
-        // DOCX/PPTX are ZIP files — try to extract XML text
         const arrayBuffer = await file.arrayBuffer();
         const bytes = new Uint8Array(arrayBuffer);
         const decoder = new TextDecoder("utf-8", { fatal: false });
         const raw = decoder.decode(bytes);
-        // Extract visible text from XML content
         const xmlText = raw
           .replace(/<[^>]+>/g, " ")
           .replace(/[^\x20-\x7E\n\r\t]/g, " ")
@@ -311,7 +449,6 @@ export function KnowledgePage() {
     (e: React.ChangeEvent<HTMLInputElement>) => {
       const file = e.target.files?.[0];
       if (file) processFile(file);
-      // Reset input so same file can be re-selected
       if (fileInputRef.current) fileInputRef.current.value = "";
     },
     [processFile],
@@ -329,18 +466,23 @@ export function KnowledgePage() {
     setUploadState({ stage: "saving" });
     const fileType = uploadState.fileType as "pdf" | "word" | "pptx" | "txt";
     const title = editedTitle.trim() || uploadState.filename;
+    const category = fileCategory || "General";
     const encoded = encodeKnowledgeSource(
       fileType,
       title,
       uploadState.filename,
       content,
+      category,
     );
     try {
       await addMemory.mutateAsync(encoded);
+      const summary = content.replace(/\s+/g, " ").trim().slice(0, 200);
+      setLastSavedSummary({ title, summary, sourceType: fileType, category });
       toast.success(`${title} stored in DJ's memory`);
       setUploadState({ stage: "idle" });
       setEditedContent("");
       setEditedTitle("");
+      setFileCategory("General");
     } catch {
       toast.error("Failed to save file content");
       setUploadState({
@@ -356,6 +498,7 @@ export function KnowledgePage() {
     setUploadState({ stage: "idle" });
     setEditedContent("");
     setEditedTitle("");
+    setFileCategory("General");
   };
 
   const handleDeleteSource = async (id: bigint, title: string) => {
@@ -367,7 +510,7 @@ export function KnowledgePage() {
     }
   };
 
-  // ─── Research a Topic ───
+  // Research
   const [researchTopic, setResearchTopic] = useState("");
   const [researchSuggestions, setResearchSuggestions] = useState<
     { title: string; url: string; description: string }[]
@@ -499,14 +642,12 @@ export function KnowledgePage() {
     setIsGeneratingSuggestions(true);
     setResearchSuggestions([]);
     setAddedUrls(new Set());
-
     setTimeout(() => {
       const key = researchTopic.trim().toLowerCase();
       const exact = CURATED_SOURCES[key];
       if (exact) {
         setResearchSuggestions(exact);
       } else {
-        // Generic fallback sources
         const encoded = encodeURIComponent(researchTopic.trim());
         setResearchSuggestions([
           {
@@ -554,7 +695,6 @@ export function KnowledgePage() {
         const html = await resp.text();
         content = extractTextFromHtml(html).slice(0, 2000);
       } catch {
-        // CORS fallback — use description
         content = `${source.title}\n\n${source.description}\n\nSource: ${source.url}`;
       }
       const encoded = encodeKnowledgeSource(
@@ -562,6 +702,7 @@ export function KnowledgePage() {
         source.title,
         source.url,
         content || source.description,
+        "Research",
       );
       await addMemory.mutateAsync(encoded);
       setAddedUrls((prev) => new Set([...prev, source.url]));
@@ -608,6 +749,48 @@ export function KnowledgePage() {
           )}
         </div>
 
+        {/* Auto-summary card after save */}
+        {lastSavedSummary && (
+          <div
+            data-ocid="knowledge.summary_card"
+            className="relative rounded-xl border border-primary/50 bg-gradient-to-r from-primary/10 via-primary/5 to-secondary/10 p-5"
+            style={{ boxShadow: "0 0 24px oklch(0.65 0.25 220 / 0.2)" }}
+          >
+            <button
+              type="button"
+              onClick={() => setLastSavedSummary(null)}
+              className="absolute right-3 top-3 rounded-lg p-1 text-muted-foreground transition-colors hover:bg-white/10 hover:text-foreground"
+              aria-label="Dismiss"
+            >
+              <X className="h-4 w-4" />
+            </button>
+            <div className="flex items-start gap-3 pr-8">
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-primary/40 bg-primary/20">
+                <CheckCircle className="h-5 w-5 text-primary" />
+              </div>
+              <div className="min-w-0 flex-1">
+                <div className="flex flex-wrap items-center gap-2">
+                  <p className="font-display font-semibold text-foreground">
+                    {lastSavedSummary.title}
+                  </p>
+                  <SourceTypeBadge type={lastSavedSummary.sourceType} />
+                  <Badge className="border-secondary/40 bg-secondary/20 text-secondary text-xs">
+                    <FolderOpen className="mr-1 h-3 w-3" />
+                    {lastSavedSummary.category}
+                  </Badge>
+                </div>
+                <p className="mt-1.5 text-sm text-muted-foreground line-clamp-3">
+                  {lastSavedSummary.summary}
+                  {lastSavedSummary.summary.length >= 200 ? "…" : ""}
+                </p>
+                <p className="mt-2 text-xs text-primary/60">
+                  ✓ Saved to DJ's memory
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
+
         <Tabs defaultValue="research">
           <TabsList className="mb-6 grid w-full grid-cols-3 border border-primary/30 bg-card/80">
             <TabsTrigger
@@ -638,7 +821,7 @@ export function KnowledgePage() {
             </TabsTrigger>
           </TabsList>
 
-          {/* ─── RESEARCH A TOPIC TAB ─── */}
+          {/* RESEARCH TAB */}
           <TabsContent value="research" className="space-y-6">
             <Card className="glow-border border-primary/40">
               <CardHeader>
@@ -678,8 +861,6 @@ export function KnowledgePage() {
                     Generate Sources
                   </Button>
                 </div>
-
-                {/* Quick topic suggestions */}
                 <div className="flex flex-wrap gap-2">
                   {[
                     "Bitcoin",
@@ -697,7 +878,6 @@ export function KnowledgePage() {
                     </button>
                   ))}
                 </div>
-
                 {isGeneratingSuggestions && (
                   <div className="flex flex-col items-center gap-3 rounded-xl border border-primary/20 bg-primary/5 py-10">
                     <Loader2 className="h-8 w-8 animate-spin text-primary" />
@@ -706,7 +886,6 @@ export function KnowledgePage() {
                     </p>
                   </div>
                 )}
-
                 {researchSuggestions.length > 0 && (
                   <div className="space-y-3">
                     <p className="text-sm font-medium text-muted-foreground">
@@ -719,11 +898,7 @@ export function KnowledgePage() {
                       return (
                         <div
                           key={source.url}
-                          className={`flex items-start gap-3 rounded-xl border p-4 transition-all ${
-                            isAdded
-                              ? "border-green-500/40 bg-green-500/5"
-                              : "border-primary/30 bg-card/50 hover:border-primary/60"
-                          }`}
+                          className={`flex items-start gap-3 rounded-xl border p-4 transition-all ${isAdded ? "border-green-500/40 bg-green-500/5" : "border-primary/30 bg-card/50 hover:border-primary/60"}`}
                         >
                           <div className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-primary/30 bg-primary/10">
                             <Globe className="h-4 w-4 text-blue-400" />
@@ -743,11 +918,7 @@ export function KnowledgePage() {
                             size="sm"
                             onClick={() => handleFetchResearchSource(source)}
                             disabled={isFetching || isAdded}
-                            className={`shrink-0 ${
-                              isAdded
-                                ? "bg-green-500/20 border-green-500/40 text-green-400"
-                                : "bg-primary/20 border border-primary/40 text-primary hover:bg-primary/30"
-                            }`}
+                            className={`shrink-0 ${isAdded ? "bg-green-500/20 border-green-500/40 text-green-400" : "bg-primary/20 border border-primary/40 text-primary hover:bg-primary/30"}`}
                             variant="outline"
                           >
                             {isFetching ? (
@@ -767,7 +938,6 @@ export function KnowledgePage() {
                         </div>
                       );
                     })}
-
                     {addedUrls.size > 0 && (
                       <div className="rounded-lg border border-green-500/30 bg-green-500/5 p-3 text-center text-sm text-green-400">
                         {addedUrls.size} source{addedUrls.size !== 1 ? "s" : ""}{" "}
@@ -781,9 +951,9 @@ export function KnowledgePage() {
             </Card>
           </TabsContent>
 
-          {/* ─── ADD SOURCE TAB ─── */}
+          {/* ADD SOURCE TAB */}
           <TabsContent value="add" className="space-y-6">
-            {/* Website Section */}
+            {/* Website */}
             <Card className="glow-border border-primary/40">
               <CardHeader>
                 <CardTitle className="flex items-center gap-2 font-display">
@@ -828,7 +998,6 @@ export function KnowledgePage() {
                     </Button>
                   </div>
                 </div>
-
                 <div className="space-y-2">
                   <Label htmlFor="website-title">Title (optional)</Label>
                   <Input
@@ -839,65 +1008,68 @@ export function KnowledgePage() {
                     className="border-primary/30 bg-card/50"
                   />
                 </div>
-
-                {/* Content area — shown after fetch or if CORS fails */}
                 {(websiteContent || showManualPaste) && (
-                  <div className="space-y-2">
-                    <Label htmlFor="website-content">
-                      {showManualPaste ? (
-                        <span className="text-amber-400">
-                          Couldn't fetch automatically — paste the page content
-                          below:
-                        </span>
-                      ) : (
-                        "Fetched Content (review before saving):"
-                      )}
-                    </Label>
-                    <Textarea
-                      id="website-content"
-                      placeholder="Paste the website content here..."
-                      value={websiteContent}
-                      onChange={(e) => setWebsiteContent(e.target.value)}
-                      className="min-h-32 border-primary/30 bg-card/50 font-mono text-xs"
-                      rows={6}
+                  <>
+                    <div className="space-y-2">
+                      <Label htmlFor="website-content">
+                        {showManualPaste ? (
+                          <span className="text-amber-400">
+                            Couldn't fetch automatically — paste the page
+                            content below:
+                          </span>
+                        ) : (
+                          "Fetched Content (review before saving):"
+                        )}
+                      </Label>
+                      <Textarea
+                        id="website-content"
+                        placeholder="Paste the website content here..."
+                        value={websiteContent}
+                        onChange={(e) => setWebsiteContent(e.target.value)}
+                        className="min-h-32 border-primary/30 bg-card/50 font-mono text-xs"
+                        rows={6}
+                      />
+                      <p className="text-xs text-muted-foreground">
+                        {websiteContent.length}/2000 characters
+                      </p>
+                    </div>
+                    <CategorySelector
+                      value={websiteCategory}
+                      onChange={setWebsiteCategory}
+                      allCategories={allCategories}
+                      onAddCustom={handleAddCustomCategory}
                     />
-                    <p className="text-xs text-muted-foreground">
-                      {websiteContent.length}/2000 characters
-                    </p>
-                  </div>
-                )}
-
-                {(websiteContent || showManualPaste) && (
-                  <div className="flex gap-2">
-                    <Button
-                      onClick={handleSaveWebsite}
-                      disabled={addMemory.isPending || !websiteContent.trim()}
-                      className="bg-primary hover:bg-primary/90"
-                    >
-                      {addMemory.isPending ? (
-                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                      ) : (
-                        <Upload className="mr-2 h-4 w-4" />
-                      )}
-                      Save to DJ's Memory
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      onClick={() => {
-                        setWebsiteContent("");
-                        setShowManualPaste(false);
-                      }}
-                      className="text-muted-foreground"
-                    >
-                      <X className="mr-2 h-4 w-4" />
-                      Clear
-                    </Button>
-                  </div>
+                    <div className="flex gap-2">
+                      <Button
+                        onClick={handleSaveWebsite}
+                        disabled={addMemory.isPending || !websiteContent.trim()}
+                        className="bg-primary hover:bg-primary/90"
+                      >
+                        {addMemory.isPending ? (
+                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        ) : (
+                          <Upload className="mr-2 h-4 w-4" />
+                        )}
+                        Save to DJ's Memory
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        onClick={() => {
+                          setWebsiteContent("");
+                          setShowManualPaste(false);
+                        }}
+                        className="text-muted-foreground"
+                      >
+                        <X className="mr-2 h-4 w-4" />
+                        Clear
+                      </Button>
+                    </div>
+                  </>
                 )}
               </CardContent>
             </Card>
 
-            {/* File Upload Section */}
+            {/* File Upload */}
             <Card className="glow-border border-primary/40">
               <CardHeader>
                 <CardTitle className="flex items-center gap-2 font-display">
@@ -911,72 +1083,65 @@ export function KnowledgePage() {
               </CardHeader>
               <CardContent className="space-y-4">
                 {uploadState.stage === "idle" && (
-                  <>
-                    {/* Drag & Drop Zone */}
-                    {/* biome-ignore lint/a11y/useSemanticElements: drag-and-drop zone requires div for drag events */}
-                    <div
-                      role="button"
-                      tabIndex={0}
-                      onDragOver={(e) => {
+                  // biome-ignore lint/a11y/useSemanticElements: drag-and-drop zone requires div for drag events
+                  <div
+                    role="button"
+                    tabIndex={0}
+                    onDragOver={(e) => {
+                      e.preventDefault();
+                      setIsDragging(true);
+                    }}
+                    onDragLeave={() => setIsDragging(false)}
+                    onDrop={handleFileDrop}
+                    onClick={() => fileInputRef.current?.click()}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" || e.key === " ") {
                         e.preventDefault();
-                        setIsDragging(true);
-                      }}
-                      onDragLeave={() => setIsDragging(false)}
-                      onDrop={handleFileDrop}
-                      onClick={() => fileInputRef.current?.click()}
-                      onKeyDown={(e) => {
-                        if (e.key === "Enter" || e.key === " ") {
-                          e.preventDefault();
-                          fileInputRef.current?.click();
-                        }
-                      }}
-                      className={`cursor-pointer rounded-xl border-2 border-dashed transition-all ${
-                        isDragging
-                          ? "border-primary bg-primary/10 shadow-[0_0_20px_oklch(0.65_0.25_220_/_0.3)]"
-                          : "border-primary/30 hover:border-primary/60 hover:bg-primary/5"
-                      } p-10 text-center`}
-                    >
-                      <div className="flex flex-col items-center gap-3">
-                        <div
-                          className={`flex h-16 w-16 items-center justify-center rounded-full border-2 border-primary/40 bg-primary/10 transition-all ${isDragging ? "scale-110" : ""}`}
-                        >
-                          <Upload
-                            className={`h-8 w-8 transition-all ${isDragging ? "text-primary" : "text-muted-foreground"}`}
-                          />
-                        </div>
-                        <div>
-                          <p className="font-display text-base font-semibold text-foreground">
-                            {isDragging
-                              ? "Drop your file here"
-                              : "Drag & drop a file"}
-                          </p>
-                          <p className="mt-1 text-sm text-muted-foreground">
-                            or click to browse
-                          </p>
-                        </div>
-                        <div className="flex flex-wrap justify-center gap-2">
-                          {["PDF", "DOCX", "PPTX", "TXT"].map((type) => (
-                            <Badge
-                              key={type}
-                              variant="outline"
-                              className="border-primary/30 text-muted-foreground text-xs"
-                            >
-                              .{type.toLowerCase()}
-                            </Badge>
-                          ))}
-                        </div>
+                        fileInputRef.current?.click();
+                      }
+                    }}
+                    data-ocid="knowledge.dropzone"
+                    className={`cursor-pointer rounded-xl border-2 border-dashed transition-all ${isDragging ? "border-primary bg-primary/10 shadow-[0_0_20px_oklch(0.65_0.25_220_/_0.3)]" : "border-primary/30 hover:border-primary/60 hover:bg-primary/5"} p-10 text-center`}
+                  >
+                    <div className="flex flex-col items-center gap-3">
+                      <div
+                        className={`flex h-16 w-16 items-center justify-center rounded-full border-2 border-primary/40 bg-primary/10 transition-all ${isDragging ? "scale-110" : ""}`}
+                      >
+                        <Upload
+                          className={`h-8 w-8 transition-all ${isDragging ? "text-primary" : "text-muted-foreground"}`}
+                        />
                       </div>
-                      <input
-                        ref={fileInputRef}
-                        type="file"
-                        accept=".pdf,.docx,.pptx,.txt,.md"
-                        className="hidden"
-                        onChange={handleFileSelect}
-                      />
+                      <div>
+                        <p className="font-display text-base font-semibold text-foreground">
+                          {isDragging
+                            ? "Drop your file here"
+                            : "Drag & drop a file"}
+                        </p>
+                        <p className="mt-1 text-sm text-muted-foreground">
+                          or click to browse
+                        </p>
+                      </div>
+                      <div className="flex flex-wrap justify-center gap-2">
+                        {["PDF", "DOCX", "PPTX", "TXT"].map((type) => (
+                          <Badge
+                            key={type}
+                            variant="outline"
+                            className="border-primary/30 text-muted-foreground text-xs"
+                          >
+                            .{type.toLowerCase()}
+                          </Badge>
+                        ))}
+                      </div>
                     </div>
-                  </>
+                    <input
+                      ref={fileInputRef}
+                      type="file"
+                      accept=".pdf,.docx,.pptx,.txt,.md"
+                      className="hidden"
+                      onChange={handleFileSelect}
+                    />
+                  </div>
                 )}
-
                 {uploadState.stage === "reading" && (
                   <div className="flex flex-col items-center gap-4 rounded-xl border border-primary/30 bg-primary/5 py-10">
                     <Loader2 className="h-10 w-10 animate-spin text-primary" />
@@ -985,7 +1150,6 @@ export function KnowledgePage() {
                     </p>
                   </div>
                 )}
-
                 {uploadState.stage === "review" && (
                   <div className="space-y-4">
                     <div className="flex items-center gap-3 rounded-lg border border-primary/20 bg-primary/5 p-3">
@@ -1000,7 +1164,6 @@ export function KnowledgePage() {
                       </div>
                       <SourceTypeBadge type={uploadState.fileType} />
                     </div>
-
                     <div className="space-y-2">
                       <Label>Title</Label>
                       <Input
@@ -1010,7 +1173,12 @@ export function KnowledgePage() {
                         placeholder="File title"
                       />
                     </div>
-
+                    <CategorySelector
+                      value={fileCategory}
+                      onChange={setFileCategory}
+                      allCategories={allCategories}
+                      onAddCustom={handleAddCustomCategory}
+                    />
                     <div className="space-y-2">
                       <Label>
                         Extracted Content{" "}
@@ -1029,7 +1197,6 @@ export function KnowledgePage() {
                         {editedContent.length}/2000 characters
                       </p>
                     </div>
-
                     <div className="flex gap-2">
                       <Button
                         onClick={handleSaveFile}
@@ -1050,7 +1217,6 @@ export function KnowledgePage() {
                     </div>
                   </div>
                 )}
-
                 {uploadState.stage === "saving" && (
                   <div className="flex flex-col items-center gap-4 rounded-xl border border-primary/30 bg-primary/5 py-10">
                     <Loader2 className="h-10 w-10 animate-spin text-primary" />
@@ -1062,7 +1228,6 @@ export function KnowledgePage() {
               </CardContent>
             </Card>
 
-            {/* Tips */}
             <Card className="border-secondary/20 bg-secondary/5">
               <CardContent className="pt-5">
                 <p className="mb-3 text-sm font-semibold text-secondary">
@@ -1090,21 +1255,53 @@ export function KnowledgePage() {
             </Card>
           </TabsContent>
 
-          {/* ─── MY SOURCES TAB ─── */}
+          {/* MY SOURCES TAB */}
           <TabsContent value="sources" className="space-y-4">
-            {/* Search bar */}
             <div className="relative">
               <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
               <Input
-                placeholder="Search knowledge sources..."
+                data-ocid="knowledge.search_input"
+                placeholder="Search titles, content, and summaries…"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 className="border-primary/30 bg-card/50 pl-9"
               />
             </div>
 
+            {knowledgeSources.length > 0 && (
+              <div className="flex flex-wrap gap-2">
+                {["All", ...storedCategories].map((cat) => (
+                  <button
+                    key={cat}
+                    type="button"
+                    data-ocid="knowledge.category_filter.tab"
+                    onClick={() => setSelectedCategory(cat)}
+                    className={`rounded-full border px-3 py-1 text-xs font-medium transition-all ${
+                      selectedCategory === cat
+                        ? "border-primary bg-primary/20 text-primary shadow-[0_0_10px_oklch(0.65_0.25_220_/_0.3)]"
+                        : "border-primary/20 bg-card/50 text-muted-foreground hover:border-primary/50 hover:text-primary/80"
+                    }`}
+                  >
+                    <span className="flex items-center gap-1">
+                      {cat === "All" ? (
+                        <BookOpen className="h-3 w-3" />
+                      ) : (
+                        <FolderOpen className="h-3 w-3" />
+                      )}
+                      {cat === "All"
+                        ? `All (${knowledgeSources.length})`
+                        : `${cat} (${knowledgeSources.filter((s) => s.category === cat).length})`}
+                    </span>
+                  </button>
+                ))}
+              </div>
+            )}
+
             {knowledgeSources.length === 0 ? (
-              <div className="flex flex-col items-center gap-4 rounded-xl border border-primary/20 bg-primary/5 py-16 text-center">
+              <div
+                data-ocid="knowledge.empty_state"
+                className="flex flex-col items-center gap-4 rounded-xl border border-primary/20 bg-primary/5 py-16 text-center"
+              >
                 <div className="flex h-20 w-20 items-center justify-center rounded-full border border-primary/30 bg-primary/10">
                   <BookOpen className="h-10 w-10 text-muted-foreground" />
                 </div>
@@ -1120,11 +1317,10 @@ export function KnowledgePage() {
                   variant="outline"
                   className="border-primary/40 text-primary"
                   onClick={() => {
-                    // Switch to add tab
-                    const addTrigger = document.querySelector(
+                    const t = document.querySelector(
                       '[value="add"]',
                     ) as HTMLButtonElement | null;
-                    addTrigger?.click();
+                    t?.click();
                   }}
                 >
                   <Plus className="mr-2 h-4 w-4" />
@@ -1137,14 +1333,15 @@ export function KnowledgePage() {
                   No results found
                 </p>
                 <p className="mt-1 text-sm text-muted-foreground">
-                  Try a different search term.
+                  Try a different search term or category.
                 </p>
               </div>
             ) : (
               <div className="space-y-3">
-                {filteredSources.map((source) => (
+                {filteredSources.map((source, idx) => (
                   <Card
                     key={source.id.toString()}
+                    data-ocid={`knowledge.source_card.${idx + 1}`}
                     className="glow-border group border-primary/30 transition-all hover:border-primary/60"
                   >
                     <CardContent className="p-4">
@@ -1158,16 +1355,20 @@ export function KnowledgePage() {
                               {source.title}
                             </p>
                             <SourceTypeBadge type={source.sourceType} />
+                            <Badge className="border-secondary/30 bg-secondary/10 text-secondary/80 text-xs">
+                              <FolderOpen className="mr-1 h-3 w-3" />
+                              {source.category}
+                            </Badge>
                           </div>
                           {source.url && source.sourceType === "website" && (
                             <p className="mt-0.5 truncate text-xs text-primary/70">
                               {source.url}
                             </p>
                           )}
-                          {source.content && (
+                          {source.summary && (
                             <p className="mt-1.5 line-clamp-2 text-sm text-muted-foreground">
-                              {source.content.slice(0, 150)}
-                              {source.content.length > 150 ? "…" : ""}
+                              {source.summary}
+                              {source.summary.length >= 200 ? "…" : ""}
                             </p>
                           )}
                           <p className="mt-2 text-xs text-muted-foreground/60">
