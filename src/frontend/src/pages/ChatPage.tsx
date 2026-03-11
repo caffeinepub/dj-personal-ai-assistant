@@ -17,7 +17,10 @@ import { toast } from "sonner";
 import { Layout } from "../components/Layout";
 import {
   useActivateModule,
+  useAddFinanceEntry,
   useAddMemory,
+  useAddNote,
+  useAddTask,
   useBehaviorRules,
   useChatMessages,
   useCreateCustomCommand,
@@ -138,6 +141,9 @@ export function ChatPage() {
   const setPersonality = useSetPersonalitySettings();
   const activateModule = useActivateModule();
   const deactivateModule = useDeactivateModule();
+  const addTask = useAddTask();
+  const addNote = useAddNote();
+  const addFinanceEntry = useAddFinanceEntry();
 
   const [input, setInput] = useState("");
   const [isListening, setIsListening] = useState(false);
@@ -457,6 +463,109 @@ export function ChatPage() {
       const moduleName = deactivateMatch[1].toLowerCase();
       await deactivateModule.mutateAsync(moduleName);
       return `The ${moduleName} module has been deactivated.`;
+    }
+
+    // ── TASKS MODULE ──────────────────────────────────────────────────────────
+    // "remind me", "add task", "set reminder", "schedule"
+    const taskMatch = userMessage.match(
+      /(?:remind(?:er)?\s+me\s+(?:to\s+)?|add\s+(?:a\s+)?task[:\s]+|set\s+(?:a\s+)?reminder[:\s]+|schedule[:\s]+)(.+?)(?:\s+(?:at|by|on|before|today|tomorrow)\s+(.+))?$/i,
+    );
+    if (
+      taskMatch ||
+      lowerMessage.includes("add task") ||
+      lowerMessage.includes("remind me") ||
+      lowerMessage.includes("set reminder") ||
+      lowerMessage.includes("new task")
+    ) {
+      const titleRaw = taskMatch
+        ? taskMatch[1].trim()
+        : userMessage
+            .replace(
+              /^(dj,?\s*)?(add\s+task|remind\s+me|set\s+reminder|new\s+task)[:\s]*/i,
+              "",
+            )
+            .trim();
+      const timeRaw = taskMatch ? taskMatch[2] : undefined;
+
+      // Try to parse deadline from message
+      let deadlineMs: bigint | null = null;
+      const timePattern = /(\d{1,2}):(\d{2})\s*(am|pm)?/i;
+      const timeInMsg = userMessage.match(timePattern);
+      if (timeInMsg) {
+        let hours = Number.parseInt(timeInMsg[1]);
+        const minutes = Number.parseInt(timeInMsg[2]);
+        const ampm = timeInMsg[3]?.toLowerCase();
+        if (ampm === "pm" && hours < 12) hours += 12;
+        if (ampm === "am" && hours === 12) hours = 0;
+        const d = new Date();
+        d.setHours(hours, minutes, 0, 0);
+        if (d.getTime() < Date.now()) d.setDate(d.getDate() + 1);
+        deadlineMs = BigInt(d.getTime()) * BigInt(1_000_000);
+      } else if (lowerMessage.includes("today")) {
+        const d = new Date();
+        d.setHours(23, 59, 0, 0);
+        deadlineMs = BigInt(d.getTime()) * BigInt(1_000_000);
+      } else if (lowerMessage.includes("tomorrow")) {
+        const d = new Date();
+        d.setDate(d.getDate() + 1);
+        d.setHours(9, 0, 0, 0);
+        deadlineMs = BigInt(d.getTime()) * BigInt(1_000_000);
+      }
+
+      if (titleRaw) {
+        await addTask.mutateAsync({
+          title: titleRaw,
+          description: timeRaw ? `Scheduled: ${timeRaw}` : "",
+          deadline: deadlineMs,
+          priority: "medium",
+        });
+        const deadlineStr = deadlineMs
+          ? ` at ${new Date(Number(deadlineMs) / 1_000_000).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}`
+          : "";
+        return `Task added: **${titleRaw}**${deadlineStr}. You can view and manage it in the Tasks section.`;
+      }
+    }
+
+    // ── NOTES MODULE ──────────────────────────────────────────────────────────
+    const noteMatch = userMessage.match(
+      /(?:add\s+(?:a\s+)?note[:\s]+|note[:\s]+|save\s+(?:a\s+)?note[:\s]+|remember\s+this\s+note[:\s]+)(.+)/i,
+    );
+    if (noteMatch) {
+      const noteContent = noteMatch[1].trim();
+      const words = noteContent.split(" ").slice(0, 5).join(" ");
+      await addNote.mutateAsync({
+        title: words,
+        content: noteContent,
+        summary: noteContent.slice(0, 100),
+        tags: [],
+      });
+      return `Note saved: **"${noteContent.slice(0, 60)}${noteContent.length > 60 ? "..." : ""}"**. Find it in your Notes section.`;
+    }
+
+    // ── FINANCE MODULE ─────────────────────────────────────────────────────────
+    // "add expense Rs.100", "spent 500 on food", "income of 1000", "add today's expense"
+    const financeMatch = userMessage.match(
+      /(?:add\s+)?(?:today'?s?\s+)?(?:an?\s+)?(?:expense|spent?|cost|paid?|income|earning|received?|got)\s+(?:of\s+)?(?:rs\.?|inr|₹|\$|usd)?\s*(\d+(?:\.\d{1,2})?)\s*(?:(?:rs\.?|inr|₹|\$)?)?\s*(?:(?:on|for|as|from)\s+(.+))?/i,
+    );
+    const financeMatch2 = userMessage.match(
+      /(?:rs\.?|inr|₹|\$|usd)\s*(\d+(?:\.\d{1,2})?)\s*(?:(?:on|for|as|from)\s+(.+))?\s*(?:expense|income|earned?)?/i,
+    );
+    const fm = financeMatch || financeMatch2;
+    if (fm) {
+      const amountStr = fm[1];
+      const descRaw = fm[2]?.trim() || "";
+      const amount = Math.round(Number.parseFloat(amountStr) * 100);
+      const isIncome = /income|earning|received?|got/i.test(userMessage);
+      const category = isIncome ? "income" : descRaw || "general";
+      const description = descRaw || (isIncome ? "Income" : "Expense");
+      await addFinanceEntry.mutateAsync({
+        amount: isIncome ? BigInt(amount) : BigInt(-amount),
+        category,
+        description,
+        entryDate: BigInt(Date.now()) * BigInt(1_000_000),
+      });
+      const sign = isIncome ? "+" : "-";
+      return `Finance entry recorded: **${sign}₹${Number.parseFloat(amountStr).toFixed(2)}** for **${description}**. View details in the Finance Tracker.`;
     }
 
     return generateContextualResponse(userMessage, knowledgeSources);
