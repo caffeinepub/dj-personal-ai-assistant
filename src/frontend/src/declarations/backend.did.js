@@ -74,6 +74,32 @@ export const Website = IDL.Record({
   'cssContent' : IDL.Text,
   'jsContent' : IDL.Text,
 });
+export const Task = IDL.Record({
+  'id' : IDL.Nat,
+  'title' : IDL.Text,
+  'description' : IDL.Text,
+  'deadline' : IDL.Opt(Time),
+  'priority' : IDL.Text,
+  'completed' : IDL.Bool,
+  'createdAt' : Time,
+});
+export const Note = IDL.Record({
+  'id' : IDL.Nat,
+  'title' : IDL.Text,
+  'content' : IDL.Text,
+  'summary' : IDL.Text,
+  'tags' : IDL.Vec(IDL.Text),
+  'createdAt' : Time,
+  'updatedAt' : Time,
+});
+export const FinanceEntry = IDL.Record({
+  'id' : IDL.Nat,
+  'amount' : IDL.Int,
+  'category' : IDL.Text,
+  'description' : IDL.Text,
+  'entryDate' : Time,
+  'createdAt' : Time,
+});
 
 export const idlService = IDL.Service({
   '_initializeAccessControlWithSecret' : IDL.Func([IDL.Text], [], []),
@@ -126,6 +152,20 @@ export const idlService = IDL.Service({
   'setPersonalitySettings' : IDL.Func([IDL.Text], [], []),
   'updatePreferences' : IDL.Func([IDL.Text], [], []),
   'updateRulePriority' : IDL.Func([IDL.Nat, IDL.Nat], [], []),
+  // Tasks
+  'addTask' : IDL.Func([IDL.Text, IDL.Text, IDL.Opt(Time), IDL.Text], [], []),
+  'getAllTasks' : IDL.Func([], [IDL.Vec(Task)], ['query']),
+  'updateTaskCompletion' : IDL.Func([IDL.Nat, IDL.Bool], [], []),
+  'deleteTask' : IDL.Func([IDL.Nat], [], []),
+  // Notes
+  'addNote' : IDL.Func([IDL.Text, IDL.Text, IDL.Text, IDL.Vec(IDL.Text)], [], []),
+  'getAllNotes' : IDL.Func([], [IDL.Vec(Note)], ['query']),
+  'updateNote' : IDL.Func([IDL.Nat, IDL.Text, IDL.Text, IDL.Text, IDL.Vec(IDL.Text)], [], []),
+  'deleteNote' : IDL.Func([IDL.Nat], [], []),
+  // Finance
+  'addFinanceEntry' : IDL.Func([IDL.Int, IDL.Text, IDL.Text, Time], [], []),
+  'getAllFinanceEntries' : IDL.Func([], [IDL.Vec(FinanceEntry)], ['query']),
+  'deleteFinanceEntry' : IDL.Func([IDL.Nat], [], []),
 });
 
 export const idlInitArgs = [];
@@ -195,6 +235,32 @@ export const idlFactory = ({ IDL }) => {
     'cssContent' : IDL.Text,
     'jsContent' : IDL.Text,
   });
+  const Task = IDL.Record({
+    'id' : IDL.Nat,
+    'title' : IDL.Text,
+    'description' : IDL.Text,
+    'deadline' : IDL.Opt(Time),
+    'priority' : IDL.Text,
+    'completed' : IDL.Bool,
+    'createdAt' : Time,
+  });
+  const Note = IDL.Record({
+    'id' : IDL.Nat,
+    'title' : IDL.Text,
+    'content' : IDL.Text,
+    'summary' : IDL.Text,
+    'tags' : IDL.Vec(IDL.Text),
+    'createdAt' : Time,
+    'updatedAt' : Time,
+  });
+  const FinanceEntry = IDL.Record({
+    'id' : IDL.Nat,
+    'amount' : IDL.Int,
+    'category' : IDL.Text,
+    'description' : IDL.Text,
+    'entryDate' : Time,
+    'createdAt' : Time,
+  });
   
   return IDL.Service({
     '_initializeAccessControlWithSecret' : IDL.Func([IDL.Text], [], []),
@@ -247,6 +313,20 @@ export const idlFactory = ({ IDL }) => {
     'setPersonalitySettings' : IDL.Func([IDL.Text], [], []),
     'updatePreferences' : IDL.Func([IDL.Text], [], []),
     'updateRulePriority' : IDL.Func([IDL.Nat, IDL.Nat], [], []),
+    // Tasks
+    'addTask' : IDL.Func([IDL.Text, IDL.Text, IDL.Opt(Time), IDL.Text], [], []),
+    'getAllTasks' : IDL.Func([], [IDL.Vec(Task)], ['query']),
+    'updateTaskCompletion' : IDL.Func([IDL.Nat, IDL.Bool], [], []),
+    'deleteTask' : IDL.Func([IDL.Nat], [], []),
+    // Notes
+    'addNote' : IDL.Func([IDL.Text, IDL.Text, IDL.Text, IDL.Vec(IDL.Text)], [], []),
+    'getAllNotes' : IDL.Func([], [IDL.Vec(Note)], ['query']),
+    'updateNote' : IDL.Func([IDL.Nat, IDL.Text, IDL.Text, IDL.Text, IDL.Vec(IDL.Text)], [], []),
+    'deleteNote' : IDL.Func([IDL.Nat], [], []),
+    // Finance
+    'addFinanceEntry' : IDL.Func([IDL.Int, IDL.Text, IDL.Text, Time], [], []),
+    'getAllFinanceEntries' : IDL.Func([], [IDL.Vec(FinanceEntry)], ['query']),
+    'deleteFinanceEntry' : IDL.Func([IDL.Nat], [], []),
   });
 };
 

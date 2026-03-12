@@ -225,6 +225,22 @@ export function SettingsPage() {
   useEffect(() => {
     if (profile) {
       setEditName(profile.name || "");
+      // Parse preferences string to restore form fields
+      const prefs = profile.preferences || "";
+      const extract = (key: string) => {
+        const match = prefs.match(new RegExp(`${key}:\s*([^\n]+)`));
+        return match ? match[1].trim() : "";
+      };
+      const prof = extract("Profession");
+      const loc = extract("Location");
+      const goal = extract("Main goal");
+      const interests = extract("Interests");
+      const projects = extract("Current projects");
+      if (prof) setEditProfession(prof);
+      if (loc) setEditLocation(loc);
+      if (goal) setEditGoal(goal);
+      if (interests) setEditInterests(interests);
+      if (projects) setEditProjects(projects);
     }
   }, [profile]);
 
@@ -731,7 +747,7 @@ export function SettingsPage() {
                 <Input
                   value={editName}
                   onChange={(e) => setEditName(e.target.value)}
-                  className="border-primary/30 bg-card/50"
+                  className="border-primary/40 bg-background/80 focus:border-primary focus:ring-1 focus:ring-primary text-foreground placeholder:text-muted-foreground"
                   placeholder="e.g. Alex"
                 />
               </div>
@@ -740,7 +756,7 @@ export function SettingsPage() {
                 <Input
                   value={editProfession}
                   onChange={(e) => setEditProfession(e.target.value)}
-                  className="border-primary/30 bg-card/50"
+                  className="border-primary/40 bg-background/80 focus:border-primary focus:ring-1 focus:ring-primary text-foreground placeholder:text-muted-foreground"
                   placeholder="e.g. Designer"
                 />
               </div>
@@ -754,7 +770,7 @@ export function SettingsPage() {
                 <Input
                   value={editLocation}
                   onChange={(e) => setEditLocation(e.target.value)}
-                  className="border-primary/30 bg-card/50"
+                  className="border-primary/40 bg-background/80 focus:border-primary focus:ring-1 focus:ring-primary text-foreground placeholder:text-muted-foreground"
                   placeholder="e.g. London"
                 />
               </div>
@@ -763,7 +779,7 @@ export function SettingsPage() {
                 <Input
                   value={editGoal}
                   onChange={(e) => setEditGoal(e.target.value)}
-                  className="border-primary/30 bg-card/50"
+                  className="border-primary/40 bg-background/80 focus:border-primary focus:ring-1 focus:ring-primary text-foreground placeholder:text-muted-foreground"
                   placeholder="e.g. Launch my startup"
                 />
               </div>
@@ -773,7 +789,7 @@ export function SettingsPage() {
               <Textarea
                 value={editInterests}
                 onChange={(e) => setEditInterests(e.target.value)}
-                className="border-primary/30 bg-card/50"
+                className="border-primary/40 bg-background/80 focus:border-primary focus:ring-1 focus:ring-primary text-foreground placeholder:text-muted-foreground"
                 placeholder="e.g. AI, fitness, jazz music..."
                 rows={2}
               />
@@ -802,7 +818,7 @@ export function SettingsPage() {
               <Textarea
                 value={editProjects}
                 onChange={(e) => setEditProjects(e.target.value)}
-                className="border-primary/30 bg-card/50"
+                className="border-primary/40 bg-background/80 focus:border-primary focus:ring-1 focus:ring-primary text-foreground placeholder:text-muted-foreground"
                 placeholder="e.g. Building a SaaS app, writing a book..."
                 rows={2}
               />

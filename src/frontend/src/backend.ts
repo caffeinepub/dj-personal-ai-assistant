@@ -194,6 +194,20 @@ export interface backendInterface {
     setPersonalitySettings(style: string): Promise<void>;
     updatePreferences(preferences: string): Promise<void>;
     updateRulePriority(id: bigint, newPriority: bigint): Promise<void>;
+    // Tasks
+    addTask(title: string, description: string, deadline: bigint | null, priority: string): Promise<void>;
+    getAllTasks(): Promise<Array<any>>;
+    updateTaskCompletion(id: bigint, completed: boolean): Promise<void>;
+    deleteTask(id: bigint): Promise<void>;
+    // Notes
+    addNote(title: string, content: string, summary: string, tags: string[]): Promise<void>;
+    getAllNotes(): Promise<Array<any>>;
+    updateNote(id: bigint, title: string, content: string, summary: string, tags: string[]): Promise<void>;
+    deleteNote(id: bigint): Promise<void>;
+    // Finance
+    addFinanceEntry(amount: bigint, category: string, description: string, entryDate: bigint): Promise<void>;
+    getAllFinanceEntries(): Promise<Array<any>>;
+    deleteFinanceEntry(id: bigint): Promise<void>;
 }
 import type { ExcelFile as _ExcelFile, Time as _Time, UserProfile as _UserProfile, UserRole as _UserRole } from "./declarations/backend.did.d.ts";
 export class Backend implements backendInterface {
@@ -730,6 +744,55 @@ export class Backend implements backendInterface {
             return result;
         }
     }
+    // Tasks
+    async addTask(arg0: string, arg1: string, arg2: bigint | null, arg3: string): Promise<void> {
+        const deadline: [] | [bigint] = arg2 === null ? [] : [arg2];
+        const result = await this.actor.addTask(arg0, arg1, deadline, arg3);
+        return result;
+    }
+    async getAllTasks(): Promise<Array<any>> {
+        const result = await this.actor.getAllTasks();
+        return result.map((t: any) => ({ ...t, deadline: t.deadline.length > 0 ? t.deadline[0] : undefined }));
+    }
+    async updateTaskCompletion(arg0: bigint, arg1: boolean): Promise<void> {
+        const result = await this.actor.updateTaskCompletion(arg0, arg1);
+        return result;
+    }
+    async deleteTask(arg0: bigint): Promise<void> {
+        const result = await this.actor.deleteTask(arg0);
+        return result;
+    }
+    // Notes
+    async addNote(arg0: string, arg1: string, arg2: string, arg3: string[]): Promise<void> {
+        const result = await this.actor.addNote(arg0, arg1, arg2, arg3);
+        return result;
+    }
+    async getAllNotes(): Promise<Array<any>> {
+        const result = await this.actor.getAllNotes();
+        return result;
+    }
+    async updateNote(arg0: bigint, arg1: string, arg2: string, arg3: string, arg4: string[]): Promise<void> {
+        const result = await this.actor.updateNote(arg0, arg1, arg2, arg3, arg4);
+        return result;
+    }
+    async deleteNote(arg0: bigint): Promise<void> {
+        const result = await this.actor.deleteNote(arg0);
+        return result;
+    }
+    // Finance
+    async addFinanceEntry(arg0: bigint, arg1: string, arg2: string, arg3: bigint): Promise<void> {
+        const result = await this.actor.addFinanceEntry(arg0, arg1, arg2, arg3);
+        return result;
+    }
+    async getAllFinanceEntries(): Promise<Array<any>> {
+        const result = await this.actor.getAllFinanceEntries();
+        return result;
+    }
+    async deleteFinanceEntry(arg0: bigint): Promise<void> {
+        const result = await this.actor.deleteFinanceEntry(arg0);
+        return result;
+    }
+
 }
 function from_candid_ExcelFile_n7(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: _ExcelFile): ExcelFile {
     return from_candid_record_n8(_uploadFile, _downloadFile, value);

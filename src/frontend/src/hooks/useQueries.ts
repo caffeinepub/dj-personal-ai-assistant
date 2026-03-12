@@ -538,7 +538,7 @@ export function useTasks() {
     queryKey: ["tasks"],
     queryFn: async () => {
       if (!actor) return [];
-      return (actor as any).getAllTasks() as Promise<Task[]>;
+      return actor.getAllTasks() as Promise<Task[]>;
     },
     enabled: !!actor && !isFetching,
   });
@@ -560,7 +560,7 @@ export function useAddTask() {
       priority: string;
     }) => {
       if (!actor) throw new Error("Actor not available");
-      await (actor as any).addTask(title, description, deadline, priority);
+      await actor.addTask(title, description, deadline, priority);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["tasks"] });
@@ -577,7 +577,7 @@ export function useUpdateTaskCompletion() {
       completed,
     }: { id: bigint; completed: boolean }) => {
       if (!actor) throw new Error("Actor not available");
-      await (actor as any).updateTaskCompletion(id, completed);
+      await actor.updateTaskCompletion(id, completed);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["tasks"] });
@@ -591,7 +591,7 @@ export function useDeleteTask() {
   return useMutation({
     mutationFn: async (id: bigint) => {
       if (!actor) throw new Error("Actor not available");
-      await (actor as any).deleteTask(id);
+      await actor.deleteTask(id);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["tasks"] });
@@ -606,7 +606,7 @@ export function useNotes() {
     queryKey: ["notes"],
     queryFn: async () => {
       if (!actor) return [];
-      return (actor as any).getAllNotes() as Promise<Note[]>;
+      return actor.getAllNotes() as Promise<Note[]>;
     },
     enabled: !!actor && !isFetching,
   });
@@ -628,7 +628,7 @@ export function useAddNote() {
       tags: string[];
     }) => {
       if (!actor) throw new Error("Actor not available");
-      await (actor as any).addNote(title, content, summary, tags);
+      await actor.addNote(title, content, summary, tags);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["notes"] });
@@ -654,7 +654,7 @@ export function useUpdateNote() {
       tags: string[];
     }) => {
       if (!actor) throw new Error("Actor not available");
-      await (actor as any).updateNote(id, title, content, summary, tags);
+      await actor.updateNote(id, title, content, summary, tags);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["notes"] });
@@ -668,7 +668,7 @@ export function useDeleteNote() {
   return useMutation({
     mutationFn: async (id: bigint) => {
       if (!actor) throw new Error("Actor not available");
-      await (actor as any).deleteNote(id);
+      await actor.deleteNote(id);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["notes"] });
@@ -683,7 +683,7 @@ export function useFinanceEntries() {
     queryKey: ["financeEntries"],
     queryFn: async () => {
       if (!actor) return [];
-      return (actor as any).getAllFinanceEntries() as Promise<FinanceEntry[]>;
+      return actor.getAllFinanceEntries() as Promise<FinanceEntry[]>;
     },
     enabled: !!actor && !isFetching,
   });
@@ -705,12 +705,7 @@ export function useAddFinanceEntry() {
       entryDate: bigint;
     }) => {
       if (!actor) throw new Error("Actor not available");
-      await (actor as any).addFinanceEntry(
-        amount,
-        category,
-        description,
-        entryDate,
-      );
+      await actor.addFinanceEntry(amount, category, description, entryDate);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["financeEntries"] });
@@ -724,7 +719,7 @@ export function useDeleteFinanceEntry() {
   return useMutation({
     mutationFn: async (id: bigint) => {
       if (!actor) throw new Error("Actor not available");
-      await (actor as any).deleteFinanceEntry(id);
+      await actor.deleteFinanceEntry(id);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["financeEntries"] });

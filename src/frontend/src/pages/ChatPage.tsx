@@ -33,6 +33,7 @@ import {
   useSetPersonalitySettings,
 } from "../hooks/useQueries";
 import { Link } from "../lib/router-shim";
+import { searchBuiltinKnowledge } from "../utils/builtinKnowledge";
 import {
   getRelevantContext,
   parseKnowledgeSource,
@@ -165,11 +166,27 @@ export function ChatPage() {
   const isFirstLoad = useRef(true);
   const prevMessageCount = useRef(0);
 
-  // Combined visible messages: persisted + optimistic
+  // Combined visible messages: persisted + optimistic (deduplicated)
   const allVisibleMessages: DisplayMessage[] = [
     ...persistedMessages,
-    ...optimisticMessages,
+    ...optimisticMessages.filter(
+      (opt) =>
+        !persistedMessages.some(
+          (p) => p.content === opt.content && p.role === opt.role,
+        ),
+    ),
   ];
+
+  // Clear optimistic messages once persisted data has caught up
+  useEffect(() => {
+    if (optimisticMessages.length === 0) return;
+    const allCovered = optimisticMessages.every((opt) =>
+      persistedMessages.some(
+        (p) => p.content === opt.content && p.role === opt.role,
+      ),
+    );
+    if (allCovered) setOptimisticMessages([]);
+  }, [persistedMessages, optimisticMessages]);
 
   // Auto-scroll: instant on first load, smooth on new messages
   useEffect(() => {
@@ -227,6 +244,7 @@ export function ChatPage() {
 
   // Keep ref to persisted messages for context building
   const persistedMessagesRef = useRef(persistedMessages);
+  const activeTopicRef = useRef<string>("");
   persistedMessagesRef.current = persistedMessages;
 
   const speak = useCallback(
@@ -293,12 +311,12 @@ export function ChatPage() {
 
   // Build conversation context from recent messages for smarter responses
   const buildConversationContext = (): string => {
-    const recent = persistedMessagesRef.current.slice(-6); // last 3 pairs
+    const recent = persistedMessagesRef.current.slice(-20); // last 10 pairs
     if (recent.length === 0) return "";
     return recent
       .map(
         (m) =>
-          `${m.role === "user" ? "User" : "DJ"}: ${m.content.slice(0, 200)}`,
+          `${m.role === "user" ? "User" : "DJ"}: ${m.content.slice(0, 600)}`,
       )
       .join("\n");
   };
@@ -337,18 +355,65 @@ export function ChatPage() {
     );
     if (searchKnowledgeMatch) {
       const query = searchKnowledgeMatch[1].trim();
-      const results = searchKnowledgeSources(knowledgeSources, query);
-      if (results.length === 0) {
-        return `I don't have any knowledge sources matching "${query}". You can add some at the Knowledge page.`;
+      const userResults = searchKnowledgeSources(knowledgeSources, query);
+      const builtinHits = searchBuiltinKnowledge(query);
+
+      if (userResults.length === 0 && builtinHits.length === 0) {
+        return `I don't have any knowledge sources matching "${query}". You can add some at the Knowledge page, or ask me directly about IT, Finance, or Productivity topics.`;
       }
-      const summary = results
-        .slice(0, 3)
-        .map(
-          (s) =>
-            `**${s.title}** (${s.sourceType})\n${s.content.slice(0, 300)}...`,
-        )
-        .join("\n\n");
-      return `Here's what I found in your knowledge base for "${query}":\n\n${summary}`;
+
+      let response = `Here's what I found for **"${query}"**:\n\n`;
+
+      if (userResults.length > 0) {
+        response += "**From your saved knowledge:**\n";
+        response += userResults
+          .slice(0, 3)
+          .map(
+            (s) =>
+              `- **${s.title}** (${s.sourceType}): ${s.content.slice(0, 200)}...`,
+          )
+          .join("\n");
+        response += "\n\n";
+      }
+
+      if (builtinHits.length > 0) {
+        response += `**From DJ's built-in knowledge:**\n`;
+        response += builtinHits
+          .map(
+            (b) => `**${b.topic}** (${b.category})\n${b.content.slice(0, 400)}`,
+          )
+          .join("\n\n");
+      }
+
+      return response;
+    }
+
+    // Cross-source Q&A synthesis
+    const synthesisMatch = userMessage.match(
+      /(?:what\s+do\s+(?:all\s+)?(?:my\s+)?(?:sources?|knowledge|files?)\s+say\s+about|summarize\s+(?:my\s+)?(?:knowledge|sources?)\s+(?:on|about)|tell\s+me\s+everything\s+(?:you\s+know\s+)?about)\s+(.+)/i,
+    );
+    if (synthesisMatch) {
+      const query = synthesisMatch[1].trim();
+      const userResults = searchKnowledgeSources(knowledgeSources, query);
+      const builtinHits = searchBuiltinKnowledge(query);
+
+      if (userResults.length === 0 && builtinHits.length === 0) {
+        return `I searched all sources but found nothing specifically about "${query}". Try saving relevant knowledge at the Knowledge page, or ask me about IT, Finance, or Productivity topics.`;
+      }
+
+      let synthesis = `**Comprehensive answer on "${query}"** (synthesized from ${userResults.length + builtinHits.length} source${userResults.length + builtinHits.length !== 1 ? "s" : ""}):\n\n`;
+
+      if (builtinHits.length > 0) {
+        synthesis += `**Built-in Knowledge:**\n${builtinHits.map((b) => `*${b.topic}*: ${b.content.slice(0, 350)}`).join("\n\n")}\n\n`;
+      }
+      if (userResults.length > 0) {
+        synthesis += `**Your Saved Sources:**\n${userResults
+          .slice(0, 3)
+          .map((s) => `*${s.title}*: ${s.content.slice(0, 300)}`)
+          .join("\n\n")}`;
+      }
+
+      return synthesis;
     }
 
     // Memory commands
@@ -474,6 +539,7 @@ export function ChatPage() {
       taskMatch ||
       lowerMessage.includes("add task") ||
       lowerMessage.includes("remind me") ||
+      lowerMessage.includes("reminder me") ||
       lowerMessage.includes("set reminder") ||
       lowerMessage.includes("new task")
     ) {
@@ -487,21 +553,62 @@ export function ChatPage() {
             .trim();
       const timeRaw = taskMatch ? taskMatch[2] : undefined;
 
-      // Try to parse deadline from message
+      // ── Clean up title: strip time/date expressions ──────────────────────────
+      const cleanTitle = titleRaw
+        .replace(/\b(today|tomorrow)\b/gi, "")
+        .replace(/\b(at|by|on|before)\s+\d{1,2}(:\d{2})?\s*(am|pm)?\b/gi, "")
+        .replace(/\b\d{1,2}:\d{2}\s*(am|pm)?\b/gi, "")
+        .replace(/\b\d{1,2}\s*(am|pm)\b/gi, "")
+        .replace(/\s{2,}/g, " ")
+        .trim();
+      const taskTitle = cleanTitle || titleRaw;
+
+      // ── Try to parse deadline from message ──────────────────────────────────
       let deadlineMs: bigint | null = null;
-      const timePattern = /(\d{1,2}):(\d{2})\s*(am|pm)?/i;
-      const timeInMsg = userMessage.match(timePattern);
-      if (timeInMsg) {
-        let hours = Number.parseInt(timeInMsg[1]);
-        const minutes = Number.parseInt(timeInMsg[2]);
-        const ampm = timeInMsg[3]?.toLowerCase();
+      let alreadyPassedToday = false;
+
+      // Pattern 1: HH:MM am/pm or HH:MM (24-hour)
+      const timePat1 = /(\d{1,2}):(\d{2})\s*(am|pm)?/i;
+      // Pattern 2: H am/pm (no colon)
+      const timePat2 = /(\d{1,2})\s*(am|pm)/i;
+
+      const timeMatch1 = userMessage.match(timePat1);
+      const timeMatch2 = !timeMatch1 ? userMessage.match(timePat2) : null;
+
+      if (timeMatch1) {
+        let hours = Number.parseInt(timeMatch1[1]);
+        const minutes = Number.parseInt(timeMatch1[2]);
+        const ampm = timeMatch1[3]?.toLowerCase();
         if (ampm === "pm" && hours < 12) hours += 12;
         if (ampm === "am" && hours === 12) hours = 0;
         const d = new Date();
         d.setHours(hours, minutes, 0, 0);
-        if (d.getTime() < Date.now()) d.setDate(d.getDate() + 1);
+        if (d.getTime() < Date.now()) {
+          if (lowerMessage.includes("today")) {
+            // "today" + past time: save for today, note it has passed
+            alreadyPassedToday = true;
+          } else {
+            d.setDate(d.getDate() + 1);
+          }
+        }
+        deadlineMs = BigInt(d.getTime()) * BigInt(1_000_000);
+      } else if (timeMatch2) {
+        let hours = Number.parseInt(timeMatch2[1]);
+        const ampm = timeMatch2[2]?.toLowerCase();
+        if (ampm === "pm" && hours < 12) hours += 12;
+        if (ampm === "am" && hours === 12) hours = 0;
+        const d = new Date();
+        d.setHours(hours, 0, 0, 0);
+        if (d.getTime() < Date.now()) {
+          if (lowerMessage.includes("today")) {
+            alreadyPassedToday = true;
+          } else {
+            d.setDate(d.getDate() + 1);
+          }
+        }
         deadlineMs = BigInt(d.getTime()) * BigInt(1_000_000);
       } else if (lowerMessage.includes("today")) {
+        // "today" with no specific time → 11:59 PM today
         const d = new Date();
         d.setHours(23, 59, 0, 0);
         deadlineMs = BigInt(d.getTime()) * BigInt(1_000_000);
@@ -512,17 +619,24 @@ export function ChatPage() {
         deadlineMs = BigInt(d.getTime()) * BigInt(1_000_000);
       }
 
-      if (titleRaw) {
-        await addTask.mutateAsync({
-          title: titleRaw,
-          description: timeRaw ? `Scheduled: ${timeRaw}` : "",
-          deadline: deadlineMs,
-          priority: "medium",
-        });
-        const deadlineStr = deadlineMs
-          ? ` at ${new Date(Number(deadlineMs) / 1_000_000).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}`
-          : "";
-        return `Task added: **${titleRaw}**${deadlineStr}. You can view and manage it in the Tasks section.`;
+      if (taskTitle) {
+        try {
+          await addTask.mutateAsync({
+            title: taskTitle,
+            description: timeRaw ? `Scheduled: ${timeRaw}` : "",
+            deadline: deadlineMs,
+            priority: "medium",
+          });
+          const deadlineStr = deadlineMs
+            ? ` at ${new Date(Number(deadlineMs) / 1_000_000).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}`
+            : "";
+          const passedNote = alreadyPassedToday
+            ? "\n\n*(Note: this time has already passed today — reminder saved for reference.)*"
+            : "";
+          return `Task added: **${taskTitle}**${deadlineStr}. You can view and manage it in the Tasks section.${passedNote}`;
+        } catch {
+          return `I understood you want to add a task: **${taskTitle}**. However I couldn't save it right now — please try again or add it directly in the Tasks section.`;
+        }
       }
     }
 
@@ -533,39 +647,50 @@ export function ChatPage() {
     if (noteMatch) {
       const noteContent = noteMatch[1].trim();
       const words = noteContent.split(" ").slice(0, 5).join(" ");
-      await addNote.mutateAsync({
-        title: words,
-        content: noteContent,
-        summary: noteContent.slice(0, 100),
-        tags: [],
-      });
-      return `Note saved: **"${noteContent.slice(0, 60)}${noteContent.length > 60 ? "..." : ""}"**. Find it in your Notes section.`;
+      try {
+        await addNote.mutateAsync({
+          title: words,
+          content: noteContent,
+          summary: noteContent.slice(0, 100),
+          tags: [],
+        });
+        return `Note saved: **"${noteContent.slice(0, 60)}${noteContent.length > 60 ? "..." : ""}"**. Find it in your Notes section.`;
+      } catch {
+        return `I understood you want to save this note. However I couldn't save it right now — please try again or add it directly in the Notes section.`;
+      }
     }
 
     // ── FINANCE MODULE ─────────────────────────────────────────────────────────
     // "add expense Rs.100", "spent 500 on food", "income of 1000", "add today's expense"
     const financeMatch = userMessage.match(
-      /(?:add\s+)?(?:today'?s?\s+)?(?:an?\s+)?(?:expense|spent?|cost|paid?|income|earning|received?|got)\s+(?:of\s+)?(?:rs\.?|inr|₹|\$|usd)?\s*(\d+(?:\.\d{1,2})?)\s*(?:(?:rs\.?|inr|₹|\$)?)?\s*(?:(?:on|for|as|from)\s+(.+))?/i,
+      /(?:add\s+)?(?:today\'?s?\s+)?(?:an?\s+)?(?:expense|spent?|cost|paid?|income|earning|received?|got)\s+(?:of\s+)?(?:rs\.?|inr|₹|\$|usd)?\s*(\d+(?:\.\d{1,2})?)\s*(?:(?:rs\.?|inr|₹|\$)?)?\s*(?:(?:on|for|as|from)\s+(.+?))?(?:\/[-]?)?$/i,
     );
     const financeMatch2 = userMessage.match(
-      /(?:rs\.?|inr|₹|\$|usd)\s*(\d+(?:\.\d{1,2})?)\s*(?:(?:on|for|as|from)\s+(.+))?\s*(?:expense|income|earned?)?/i,
+      /(?:rs\.?|inr|₹|\$|usd)\s*(\d+(?:\.\d{1,2})?)\s*(?:(?:on|for|as|from)\s+(.+?))?(?:\/[-]?)?\s*(?:expense|income|earned?)?$/i,
     );
-    const fm = financeMatch || financeMatch2;
+    const financeMatch3 = userMessage.match(
+      /(?:add\s+)?(?:today\'?s?\s+)?(?:an?\s+)?(?:expense|spent?|cost|paid?|income|earning|received?|got)\s+(?:of\s+)?(?:rs\.?\s+)(\d+(?:\.\d{1,2})?)/i,
+    );
+    const fm = financeMatch || financeMatch2 || financeMatch3;
     if (fm) {
       const amountStr = fm[1];
-      const descRaw = fm[2]?.trim() || "";
+      const descRaw = fm[2]?.trim().replace(/[\/\-]+$/, "") || "";
       const amount = Math.round(Number.parseFloat(amountStr) * 100);
       const isIncome = /income|earning|received?|got/i.test(userMessage);
       const category = isIncome ? "income" : descRaw || "general";
       const description = descRaw || (isIncome ? "Income" : "Expense");
-      await addFinanceEntry.mutateAsync({
-        amount: isIncome ? BigInt(amount) : BigInt(-amount),
-        category,
-        description,
-        entryDate: BigInt(Date.now()) * BigInt(1_000_000),
-      });
-      const sign = isIncome ? "+" : "-";
-      return `Finance entry recorded: **${sign}₹${Number.parseFloat(amountStr).toFixed(2)}** for **${description}**. View details in the Finance Tracker.`;
+      try {
+        await addFinanceEntry.mutateAsync({
+          amount: isIncome ? BigInt(amount) : BigInt(-amount),
+          category,
+          description,
+          entryDate: BigInt(Date.now()) * BigInt(1_000_000),
+        });
+        const sign = isIncome ? "+" : "-";
+        return `Finance entry recorded: **${sign}₹${Number.parseFloat(amountStr).toFixed(2)}** for **${description}**. View details in the Finance Tracker.`;
+      } catch {
+        return `I understood you want to record: **${isIncome ? "+" : "-"}₹${Number.parseFloat(amountStr).toFixed(2)}** for **${description}**. However I couldn't save it right now — please try again or add it directly in the Finance Tracker.`;
+      }
     }
 
     return generateContextualResponse(userMessage, knowledgeSources);
@@ -581,12 +706,31 @@ export function ChatPage() {
     const currentMemories = memoriesRef.current;
     const currentRules = rulesRef.current;
     const conversationContext = buildConversationContext();
-    const personalityContext = buildPersonalityContext();
+    const _personalityContext = buildPersonalityContext();
 
     // Build personalized context from memories
     const regularMemories = currentMemories.filter(
       (m) => !m.content.startsWith("[KNOWLEDGE_SOURCE]"),
     );
+
+    // Math / calculation
+    const mathMatch = userMessage.trim().match(/^[\d\s\+\-\*\/\(\)\.%^]+$/);
+    if (mathMatch) {
+      try {
+        // Safe eval for simple math expressions
+        const expr = userMessage.trim().replace(/\^/g, "**");
+        // Only allow safe characters
+        if (/^[\d\s\+\-\*\/\(\)\.%\*]+$/.test(expr)) {
+          // eslint-disable-next-line no-new-func
+          const result = Function(`"use strict"; return (${expr})`)();
+          if (typeof result === "number" && Number.isFinite(result)) {
+            return `${userMessage.trim()} = **${result}**`;
+          }
+        }
+      } catch {
+        // not a valid expression
+      }
+    }
 
     // Greeting detection
     if (
@@ -661,17 +805,60 @@ export function ChatPage() {
       return `Here's a summary of your recent messages:\n\n${summary}`;
     }
 
-    // Check knowledge sources for relevant context
+    // Check user knowledge sources (multi-source synthesis)
     const validSources = knowledgeSources.filter((s) => s !== null);
+    const userKnowledgeResults: { title: string; content: string }[] = [];
     if (validSources.length > 0) {
       const { context, titles } = getRelevantContext(validSources, userMessage);
       if (context) {
-        const intro =
-          style === "concise"
-            ? "From your knowledge base:"
-            : "I found relevant information in your knowledge base:";
-        return `${intro}\n\n${context.slice(0, 800)}\n\n---\n*Sources: ${titles.join(", ")}*`;
+        userKnowledgeResults.push(
+          ...titles.map((t, _i) => ({
+            title: t,
+            content: context,
+          })),
+        );
       }
+    }
+
+    // Check built-in knowledge base
+    const builtinResults = searchBuiltinKnowledge(userMessage);
+
+    // If we have results from both, synthesize
+    if (userKnowledgeResults.length > 0 && builtinResults.length > 0) {
+      const builtinSummary = builtinResults[0].content.slice(0, 400);
+      const userSummary = userKnowledgeResults[0].content.slice(0, 400);
+      const intro =
+        style === "concise"
+          ? "Here's what I found:"
+          : "I found relevant information from multiple sources:";
+      return `${intro}\n\n**From your knowledge base (${userKnowledgeResults[0].title}):**\n${userSummary}\n\n**From DJ's built-in knowledge (${builtinResults[0].topic}):**\n${builtinSummary}`;
+    }
+
+    // User knowledge sources only
+    if (userKnowledgeResults.length > 0) {
+      const intro =
+        style === "concise"
+          ? "From your knowledge base:"
+          : "I found relevant information in your knowledge base:";
+      return `${intro}\n\n${userKnowledgeResults[0].content.slice(0, 800)}\n\n---\n*Source: ${userKnowledgeResults[0].title}*`;
+    }
+
+    // Built-in knowledge only
+    if (builtinResults.length > 0) {
+      // Update active topic
+      activeTopicRef.current = builtinResults[0].topic;
+      const intro =
+        style === "concise"
+          ? `**${builtinResults[0].topic}:**`
+          : `Here's what I know about **${builtinResults[0].topic}**:`;
+      const footer =
+        builtinResults.length > 1
+          ? `\n\n---\n*I also have built-in knowledge on: ${builtinResults
+              .slice(1)
+              .map((r) => r.topic)
+              .join(", ")}*`
+          : "";
+      return `${intro}\n\n${builtinResults[0].content}${footer}`;
     }
 
     // Use memories to personalize
@@ -686,8 +873,8 @@ export function ChatPage() {
         const intro =
           style === "concise"
             ? "Based on what I know about you:"
-            : "Based on what I know about you, I can provide better context:";
-        return `${intro} ${relevantMemory.content}\n\nFor more specific help, please ask a more detailed question. Current rules: ${personalityContext}`;
+            : "Based on what I know about you:";
+        return `${intro} ${relevantMemory.content}\n\nFor more specific help, please ask a more detailed question.`;
       }
     }
 
@@ -703,21 +890,45 @@ export function ChatPage() {
       return `My current behavior rules:\n\n${ruleList}`;
     }
 
-    // Default contextual response
+    // Context-aware follow-up: use active topic
+    const activeTopic = activeTopicRef.current;
+    if (
+      activeTopic &&
+      (lowerMessage.includes("why") ||
+        lowerMessage.includes("how") ||
+        lowerMessage.includes("what") ||
+        lowerMessage.includes("when"))
+    ) {
+      const topicResults = searchBuiltinKnowledge(activeTopic);
+      if (topicResults.length > 0) {
+        return `Following up on **${activeTopic}**:\n\n${topicResults[0].content}`;
+      }
+    }
+
+    // Default contextual response with conversation awareness
+    const recentContext = persistedMessagesRef.current.slice(-4);
+    const hasContext = recentContext.length > 2;
+
+    if (style === "concise") {
+      return hasContext
+        ? "I'm following the conversation. For a specific action, try 'DJ, remember...', set a rule, or ask about a topic."
+        : "Got it. Please use a specific command for best results.";
+    }
+
     const suggestions = [
+      'Try asking: "What is budgeting?" or "Explain cybersecurity"',
       'Try: "DJ, remember [something important about you]"',
       'Try: "DJ, your new rule is [always use bullet points]"',
-      'Try: "DJ, what do you know about [topic]"',
-      'Try: "DJ, be more concise"',
+      'Try: "What do all my sources say about [topic]?"',
     ];
     const suggestionIndex =
       persistedMessagesRef.current.length % suggestions.length;
 
-    if (style === "concise") {
-      return "Got it. Please use a specific command like 'DJ, remember...' or 'DJ, your new rule is...' for best results.";
+    if (hasContext) {
+      return `I'm keeping track of our conversation. I have built-in knowledge on **IT, Finance, and Productivity** topics — just ask me anything. ${suggestions[suggestionIndex]}\n\nI currently have ${regularMemories.length} memories stored.`;
     }
 
-    return `I understand your message. I'm here to help with specific tasks and commands. ${suggestions[suggestionIndex]}\n\nI currently have ${regularMemories.length} memories and ${currentRules.length} behavior rules active.`;
+    return `I'm ready to help. I have built-in knowledge on IT, Finance, and Productivity. ${suggestions[suggestionIndex]}\n\nI currently have ${regularMemories.length} memories and ${currentRules.length} behavior rules active.`;
   };
 
   const handleSend = async (messageOverride?: string) => {
@@ -727,7 +938,6 @@ export function ChatPage() {
     setInput("");
     setIsProcessing(true);
 
-    // Immediately show the user's message as optimistic
     const optimisticUserMsg: DisplayMessage = {
       id: `optimistic-user-${Date.now()}`,
       role: "user",
@@ -738,10 +948,15 @@ export function ChatPage() {
     setOptimisticMessages([optimisticUserMsg]);
 
     try {
-      await saveMessage.mutateAsync({ role: "user", content: messageText });
+      // Save user message -- non-blocking if it fails
+      saveMessage
+        .mutateAsync({ role: "user", content: messageText })
+        .catch(() => {
+          // Save failed silently -- message still shows locally
+        });
+
       const response = await parseCommand(messageText);
 
-      // Add optimistic DJ response too so user sees it instantly
       const optimisticDJMsg: DisplayMessage = {
         id: `optimistic-dj-${Date.now()}`,
         role: "assistant",
@@ -751,7 +966,12 @@ export function ChatPage() {
       };
       setOptimisticMessages([optimisticUserMsg, optimisticDJMsg]);
 
-      await saveMessage.mutateAsync({ role: "assistant", content: response });
+      // Save DJ response -- non-blocking if it fails
+      saveMessage
+        .mutateAsync({ role: "assistant", content: response })
+        .catch(() => {
+          // Save failed silently
+        });
 
       if (voiceEnabled) {
         speak(response);
@@ -761,7 +981,6 @@ export function ChatPage() {
       setInput(messageText);
     } finally {
       setIsProcessing(false);
-      setOptimisticMessages([]);
     }
   };
 
