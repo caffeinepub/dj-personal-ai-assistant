@@ -377,3 +377,48 @@ export function getKnowledgeByCategory(
 ): KnowledgeEntry[] {
   return BUILTIN_KNOWLEDGE.filter((e) => e.category === category);
 }
+
+/**
+ * If the query asks about a specific term (e.g. "what is malware"),
+ * extract only the bullet lines from content that mention that term.
+ * Returns null if no focused extraction is possible (fall back to full content).
+ */
+export function extractFocusedAnswer(
+  query: string,
+  entry: KnowledgeEntry,
+): string | null {
+  const lowerQuery = query.toLowerCase();
+
+  // Detect "what is X", "explain X", "tell me about X", "define X" patterns
+  const specificTermMatch =
+    lowerQuery.match(/what(?:'s| is| are)\s+(.+?)[\?\.]*$/) ||
+    lowerQuery.match(/explain\s+(.+?)[\?\.]*$/) ||
+    lowerQuery.match(/define\s+(.+?)[\?\.]*$/) ||
+    lowerQuery.match(/tell me about\s+(.+?)[\?\.]*$/) ||
+    lowerQuery.match(/^(.{3,30})\?*$/); // short bare question like "malware?"
+
+  if (!specificTermMatch) return null;
+
+  const term = specificTermMatch[1].trim().toLowerCase();
+
+  // Don't extract if the term matches the whole topic (user wants full topic)
+  if (
+    entry.topic.toLowerCase().includes(term) ||
+    term.includes(entry.topic.toLowerCase())
+  ) {
+    return null;
+  }
+
+  // Find lines in content that mention the specific term
+  const lines = entry.content.split("\n");
+  const matchedLines = lines.filter((line) =>
+    line.toLowerCase().includes(term),
+  );
+
+  if (matchedLines.length === 0) return null;
+
+  // Build focused answer
+  const termFormatted = term.charAt(0).toUpperCase() + term.slice(1);
+  const answer = matchedLines.join("\n").trim();
+  return `**${termFormatted}** (from ${entry.topic}):\n\n${answer}`;
+}

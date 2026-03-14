@@ -191,8 +191,17 @@ export function SettingsPage() {
   const deleteRule = useDeleteBehaviorRule();
   const addMemory = useAddMemory();
 
+  // Guard: only populate form fields on first successful profile load.
+  // Without this, background React Query refetches re-fire the effect and
+  // overwrite whatever the user has typed, which also resets scroll position.
+  const hasInitialized = useRef(false);
+  // Guard: only set personality from query data once (on initial load).
+  // Without this, background refetches re-fire the effect and trigger a
+  // re-render of the Mood Board, which causes the page to scroll to it.
+  const hasPersonalityInitialized = useRef(false);
+
   // Profile form state
-  const [editName, setEditName] = useState(profile?.name || "");
+  const [editName, setEditName] = useState("");
   const [editProfession, setEditProfession] = useState("");
   const [editLocation, setEditLocation] = useState("");
   const [editGoal, setEditGoal] = useState("");
@@ -218,17 +227,17 @@ export function SettingsPage() {
   const [applyingTemplate, setApplyingTemplate] = useState<string | null>(null);
 
   // Active personality
-  const [activePersonality, setActivePersonality] = useState(
-    personality?.communicationStyle || "professional",
-  );
+  const [activePersonality, setActivePersonality] = useState("professional");
 
+  // Populate form fields only on the very first load — never on background refetches.
+  // This prevents scroll jumping and overwriting in-progress user input.
   useEffect(() => {
-    if (profile) {
+    if (profile && !hasInitialized.current) {
+      hasInitialized.current = true;
       setEditName(profile.name || "");
-      // Parse preferences string to restore form fields
       const prefs = profile.preferences || "";
       const extract = (key: string) => {
-        const match = prefs.match(new RegExp(`${key}:\s*([^\n]+)`));
+        const match = prefs.match(new RegExp(`${key}:\\s*([^\\n]+)`));
         return match ? match[1].trim() : "";
       };
       const prof = extract("Profession");
@@ -244,8 +253,12 @@ export function SettingsPage() {
     }
   }, [profile]);
 
+  // Set active personality only once on initial load — never on background refetches.
+  // Re-running this on every refetch re-renders the Mood Board and causes the
+  // browser to scroll to it while the user is typing in the form below.
   useEffect(() => {
-    if (personality) {
+    if (personality && !hasPersonalityInitialized.current) {
+      hasPersonalityInitialized.current = true;
       setActivePersonality(personality.communicationStyle);
     }
   }, [personality]);
@@ -256,6 +269,8 @@ export function SettingsPage() {
     if (!p) return;
     try {
       await setPersonalityFn.mutateAsync(id);
+      // Update the init ref so it reflects the user's explicit choice
+      hasPersonalityInitialized.current = true;
       // Apply personality bundle rules
       for (let i = 0; i < p.rules.length; i++) {
         await setBehaviorRule.mutateAsync({
@@ -527,17 +542,13 @@ export function SettingsPage() {
                 <button
                   key={id}
                   type="button"
+                  tabIndex={-1}
                   onClick={() => handlePersonalitySelect(id)}
                   className={`relative flex flex-col items-start gap-2 rounded-lg border p-4 text-left transition-all ${
                     isActive
-                      ? "border-primary bg-primary/15"
+                      ? "border-primary bg-primary/15 shadow-mood-active"
                       : "border-muted bg-card/30 hover:border-primary/40"
                   }`}
-                  style={
-                    isActive
-                      ? { boxShadow: "0 0 15px oklch(0.65 0.25 220 / 0.35)" }
-                      : {}
-                  }
                 >
                   {isActive && (
                     <div className="absolute right-2 top-2 flex h-4 w-4 items-center justify-center rounded-full bg-primary">
@@ -545,15 +556,21 @@ export function SettingsPage() {
                     </div>
                   )}
                   <div
-                    className={`flex h-9 w-9 items-center justify-center rounded-md ${isActive ? "bg-primary/25" : "bg-muted"}`}
+                    className={`flex h-9 w-9 items-center justify-center rounded-md ${
+                      isActive ? "bg-primary/25" : "bg-muted"
+                    }`}
                   >
                     <Icon
-                      className={`h-5 w-5 ${isActive ? "text-primary" : "text-muted-foreground"}`}
+                      className={`h-5 w-5 ${
+                        isActive ? "text-primary" : "text-muted-foreground"
+                      }`}
                     />
                   </div>
                   <div>
                     <p
-                      className={`text-sm font-semibold ${isActive ? "text-primary" : ""}`}
+                      className={`text-sm font-semibold ${
+                        isActive ? "text-primary" : ""
+                      }`}
                     >
                       {label}
                     </p>
@@ -657,7 +674,9 @@ export function SettingsPage() {
                   }
                 >
                   <div
-                    className={`flex h-5 w-5 shrink-0 items-center justify-center rounded border ${isActive ? "border-primary bg-primary" : "border-muted"}`}
+                    className={`flex h-5 w-5 shrink-0 items-center justify-center rounded border ${
+                      isActive ? "border-primary bg-primary" : "border-muted"
+                    }`}
                   >
                     {isActive && (
                       <Check className="h-3 w-3 text-primary-foreground" />
@@ -749,6 +768,8 @@ export function SettingsPage() {
                   onChange={(e) => setEditName(e.target.value)}
                   className="border-primary/40 bg-background/80 focus:border-primary focus:ring-1 focus:ring-primary text-foreground placeholder:text-muted-foreground"
                   placeholder="e.g. Alex"
+                  autoComplete="off"
+                  data-ocid="settings.name.input"
                 />
               </div>
               <div className="space-y-1">
@@ -758,6 +779,8 @@ export function SettingsPage() {
                   onChange={(e) => setEditProfession(e.target.value)}
                   className="border-primary/40 bg-background/80 focus:border-primary focus:ring-1 focus:ring-primary text-foreground placeholder:text-muted-foreground"
                   placeholder="e.g. Designer"
+                  autoComplete="off"
+                  data-ocid="settings.profession.input"
                 />
               </div>
               <div className="space-y-1">
@@ -772,6 +795,8 @@ export function SettingsPage() {
                   onChange={(e) => setEditLocation(e.target.value)}
                   className="border-primary/40 bg-background/80 focus:border-primary focus:ring-1 focus:ring-primary text-foreground placeholder:text-muted-foreground"
                   placeholder="e.g. London"
+                  autoComplete="off"
+                  data-ocid="settings.location.input"
                 />
               </div>
               <div className="space-y-1">
@@ -781,6 +806,8 @@ export function SettingsPage() {
                   onChange={(e) => setEditGoal(e.target.value)}
                   className="border-primary/40 bg-background/80 focus:border-primary focus:ring-1 focus:ring-primary text-foreground placeholder:text-muted-foreground"
                   placeholder="e.g. Launch my startup"
+                  autoComplete="off"
+                  data-ocid="settings.goal.input"
                 />
               </div>
             </div>
@@ -792,6 +819,7 @@ export function SettingsPage() {
                 className="border-primary/40 bg-background/80 focus:border-primary focus:ring-1 focus:ring-primary text-foreground placeholder:text-muted-foreground"
                 placeholder="e.g. AI, fitness, jazz music..."
                 rows={2}
+                data-ocid="settings.interests.textarea"
               />
             </div>
             <div className="space-y-2">
@@ -821,6 +849,7 @@ export function SettingsPage() {
                 className="border-primary/40 bg-background/80 focus:border-primary focus:ring-1 focus:ring-primary text-foreground placeholder:text-muted-foreground"
                 placeholder="e.g. Building a SaaS app, writing a book..."
                 rows={2}
+                data-ocid="settings.projects.textarea"
               />
             </div>
             <Button
@@ -828,6 +857,7 @@ export function SettingsPage() {
               onClick={handleSaveProfile}
               disabled={isSavingProfile}
               style={{ boxShadow: "0 0 15px oklch(0.65 0.25 220 / 0.3)" }}
+              data-ocid="settings.profile.submit_button"
             >
               {isSavingProfile ? (
                 <>

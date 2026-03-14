@@ -11,6 +11,7 @@ export interface KnowledgeSource {
   summary: string;
   category: string;
   timestamp: bigint;
+  folderId?: string; // string representation of bigint folder ID
 }
 
 const KNOWLEDGE_PREFIX = "[KNOWLEDGE_SOURCE]";
@@ -21,6 +22,7 @@ export function encodeKnowledgeSource(
   url: string,
   content: string,
   category = "General",
+  folderId?: string,
 ): string {
   const truncatedContent = content.slice(0, 2000);
   const safeTitle = title.replace(/\|/g, " ").replace(/\n/g, " ").trim();
@@ -33,7 +35,8 @@ export function encodeKnowledgeSource(
     .trim()
     .slice(0, 200);
   const safeSummary = summary.replace(/\|/g, " ");
-  return `${KNOWLEDGE_PREFIX} type:${type} | title:${safeTitle} | url:${safeUrl} | category:${safeCategory} | summary:${safeSummary} | content:${safeContent}`;
+  const folderPart = folderId ? ` | folderId:${folderId}` : "";
+  return `${KNOWLEDGE_PREFIX} type:${type} | title:${safeTitle} | url:${safeUrl} | category:${safeCategory}${folderPart} | summary:${safeSummary} | content:${safeContent}`;
 }
 
 export function parseKnowledgeSource(memory: Memory): KnowledgeSource | null {
@@ -45,6 +48,7 @@ export function parseKnowledgeSource(memory: Memory): KnowledgeSource | null {
     const titleMatch = rest.match(/\|\s*title:(.+?)\s*\|/);
     const urlMatch = rest.match(/\|\s*url:(.+?)\s*\|/);
     const categoryMatch = rest.match(/\|\s*category:(.+?)\s*\|/);
+    const folderIdMatch = rest.match(/\|\s*folderId:(.+?)\s*\|/);
     const summaryMatch = rest.match(/\|\s*summary:(.+?)\s*\|/);
     const contentMatch = rest.match(/\|\s*content:(.+)$/s);
 
@@ -57,6 +61,7 @@ export function parseKnowledgeSource(memory: Memory): KnowledgeSource | null {
       ? contentMatch[1].trim().replace(/ \\n /g, "\n")
       : "";
     const category = categoryMatch ? categoryMatch[1].trim() : "General";
+    const folderId = folderIdMatch ? folderIdMatch[1].trim() : undefined;
     const summary = summaryMatch
       ? summaryMatch[1].trim()
       : content.replace(/\n/g, " ").replace(/\s+/g, " ").trim().slice(0, 200);
@@ -70,6 +75,7 @@ export function parseKnowledgeSource(memory: Memory): KnowledgeSource | null {
       summary,
       category,
       timestamp: memory.timestamp,
+      folderId,
     };
   } catch {
     return null;
@@ -136,7 +142,7 @@ export function isKnowledgeSource(memory: Memory): boolean {
 }
 
 export function extractTextFromHtml(html: string): string {
-  let text = html
+  const text = html
     .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, "")
     .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, "")
     .replace(/<[^>]+>/g, " ")

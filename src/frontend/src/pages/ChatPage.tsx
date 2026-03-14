@@ -1,6 +1,7 @@
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { useQueryClient } from "@tanstack/react-query";
 import {
   BookOpen,
   Lightbulb,
@@ -15,12 +16,10 @@ import {
 import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { Layout } from "../components/Layout";
+import { useActor } from "../hooks/useActor";
 import {
   useActivateModule,
-  useAddFinanceEntry,
   useAddMemory,
-  useAddNote,
-  useAddTask,
   useBehaviorRules,
   useChatMessages,
   useCreateCustomCommand,
@@ -33,7 +32,17 @@ import {
   useSetPersonalitySettings,
 } from "../hooks/useQueries";
 import { Link } from "../lib/router-shim";
-import { searchBuiltinKnowledge } from "../utils/builtinKnowledge";
+import {
+  extractFocusedAnswer,
+  searchBuiltinKnowledge,
+} from "../utils/builtinKnowledge";
+import {
+  detectTone,
+  randomGreeting,
+  randomTaskConfirm,
+  smartFallback,
+  wrapResponse,
+} from "../utils/djPersonality";
 import {
   getRelevantContext,
   parseKnowledgeSource,
@@ -142,9 +151,8 @@ export function ChatPage() {
   const setPersonality = useSetPersonalitySettings();
   const activateModule = useActivateModule();
   const deactivateModule = useDeactivateModule();
-  const addTask = useAddTask();
-  const addNote = useAddNote();
-  const addFinanceEntry = useAddFinanceEntry();
+  const { actor } = useActor();
+  const queryClient = useQueryClient();
 
   const [input, setInput] = useState("");
   const [isListening, setIsListening] = useState(false);
@@ -166,7 +174,7 @@ export function ChatPage() {
   const isFirstLoad = useRef(true);
   const prevMessageCount = useRef(0);
 
-  // Combined visible messages: persisted + optimistic (deduplicated)
+  // Combined visible messages: persisted + optimistic (deduplicated), sorted by timestamp
   const allVisibleMessages: DisplayMessage[] = [
     ...persistedMessages,
     ...optimisticMessages.filter(
@@ -175,7 +183,9 @@ export function ChatPage() {
           (p) => p.content === opt.content && p.role === opt.role,
         ),
     ),
-  ];
+  ].sort((a, b) =>
+    a.timestamp < b.timestamp ? -1 : a.timestamp > b.timestamp ? 1 : 0,
+  );
 
   // Clear optimistic messages once persisted data has caught up
   useEffect(() => {
@@ -621,19 +631,22 @@ export function ChatPage() {
 
       if (taskTitle) {
         try {
-          await addTask.mutateAsync({
-            title: taskTitle,
-            description: timeRaw ? `Scheduled: ${timeRaw}` : "",
-            deadline: deadlineMs,
-            priority: "medium",
-          });
+          if (!actor) throw new Error("Actor not available");
+          await actor.addTask(
+            taskTitle,
+            timeRaw ? `Scheduled: ${timeRaw}` : "",
+            deadlineMs,
+            "medium",
+          );
+          queryClient.invalidateQueries({ queryKey: ["tasks"] });
           const deadlineStr = deadlineMs
             ? ` at ${new Date(Number(deadlineMs) / 1_000_000).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}`
             : "";
           const passedNote = alreadyPassedToday
             ? "\n\n*(Note: this time has already passed today — reminder saved for reference.)*"
             : "";
-          return `Task added: **${taskTitle}**${deadlineStr}. You can view and manage it in the Tasks section.${passedNote}`;
+          const taskDetail = `${taskTitle}${deadlineStr}`;
+          return `${randomTaskConfirm("task", taskDetail)} View or edit it in the Tasks section.${passedNote}`;
         } catch {
           return `I understood you want to add a task: **${taskTitle}**. However I couldn't save it right now — please try again or add it directly in the Tasks section.`;
         }
@@ -648,13 +661,12 @@ export function ChatPage() {
       const noteContent = noteMatch[1].trim();
       const words = noteContent.split(" ").slice(0, 5).join(" ");
       try {
-        await addNote.mutateAsync({
-          title: words,
-          content: noteContent,
-          summary: noteContent.slice(0, 100),
-          tags: [],
-        });
-        return `Note saved: **"${noteContent.slice(0, 60)}${noteContent.length > 60 ? "..." : ""}"**. Find it in your Notes section.`;
+        if (!actor) throw new Error("Actor not available");
+        await actor.addNote(words, noteContent, noteContent.slice(0, 100), []);
+        queryClient.invalidateQueries({ queryKey: ["notes"] });
+        const shortNote =
+          noteContent.slice(0, 60) + (noteContent.length > 60 ? "..." : "");
+        return `${randomTaskConfirm("note", shortNote)} Find it in your Notes section.`;
       } catch {
         return `I understood you want to save this note. However I couldn't save it right now — please try again or add it directly in the Notes section.`;
       }
@@ -680,14 +692,17 @@ export function ChatPage() {
       const category = isIncome ? "income" : descRaw || "general";
       const description = descRaw || (isIncome ? "Income" : "Expense");
       try {
-        await addFinanceEntry.mutateAsync({
-          amount: isIncome ? BigInt(amount) : BigInt(-amount),
+        if (!actor) throw new Error("Actor not available");
+        await actor.addFinanceEntry(
+          isIncome ? BigInt(amount) : BigInt(-amount),
           category,
           description,
-          entryDate: BigInt(Date.now()) * BigInt(1_000_000),
-        });
+          BigInt(Date.now()) * BigInt(1_000_000),
+        );
+        queryClient.invalidateQueries({ queryKey: ["financeEntries"] });
         const sign = isIncome ? "+" : "-";
-        return `Finance entry recorded: **${sign}₹${Number.parseFloat(amountStr).toFixed(2)}** for **${description}**. View details in the Finance Tracker.`;
+        const finDetail = `${sign}₹${Number.parseFloat(amountStr).toFixed(2)} for ${description}`;
+        return `${randomTaskConfirm("finance", finDetail)} View details in the Finance Tracker.`;
       } catch {
         return `I understood you want to record: **${isIncome ? "+" : "-"}₹${Number.parseFloat(amountStr).toFixed(2)}** for **${description}**. However I couldn't save it right now — please try again or add it directly in the Finance Tracker.`;
       }
@@ -742,11 +757,7 @@ export function ChatPage() {
         .find((m) => m.content.toLowerCase().includes("my name is"))
         ?.content.replace(/.*my name is\s+/i, "")
         .split(/[,. ]/)[0];
-      const greeting = userName ? `Hello, ${userName}!` : "Hello!";
-      if (style === "casual") {
-        return `${greeting} What's up? How can I help you today?`;
-      }
-      return `${greeting} I'm DJ, your personal AI assistant. All systems are operational. How may I assist you?`;
+      return randomGreeting(userName);
     }
 
     // How are you
@@ -754,9 +765,7 @@ export function ChatPage() {
       lowerMessage.includes("how are you") ||
       lowerMessage.includes("how do you feel")
     ) {
-      return style === "casual"
-        ? "All good! Always ready to help. What do you need?"
-        : "All systems operational and functioning optimally. How can I assist you today?";
+      return "All good on my end! Always running, always ready. What do you need?";
     }
 
     // Help / capabilities
@@ -847,6 +856,14 @@ export function ChatPage() {
     if (builtinResults.length > 0) {
       // Update active topic
       activeTopicRef.current = builtinResults[0].topic;
+      // Try to extract a focused answer for specific term queries
+      const focusedAnswer = extractFocusedAnswer(
+        userMessage,
+        builtinResults[0],
+      );
+      if (focusedAnswer) {
+        return wrapResponse(focusedAnswer, "knowledge");
+      }
       const intro =
         style === "concise"
           ? `**${builtinResults[0].topic}:**`
@@ -905,30 +922,8 @@ export function ChatPage() {
       }
     }
 
-    // Default contextual response with conversation awareness
-    const recentContext = persistedMessagesRef.current.slice(-4);
-    const hasContext = recentContext.length > 2;
-
-    if (style === "concise") {
-      return hasContext
-        ? "I'm following the conversation. For a specific action, try 'DJ, remember...', set a rule, or ask about a topic."
-        : "Got it. Please use a specific command for best results.";
-    }
-
-    const suggestions = [
-      'Try asking: "What is budgeting?" or "Explain cybersecurity"',
-      'Try: "DJ, remember [something important about you]"',
-      'Try: "DJ, your new rule is [always use bullet points]"',
-      'Try: "What do all my sources say about [topic]?"',
-    ];
-    const suggestionIndex =
-      persistedMessagesRef.current.length % suggestions.length;
-
-    if (hasContext) {
-      return `I'm keeping track of our conversation. I have built-in knowledge on **IT, Finance, and Productivity** topics — just ask me anything. ${suggestions[suggestionIndex]}\n\nI currently have ${regularMemories.length} memories stored.`;
-    }
-
-    return `I'm ready to help. I have built-in knowledge on IT, Finance, and Productivity. ${suggestions[suggestionIndex]}\n\nI currently have ${regularMemories.length} memories and ${currentRules.length} behavior rules active.`;
+    // Default contextual response
+    return smartFallback(userMessage);
   };
 
   const handleSend = async (messageOverride?: string) => {

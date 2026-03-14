@@ -208,6 +208,14 @@ export interface backendInterface {
     addFinanceEntry(amount: bigint, category: string, description: string, entryDate: bigint): Promise<void>;
     getAllFinanceEntries(): Promise<Array<any>>;
     deleteFinanceEntry(id: bigint): Promise<void>;
+    // Knowledge Folders
+    createFolder(name: string, parentId: bigint | null): Promise<bigint>;
+    getFolders(): Promise<Array<any>>;
+    deleteFolder(id: bigint): Promise<void>;
+    // Wiki Pages
+    saveWikiPage(folderId: bigint, overview: string, keyConcepts: string, tips: string): Promise<void>;
+    getWikiPageByFolder(folderId: bigint): Promise<any | null>;
+    deleteWikiPage(id: bigint): Promise<void>;
 }
 import type { ExcelFile as _ExcelFile, Time as _Time, UserProfile as _UserProfile, UserRole as _UserRole } from "./declarations/backend.did.d.ts";
 export class Backend implements backendInterface {
@@ -791,6 +799,33 @@ export class Backend implements backendInterface {
     async deleteFinanceEntry(arg0: bigint): Promise<void> {
         const result = await this.actor.deleteFinanceEntry(arg0);
         return result;
+    }
+    // Knowledge Folders
+    async createFolder(name: string, parentId: bigint | null): Promise<bigint> {
+        const candid_parentId: [] | [bigint] = parentId === null ? [] : [parentId];
+        const result = await (this.actor as any).createFolder(name, candid_parentId);
+        return result as bigint;
+    }
+    async getFolders(): Promise<Array<any>> {
+        const result = await (this.actor as any).getFolders();
+        return (result as Array<any>).map((f: any) => ({
+            ...f,
+            parentId: f.parentId.length === 0 ? null : f.parentId[0],
+        }));
+    }
+    async deleteFolder(id: bigint): Promise<void> {
+        await (this.actor as any).deleteFolder(id);
+    }
+    // Wiki Pages
+    async saveWikiPage(folderId: bigint, overview: string, keyConcepts: string, tips: string): Promise<void> {
+        await (this.actor as any).saveWikiPage(folderId, overview, keyConcepts, tips);
+    }
+    async getWikiPageByFolder(folderId: bigint): Promise<any | null> {
+        const result = await (this.actor as any).getWikiPageByFolder(folderId);
+        return result.length === 0 ? null : result[0];
+    }
+    async deleteWikiPage(id: bigint): Promise<void> {
+        await (this.actor as any).deleteWikiPage(id);
     }
 
 }

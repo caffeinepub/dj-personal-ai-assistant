@@ -262,6 +262,21 @@ export const idlFactory = ({ IDL }) => {
     'createdAt' : Time,
   });
   
+  const KnowledgeFolder = IDL.Record({
+    'id' : IDL.Nat,
+    'name' : IDL.Text,
+    'parentId' : IDL.Opt(IDL.Nat),
+    'createdAt' : Time,
+  });
+  const WikiPage = IDL.Record({
+    'id' : IDL.Nat,
+    'folderId' : IDL.Nat,
+    'overviewSection' : IDL.Text,
+    'keyConceptsSection' : IDL.Text,
+    'tipsSection' : IDL.Text,
+    'lastEditedAt' : Time,
+  });
+  
   return IDL.Service({
     '_initializeAccessControlWithSecret' : IDL.Func([IDL.Text], [], []),
     'activateModule' : IDL.Func([IDL.Text], [], []),
@@ -327,6 +342,14 @@ export const idlFactory = ({ IDL }) => {
     'addFinanceEntry' : IDL.Func([IDL.Int, IDL.Text, IDL.Text, Time], [], []),
     'getAllFinanceEntries' : IDL.Func([], [IDL.Vec(FinanceEntry)], ['query']),
     'deleteFinanceEntry' : IDL.Func([IDL.Nat], [], []),
+    // Knowledge Folders
+    'createFolder' : IDL.Func([IDL.Text, IDL.Opt(IDL.Nat)], [IDL.Nat], []),
+    'getFolders' : IDL.Func([], [IDL.Vec(KnowledgeFolder)], ['query']),
+    'deleteFolder' : IDL.Func([IDL.Nat], [], []),
+    // Wiki Pages
+    'saveWikiPage' : IDL.Func([IDL.Nat, IDL.Text, IDL.Text, IDL.Text], [], []),
+    'getWikiPageByFolder' : IDL.Func([IDL.Nat], [IDL.Opt(WikiPage)], ['query']),
+    'deleteWikiPage' : IDL.Func([IDL.Nat], [], []),
   });
 };
 

@@ -11,6 +11,23 @@ import type {
   UserProfile,
   Website,
 } from "../backend.d.ts";
+
+// Knowledge Folder types (defined locally since they are not in backend.ts)
+export interface KnowledgeFolder {
+  id: bigint;
+  name: string;
+  parentId: bigint | null;
+  createdAt: bigint;
+}
+
+export interface WikiPage {
+  id: bigint;
+  folderId: bigint;
+  overviewSection: string;
+  keyConceptsSection: string;
+  tipsSection: string;
+  lastEditedAt: bigint;
+}
 import { useActor } from "./useActor";
 
 // Local type definitions for new modules (not yet in generated backend.ts)
@@ -723,6 +740,98 @@ export function useDeleteFinanceEntry() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["financeEntries"] });
+    },
+  });
+}
+
+// Knowledge Folder Queries
+export function useKnowledgeFolders() {
+  const { actor, isFetching } = useActor();
+  return useQuery<KnowledgeFolder[]>({
+    queryKey: ["knowledgeFolders"],
+    queryFn: async () => {
+      if (!actor) return [];
+      const folders = await actor.getFolders();
+      return folders as KnowledgeFolder[];
+    },
+    enabled: !!actor && !isFetching,
+  });
+}
+
+export function useCreateKnowledgeFolder() {
+  const { actor } = useActor();
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({
+      name,
+      parentId,
+    }: { name: string; parentId: bigint | null }) => {
+      if (!actor) throw new Error("Actor not available");
+      return actor.createFolder(name, parentId);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["knowledgeFolders"] });
+    },
+  });
+}
+
+export function useDeleteKnowledgeFolder() {
+  const { actor } = useActor();
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (id: bigint) => {
+      if (!actor) throw new Error("Actor not available");
+      await actor.deleteFolder(id);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["knowledgeFolders"] });
+    },
+  });
+}
+
+// Wiki Page Queries
+export function useWikiPageByFolder(folderId: bigint | null) {
+  const { actor, isFetching } = useActor();
+  return useQuery<WikiPage | null>({
+    queryKey: ["wikiPage", folderId?.toString()],
+    queryFn: async () => {
+      if (!actor || folderId === null) return null;
+      return actor.getWikiPageByFolder(folderId);
+    },
+    enabled: !!actor && !isFetching && folderId !== null,
+  });
+}
+
+export function useSaveWikiPage() {
+  const { actor } = useActor();
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({
+      folderId,
+      overview,
+      keyConcepts,
+      tips,
+    }: {
+      folderId: bigint;
+      overview: string;
+      keyConcepts: string;
+      tips: string;
+    }) => {
+      if (!actor) throw new Error("Actor not available");
+      await actor.saveWikiPage(folderId, overview, keyConcepts, tips);
+    },
+    onSuccess: (
+      _data: unknown,
+      variables: {
+        folderId: bigint;
+        overview: string;
+        keyConcepts: string;
+        tips: string;
+      },
+    ) => {
+      queryClient.invalidateQueries({
+        queryKey: ["wikiPage", variables.folderId.toString()],
+      });
     },
   });
 }

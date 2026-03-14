@@ -151,4 +151,30 @@ export interface backendInterface {
     addFinanceEntry(amount: bigint, category: string, description: string, entryDate: Time): Promise<void>;
     getAllFinanceEntries(): Promise<Array<FinanceEntry>>;
     deleteFinanceEntry(id: bigint): Promise<void>;
+    // Knowledge Folders
+    createFolder(name: string, parentId: bigint | null): Promise<bigint>;
+    getFolders(): Promise<Array<KnowledgeFolder>>;
+    deleteFolder(id: bigint): Promise<void>;
+    // Wiki Pages
+    saveWikiPage(folderId: bigint, overview: string, keyConcepts: string, tips: string): Promise<void>;
+    getWikiPageByFolder(folderId: bigint): Promise<WikiPage | null>;
+    deleteWikiPage(id: bigint): Promise<void>;
+}
+
+// Knowledge Folders
+export interface KnowledgeFolder {
+    id: bigint;
+    name: string;
+    parentId: bigint | null;
+    createdAt: Time;
+}
+
+// Wiki Pages
+export interface WikiPage {
+    id: bigint;
+    folderId: bigint;
+    overviewSection: string;
+    keyConceptsSection: string;
+    tipsSection: string;
+    lastEditedAt: Time;
 }

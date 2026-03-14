@@ -3,7 +3,6 @@ import Set "mo:core/Set";
 import List "mo:core/List";
 import Text "mo:core/Text";
 import Array "mo:core/Array";
-import Iter "mo:core/Iter";
 import Order "mo:core/Order";
 import Time "mo:core/Time";
 import Int "mo:core/Int";
@@ -109,6 +108,22 @@ actor {
     createdAt : Time.Time;
   };
 
+  type KnowledgeFolder = {
+    id : Nat;
+    name : Text;
+    parentId : ?Nat;
+    createdAt : Time.Time;
+  };
+
+  type WikiPage = {
+    id : Nat;
+    folderId : Nat;
+    overviewSection : Text;
+    keyConceptsSection : Text;
+    tipsSection : Text;
+    lastEditedAt : Time.Time;
+  };
+
   public type UserProfile = {
     name : Text;
     preferences : Text;
@@ -154,6 +169,8 @@ actor {
   let userTasks = Map.empty<Principal, List.List<Task>>();
   let userNotes = Map.empty<Principal, List.List<Note>>();
   let userFinanceEntries = Map.empty<Principal, List.List<FinanceEntry>>();
+  let userKnowledgeFolders = Map.empty<Principal, List.List<KnowledgeFolder>>();
+  let userWikiPages = Map.empty<Principal, List.List<WikiPage>>();
 
   // ----- ID Counters -----
   var nextMemoryId = 1;
@@ -167,6 +184,8 @@ actor {
   var nextTaskId = 1;
   var nextNoteId = 1;
   var nextFinanceEntryId = 1;
+  var nextFolderId = 1;
+  var nextWikiPageId = 1;
 
   // ----- Authorization -----
   let accessControlState = AccessControl.initState();
@@ -839,4 +858,99 @@ actor {
       };
     };
   };
+
+  // ----- Knowledge Folders -----
+  public shared ({ caller }) func createFolder(name : Text, parentId : ?Nat) : async Nat {
+    if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
+      Runtime.trap("Unauthorized");
+    };
+    let folder : KnowledgeFolder = {
+      id = nextFolderId;
+      name;
+      parentId;
+      createdAt = Time.now();
+    };
+    nextFolderId += 1;
+    let current = switch (userKnowledgeFolders.get(caller)) {
+      case (null) { List.empty<KnowledgeFolder>() };
+      case (?f) { f };
+    };
+    current.add(folder);
+    userKnowledgeFolders.add(caller, current);
+    folder.id
+  };
+
+  public query ({ caller }) func getFolders() : async [KnowledgeFolder] {
+    if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
+      Runtime.trap("Unauthorized");
+    };
+    switch (userKnowledgeFolders.get(caller)) {
+      case (null) { [] };
+      case (?folders) { folders.toArray() };
+    };
+  };
+
+  public shared ({ caller }) func deleteFolder(id : Nat) : async () {
+    if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
+      Runtime.trap("Unauthorized");
+    };
+    switch (userKnowledgeFolders.get(caller)) {
+      case (null) { Runtime.trap("No folders found") };
+      case (?folders) {
+        let filtered = folders.filter(func(f) { f.id != id });
+        userKnowledgeFolders.add(caller, filtered);
+      };
+    };
+  };
+
+  // ----- Wiki Pages -----
+  public shared ({ caller }) func saveWikiPage(folderId : Nat, overview : Text, keyConcepts : Text, tips : Text) : async () {
+    if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
+      Runtime.trap("Unauthorized");
+    };
+    let existing = switch (userWikiPages.get(caller)) {
+      case (null) { List.empty<WikiPage>() };
+      case (?pages) { pages };
+    };
+    // Remove existing wiki page for this folder if any
+    let withoutOld = existing.filter(func(p) { p.folderId != folderId });
+    let page : WikiPage = {
+      id = nextWikiPageId;
+      folderId;
+      overviewSection = overview;
+      keyConceptsSection = keyConcepts;
+      tipsSection = tips;
+      lastEditedAt = Time.now();
+    };
+    nextWikiPageId += 1;
+    withoutOld.add(page);
+    userWikiPages.add(caller, withoutOld);
+  };
+
+  public query ({ caller }) func getWikiPageByFolder(folderId : Nat) : async ?WikiPage {
+    if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
+      Runtime.trap("Unauthorized");
+    };
+    switch (userWikiPages.get(caller)) {
+      case (null) { null };
+      case (?pages) {
+        let arr = pages.toArray().filter(func(p : WikiPage) : Bool { p.folderId == folderId });
+        if (arr.size() > 0) { ?arr[0] } else { null };
+      };
+    };
+  };
+
+  public shared ({ caller }) func deleteWikiPage(id : Nat) : async () {
+    if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
+      Runtime.trap("Unauthorized");
+    };
+    switch (userWikiPages.get(caller)) {
+      case (null) { Runtime.trap("No wiki pages found") };
+      case (?pages) {
+        let filtered = pages.filter(func(p) { p.id != id });
+        userWikiPages.add(caller, filtered);
+      };
+    };
+  };
+
 };
