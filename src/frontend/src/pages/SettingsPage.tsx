@@ -228,6 +228,9 @@ export function SettingsPage() {
   const [continuousListening, setContinuousListeningState] = useState(
     () => localStorage.getItem("dj_continuous_listening") === "true",
   );
+  const [autonomySuggestions, setAutonomySuggestionsState] = useState(
+    () => localStorage.getItem("dj_autonomy_suggestions") !== "false",
+  );
 
   const handleProactiveMode = (v: boolean) => {
     setProactiveModeState(v);
@@ -241,6 +244,10 @@ export function SettingsPage() {
     setContinuousListeningState(v);
     localStorage.setItem("dj_continuous_listening", String(v));
   };
+  function handleAutonomySuggestions(v: boolean) {
+    setAutonomySuggestionsState(v);
+    localStorage.setItem("dj_autonomy_suggestions", String(v));
+  }
 
   // Applied templates tracker
   const [appliedTemplates, setAppliedTemplates] = useState<string[]>([]);
@@ -991,6 +998,22 @@ export function SettingsPage() {
                 checked={continuousListening}
                 onCheckedChange={handleContinuousListening}
                 data-ocid="settings.continuous_listening.switch"
+              />
+            </div>
+            <div className="flex items-center justify-between">
+              <div>
+                <Label className="text-sm font-medium text-foreground">
+                  Enable Autonomy Suggestions
+                </Label>
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  DJ periodically reviews your goals, plans, and habits to
+                  suggest next steps.
+                </p>
+              </div>
+              <Switch
+                checked={autonomySuggestions}
+                onCheckedChange={handleAutonomySuggestions}
+                data-ocid="settings.autonomy_suggestions.switch"
               />
             </div>
           </div>

@@ -7,8 +7,8 @@
  */
 
 import type { QueryClient } from "@tanstack/react-query";
-import type { Memory } from "../../backend.d.ts";
 import type { ContextEngineState } from "../../context/ContextEngineContext";
+import type { Memory } from "../../types/backendTypes";
 import type { Decision } from "../brain/decisionEngine";
 
 /** All stateful dependencies a skill receives at execution time */

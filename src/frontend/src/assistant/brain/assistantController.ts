@@ -17,12 +17,12 @@
  */
 
 import type { QueryClient } from "@tanstack/react-query";
+import type { ContextEngineState } from "../../context/ContextEngineContext";
 import type {
   BehaviorRule,
   Memory,
   PersonalitySettings,
-} from "../../backend.d.ts";
-import type { ContextEngineState } from "../../context/ContextEngineContext";
+} from "../../types/backendTypes";
 import {
   extractMemories,
   isMemoryExtractionInitialized,
@@ -102,49 +102,42 @@ export function createAssistantController(
       deactivateModule,
     } = deps;
 
-    // ── Stage 1: Intent ──────────────────────────────────────────────────────
-    const { intent } = detectIntent(userMessage);
+    // ── Stage 1: Intent detection ─────────────────────────────────────────────
+    const intentResult = detectIntent(userMessage);
+    const intent = intentResult.intent;
 
-    // ── Stage 2: Entity extraction ───────────────────────────────────────────
+    // ── Stage 2: Entity extraction ────────────────────────────────────────────
     const entities = extractEntities(userMessage, intent);
 
-    // ── Stage 2.5: Memory extraction (fire-and-forget) ───────────────────────
+    // ── Stage 2.5: Memory extraction (fire-and-forget) ────────────────────────
     if (actor) {
-      // Retroactive scan on first run
+      // One-time retroactive scan on first run
       if (!isMemoryExtractionInitialized()) {
-        const retroMessages = memories.filter(
-          (m) =>
-            !m.content.startsWith("MEMORY_GRAPH:") &&
-            !m.content.startsWith("[KNOWLEDGE_SOURCE]"),
-        );
-        for (const mem of retroMessages) {
-          const candidates = extractMemories(mem.content);
-          for (const c of candidates) {
-            deduplicateOrSave(actor, memories, c).catch(() => {});
+        setMemoryExtractionInitialized();
+        const retroMessages = memories
+          .filter((m) => !m.content.startsWith("MEMORY_GRAPH:"))
+          .map((m) => ({ role: "user" as const, content: m.content }));
+        for (const msg of retroMessages) {
+          const extracted = extractMemories(msg.content);
+          for (const node of extracted) {
+            deduplicateOrSave(actor, memories, node).catch(() => {});
           }
         }
-        setMemoryExtractionInitialized();
       }
-
-      // Extract from current message (skip DJ commands)
-      if (
-        intent !== "REMEMBER" &&
-        intent !== "FORGET" &&
-        intent !== "MEMORY_QUERY"
-      ) {
-        const candidates = extractMemories(userMessage);
-        for (const c of candidates) {
-          deduplicateOrSave(actor, memories, c).catch(() => {});
-        }
+      // Extract from current message
+      const extracted = extractMemories(userMessage);
+      for (const node of extracted) {
+        deduplicateOrSave(actor, memories, node).catch(() => {});
       }
     }
 
-    // ── Stage 3 is context — already in deps.contextEngine ──────────────────
+    // ── Stage 3: Context (passed in) ─────────────────────────────────────────
+    // contextEngine is already up-to-date from the provider
 
-    // ── Stage 4: Decision ───────────────────────────────────────────────────
+    // ── Stage 4: Decision engine ─────────────────────────────────────────────
     const decision = makeDecision(intent, entities, userMessage);
 
-    // ── Stage 5 + 6: Skill Router → Skill Execution ─────────────────────────
+    // ── Stage 5–6: Skill router ───────────────────────────────────────────────
     const skillContext: SkillContext = {
       actor,
       queryClient,
@@ -154,179 +147,143 @@ export function createAssistantController(
 
     const skillResult = await routeToSkill(decision, skillContext);
 
-    // ── Stage 6.5: Reply Composer ────────────────────────────────────────────
+    // ── Stage 6.5: Reply composer ─────────────────────────────────────────────
     if (skillResult !== null) {
-      // Search for relevant memories to enrich the reply
+      // Skill handled it — compose an intelligent reply
       const memoryNodes = parseMemoryNodes(memories);
       const relevantMemories = searchRelevantMemories(memoryNodes, userMessage);
-
       const composed = composeReply({
         skillResult,
         decision,
         context: contextEngine,
-        userProfile: contextEngine.userPreferences ?? undefined,
-        conversationHistory: conversationHistory.slice(-5),
+        userProfile: undefined,
+        conversationHistory,
         relevantMemories,
       });
       return composedReplyToString(composed);
     }
 
-    // ── Stage 7: Built-in handlers (memory, rules, modules) ──────────────────
+    // ── Stage 7: Built-in / general response ─────────────────────────────────
+    // Handle special intents not covered by skills
     switch (decision.action) {
-      // ── Memory Graph commands ──────────────────────────────────────────────
       case "REMEMBER": {
-        if (decision.content) {
-          // Save to legacy memory
-          await addMemory(decision.content);
-          // Also save to Memory Graph as a 'fact'
-          if (actor) {
-            deduplicateOrSave(actor, memories, {
-              type: "fact",
-              content: decision.content,
-              tags: ["manual"],
-              importance: 3,
-            }).catch(() => {});
+        if (actor) {
+          try {
+            await addMemory(decision.content);
+            return `Got it. I've remembered: "${decision.content}"${decision.content.length > 60 ? "..." : ""}`;
+          } catch {
+            return "I had trouble saving that memory. Please try again.";
           }
-          return "Understood. I've stored that in my memory — it'll help me give you better answers.";
         }
-        return "I didn't catch what to remember — could you say that again?";
+        return "What would you like me to remember?";
       }
 
       case "FORGET": {
-        const regularMemories = memories.filter(
-          (m) => !m.content.startsWith("[KNOWLEDGE_SOURCE]"),
-        );
-        const matchingMemory = regularMemories.find((m) =>
-          m.content.toLowerCase().includes(decision.content.toLowerCase()),
-        );
-        if (matchingMemory) {
-          await deleteMemory(matchingMemory.id);
-          return "Understood. I've removed that from my memory.";
+        if (actor) {
+          const memoryNodes = parseMemoryNodes(memories);
+          const target = memoryNodes.find((n) =>
+            n.content.toLowerCase().includes(decision.content.toLowerCase()),
+          );
+          if (target?.backendId !== undefined) {
+            try {
+              await deleteMemory(target.backendId);
+              return `Done. I've forgotten: "${target.content}"${target.content.length > 60 ? "..." : ""}`;
+            } catch {
+              return "I had trouble deleting that memory. Please try again.";
+            }
+          }
+          return `I don't have a memory matching "${decision.content}".`;
         }
-        return "I couldn't find a matching memory to forget.";
+        return "What would you like me to forget?";
       }
 
       case "LIST_MEMORIES": {
-        const regularMemories = memories.filter(
-          (m) => !m.content.startsWith("[KNOWLEDGE_SOURCE]"),
-        );
-        if (regularMemories.length === 0) {
-          return "I don't have any stored memories yet. Teach me by saying 'DJ, remember [something]'.";
-        }
-        return `Here's everything I remember:\n\n${regularMemories
-          .map((m, i) => `${i + 1}. ${m.content}`)
-          .join("\n")}`;
+        const memoryNodes = parseMemoryNodes(memories);
+        const formatted = formatMemoriesForReply(memoryNodes.slice(0, 5));
+        return formatted;
       }
 
-      case "RESET_MEMORIES": {
-        const regularMemories = memories.filter(
-          (m) => !m.content.startsWith("[KNOWLEDGE_SOURCE]"),
-        );
-        for (const m of regularMemories) {
-          await deleteMemory(m.id);
-        }
-        return "Done. All memories have been cleared. I'm starting fresh.";
-      }
-
-      // ── Memory Query (contextual lookup) ─────────────────────────────────
       case "MEMORY_QUERY": {
-        const nodes = parseMemoryNodes(memories);
-        if (nodes.length === 0) {
-          return "I don't have any stored memories about you yet. Chat with me more and I'll learn as we go!";
-        }
-
-        // Check if querying a specific topic
-        const topicMatch = userMessage.match(
-          /what do you remember about\s+(.+)/i,
-        );
-        if (topicMatch) {
-          const relevant = searchRelevantMemories(nodes, topicMatch[1]);
-          return `Here's what I remember about "${topicMatch[1]}":\n\n${formatMemoriesForReply(relevant)}`;
-        }
-
-        // Goals query
-        if (userMessage.toLowerCase().includes("goals")) {
-          const goals = nodes.filter((n) => n.type === "user_goal");
-          return goals.length > 0
-            ? `Here are your goals I've noted:\n\n${formatMemoriesForReply(goals)}`
-            : "I haven't noted any goals yet. Tell me what you're working towards!";
-        }
-
-        // Preferences query
-        if (userMessage.toLowerCase().includes("preferences")) {
-          const prefs = nodes.filter((n) => n.type === "user_preference");
-          return prefs.length > 0
-            ? `Here are your preferences I've learned:\n\n${formatMemoriesForReply(prefs)}`
-            : "I haven't picked up any specific preferences yet.";
-        }
-
-        // General memory overview
-        const profile = nodes.filter((n) => n.type === "user_profile");
-        const goals = nodes.filter((n) => n.type === "user_goal");
-        const habits = nodes.filter((n) => n.type === "habit");
-        const projects = nodes.filter((n) => n.type === "project");
-
-        const parts: string[] = ["Here's what I know about you:"];
-        if (profile.length)
-          parts.push(
-            `\n**Profile:** ${profile.map((n) => n.content).join(" · ")}`,
-          );
-        if (goals.length)
-          parts.push(`\n**Goals:** ${goals.map((n) => n.content).join(" · ")}`);
-        if (habits.length)
-          parts.push(
-            `\n**Habits:** ${habits.map((n) => n.content).join(" · ")}`,
-          );
-        if (projects.length)
-          parts.push(
-            `\n**Projects:** ${projects.map((n) => n.content).join(" · ")}`,
-          );
-        if (parts.length === 1)
-          parts.push(
-            "\nNot much yet — keep chatting and I'll learn more about you.",
-          );
-
-        return parts.join("");
+        const memoryNodes = parseMemoryNodes(memories);
+        const relevant = searchRelevantMemories(memoryNodes, decision.query);
+        const formatted = formatMemoriesForReply(relevant);
+        if (formatted) return formatted;
+        return "I don't have any relevant memories about that yet. Tell me more and I'll remember it.";
       }
 
-      // ── Commands & rules ──────────────────────────────────────────────────
       case "CREATE_COMMAND": {
-        await createCommand({
-          name: decision.name,
-          action: decision.commandAction,
-        });
-        return `Understood. I've created the custom command "${decision.name}". Activate it by saying "${decision.name}".`;
+        if (actor) {
+          try {
+            await createCommand({
+              name: decision.name,
+              action: decision.commandAction,
+            });
+            return `Done. I've created the command "${decision.name}" → "${decision.commandAction}".`;
+          } catch {
+            return "I had trouble creating that command. Please try again.";
+          }
+        }
+        return "To create a command, say something like: 'Create command called \"morning routine\" that opens tasks'.";
       }
 
       case "SET_RULE": {
-        if (decision.ruleText) {
-          await setBehaviorRule({
-            ruleText: decision.ruleText,
-            priority: BigInt(rules.length + 1),
-          });
-          return "Understood. I've set that as a new behavior rule and will follow it in every future response.";
+        if (actor) {
+          try {
+            await setBehaviorRule({
+              ruleText: decision.ruleText,
+              priority: 0n,
+            });
+            return `Understood. I'll always remember: "${decision.ruleText}".`;
+          } catch {
+            return "I had trouble saving that rule. Please try again.";
+          }
         }
-        return "I didn't catch the rule — could you rephrase that?";
+        return "What rule would you like me to follow?";
       }
 
       case "SET_PERSONALITY": {
-        await setPersonality(decision.style);
-        return `Understood. I've adjusted my communication style to be more ${decision.style}.`;
+        if (actor) {
+          try {
+            await setPersonality(decision.style);
+            return `Done. I'll communicate in a ${decision.style} style from now on.`;
+          } catch {
+            return "I had trouble updating my personality. Please try again.";
+          }
+        }
+        return "What communication style would you like? Options include: professional, casual, formal, friendly, concise.";
       }
 
-      // ── Modules ───────────────────────────────────────────────────────────
       case "ACTIVATE_MODULE": {
-        await activateModule(decision.moduleName);
-        return `The ${decision.moduleName} module has been activated.`;
+        if (actor) {
+          try {
+            await activateModule(decision.moduleName);
+            return `The ${decision.moduleName} module is now active.`;
+          } catch {
+            return `I had trouble activating ${decision.moduleName}. Please try again.`;
+          }
+        }
+        return "Which module would you like to activate?";
       }
 
       case "DEACTIVATE_MODULE": {
-        await deactivateModule(decision.moduleName);
-        return `The ${decision.moduleName} module has been deactivated.`;
+        if (actor) {
+          try {
+            await deactivateModule(decision.moduleName);
+            return `The ${decision.moduleName} module has been deactivated.`;
+          } catch {
+            return `I had trouble deactivating ${decision.moduleName}. Please try again.`;
+          }
+        }
+        return "Which module would you like to deactivate?";
       }
 
-      // ── General / conversational ──────────────────────────────────────────
-      default:
+      case "AUTONOMY_REVIEW": {
+        window.dispatchEvent(new CustomEvent("dj-autonomy-review"));
+        return "Running a full autonomy review now. I'll check your goals, plans, tasks, and knowledge and suggest what to focus on next.";
+      }
+
+      default: {
+        // General conversational / knowledge response
         return generateResponse(userMessage, {
           memories,
           rules,
@@ -335,6 +292,7 @@ export function createAssistantController(
           conversationHistory,
           activeTopicRef,
         });
+      }
     }
   }
 

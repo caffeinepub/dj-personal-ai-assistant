@@ -20,7 +20,10 @@ export type {
 
 export { buildContextPrompt } from "../../context/ContextEngineContext";
 
-import type { BehaviorRule, PersonalitySettings } from "../../backend.d.ts";
+import type {
+  BehaviorRule,
+  PersonalitySettings,
+} from "../../types/backendTypes";
 
 // ── Conversation context ──────────────────────────────────────────────────────
 

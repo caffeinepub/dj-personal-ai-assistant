@@ -17,6 +17,7 @@ import {
   GraduationCap,
   Home,
   LogOut,
+  Map as MapIcon,
   MessageSquare,
   MoreHorizontal,
   Settings,
@@ -48,6 +49,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
     { path: "/notes", icon: StickyNote, label: "Notes" },
     { path: "/finance", icon: DollarSign, label: "Finance" },
     { path: "/memory", icon: Brain, label: "Memory" },
+    { path: "/plans", icon: MapIcon, label: "Plans" },
     { path: "/excel", icon: FileSpreadsheet, label: "Excel" },
     { path: "/coding", icon: Code, label: "Code" },
     { path: "/website", icon: Globe, label: "Web" },
@@ -60,7 +62,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
     { path: "/", icon: Home, label: "Home" },
     { path: "/chat", icon: MessageSquare, label: "Chat" },
     { path: "/tasks", icon: CheckSquare, label: "Tasks" },
-    { path: "/memory", icon: Brain, label: "Memory" },
+    { path: "/plans", icon: MapIcon, label: "Plans" },
     { path: "/profile", icon: User, label: "Profile" },
   ];
 
@@ -68,6 +70,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
     { path: "/finance", icon: DollarSign, label: "Finance" },
     { path: "/notes", icon: StickyNote, label: "Notes" },
     { path: "/knowledge", icon: BookOpen, label: "Knowledge" },
+    { path: "/memory", icon: Brain, label: "Memory" },
     { path: "/excel", icon: FileSpreadsheet, label: "Excel" },
     { path: "/coding", icon: Code, label: "Code" },
     { path: "/website", icon: Globe, label: "Web" },

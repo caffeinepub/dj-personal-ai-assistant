@@ -89,66 +89,23 @@ export class ExternalBlob {
         return this;
     }
 }
-export interface CodeSnippet {
-    id: bigint;
-    title: string;
-    codeContent: string;
-    language: string;
-    timestamp: Time;
+export interface Plan {
+    id: string;
+    status: string;
+    goal: string;
+    stepsJson: string;
+    createdAt: bigint;
 }
-export interface BehaviorRule {
-    id: bigint;
-    ruleText: string;
-    timestamp: Time;
-    priority: bigint;
+export interface _CaffeineStorageCreateCertificateResult {
+    method: string;
+    blob_hash: string;
 }
-export type Time = bigint;
-export interface ImprovementLog {
-    id: bigint;
-    entryType: string;
-    description: string;
-    timestamp: Time;
+export interface _CaffeineStorageRefillResult {
+    success?: boolean;
+    topped_up_amount?: bigint;
 }
-export interface Memory {
-    id: bigint;
-    content: string;
-    timestamp: Time;
-}
-export interface PersonalitySettings {
-    communicationStyle: string;
-}
-export interface ChatMessage {
-    id: bigint;
-    content: string;
-    role: string;
-    timestamp: Time;
-}
-export interface Command {
-    id: bigint;
-    name: string;
-    timestamp: Time;
-    actionDescription: string;
-}
-export interface Website {
-    id: bigint;
-    htmlContent: string;
-    templateName: string;
-    timestamp: Time;
-    cssContent: string;
-    jsContent: string;
-}
-export interface UserProfile {
-    name: string;
-    onboardingComplete: boolean;
-    preferences: string;
-    personalitySettings: PersonalitySettings;
-}
-export interface ExcelFile {
-    id: bigint;
-    analysisResult?: string;
-    uploadTimestamp: Time;
-    filename: string;
-    rawData: Uint8Array;
+export interface _CaffeineStorageRefillInformation {
+    proposed_top_up_amount?: bigint;
 }
 export enum UserRole {
     admin = "admin",
@@ -156,70 +113,109 @@ export enum UserRole {
     guest = "guest"
 }
 export interface backendInterface {
+    _caffeineStorageBlobIsLive(hash: Uint8Array): Promise<boolean>;
+    _caffeineStorageBlobsToDelete(): Promise<Array<Uint8Array>>;
+    _caffeineStorageConfirmBlobDeletion(blobs: Array<Uint8Array>): Promise<void>;
+    _caffeineStorageCreateCertificate(blobHash: string): Promise<_CaffeineStorageCreateCertificateResult>;
+    _caffeineStorageRefillCashier(refillInformation: _CaffeineStorageRefillInformation | null): Promise<_CaffeineStorageRefillResult>;
+    _caffeineStorageUpdateGatewayPrincipals(): Promise<void>;
     _initializeAccessControlWithSecret(userSecret: string): Promise<void>;
-    activateModule(moduleName: string): Promise<void>;
-    addImprovementLog(entryType: string, description: string): Promise<void>;
-    addMemory(content: string): Promise<void>;
     assignCallerUserRole(user: Principal, role: UserRole): Promise<void>;
-    createCommand(name: string, actionDescription: string): Promise<void>;
-    createUserProfile(name: string): Promise<void>;
-    deactivateModule(moduleName: string): Promise<void>;
-    deleteCommand(id: bigint): Promise<void>;
-    deleteMemory(id: bigint): Promise<void>;
-    deleteRule(id: bigint): Promise<void>;
-    executeCommand(name: string): Promise<string>;
-    getActiveModules(): Promise<Array<string>>;
-    getAllCommands(): Promise<Array<Command>>;
-    getAllMemories(): Promise<Array<Memory>>;
-    getAllRules(): Promise<Array<BehaviorRule>>;
-    getAllRulesOrdered(): Promise<Array<BehaviorRule>>;
-    getCallerUserProfile(): Promise<UserProfile | null>;
+    deletePlan(id: string): Promise<boolean>;
     getCallerUserRole(): Promise<UserRole>;
-    getChatMessages(page: bigint, pageSize: bigint): Promise<Array<ChatMessage>>;
-    getCodeSnippets(): Promise<Array<CodeSnippet>>;
-    getExcelFiles(): Promise<Array<ExcelFile>>;
-    getImprovementLogs(page: bigint, pageSize: bigint): Promise<Array<ImprovementLog>>;
-    getPersonalitySettings(): Promise<PersonalitySettings>;
-    getUserProfile(user: Principal): Promise<UserProfile | null>;
-    getWebsites(): Promise<Array<Website>>;
+    getPlanById(id: string): Promise<Plan | null>;
+    getPlans(): Promise<Array<Plan>>;
     isCallerAdmin(): Promise<boolean>;
-    saveCallerUserProfile(profile: UserProfile): Promise<void>;
-    saveChatMessage(role: string, content: string): Promise<void>;
-    saveCodeSnippet(language: string, title: string, codeContent: string): Promise<void>;
-    saveExcelAnalysis(fileId: bigint, analysis: string): Promise<void>;
-    saveExcelFile(filename: string, rawData: Uint8Array): Promise<void>;
-    saveOnboardingComplete(completed: boolean): Promise<void>;
-    saveWebsite(templateName: string, htmlContent: string, cssContent: string, jsContent: string): Promise<void>;
-    setBehaviorRule(ruleText: string, priority: bigint): Promise<void>;
-    setPersonalitySettings(style: string): Promise<void>;
-    updatePreferences(preferences: string): Promise<void>;
-    updateRulePriority(id: bigint, newPriority: bigint): Promise<void>;
-    // Tasks
-    addTask(title: string, description: string, deadline: bigint | null, priority: string): Promise<void>;
-    getAllTasks(): Promise<Array<any>>;
-    updateTaskCompletion(id: bigint, completed: boolean): Promise<void>;
-    deleteTask(id: bigint): Promise<void>;
-    // Notes
-    addNote(title: string, content: string, summary: string, tags: string[]): Promise<void>;
-    getAllNotes(): Promise<Array<any>>;
-    updateNote(id: bigint, title: string, content: string, summary: string, tags: string[]): Promise<void>;
-    deleteNote(id: bigint): Promise<void>;
-    // Finance
-    addFinanceEntry(amount: bigint, category: string, description: string, entryDate: bigint): Promise<void>;
-    getAllFinanceEntries(): Promise<Array<any>>;
-    deleteFinanceEntry(id: bigint): Promise<void>;
-    // Knowledge Folders
-    createFolder(name: string, parentId: bigint | null): Promise<bigint>;
-    getFolders(): Promise<Array<any>>;
-    deleteFolder(id: bigint): Promise<void>;
-    // Wiki Pages
-    saveWikiPage(folderId: bigint, overview: string, keyConcepts: string, tips: string): Promise<void>;
-    getWikiPageByFolder(folderId: bigint): Promise<any | null>;
-    deleteWikiPage(id: bigint): Promise<void>;
+    savePlan(id: string, goal: string, stepsJson: string, status: string): Promise<boolean>;
+    updatePlan(id: string, goal: string, stepsJson: string, status: string): Promise<boolean>;
 }
-import type { ExcelFile as _ExcelFile, Time as _Time, UserProfile as _UserProfile, UserRole as _UserRole } from "./declarations/backend.did.d.ts";
+import type { Plan as _Plan, UserRole as _UserRole, _CaffeineStorageRefillInformation as __CaffeineStorageRefillInformation, _CaffeineStorageRefillResult as __CaffeineStorageRefillResult } from "./declarations/backend.did.d.ts";
 export class Backend implements backendInterface {
     constructor(private actor: ActorSubclass<_SERVICE>, private _uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, private _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, private processError?: (error: unknown) => never){}
+    async _caffeineStorageBlobIsLive(arg0: Uint8Array): Promise<boolean> {
+        if (this.processError) {
+            try {
+                const result = await this.actor._caffeineStorageBlobIsLive(arg0);
+                return result;
+            } catch (e) {
+                this.processError(e);
+                throw new Error("unreachable");
+            }
+        } else {
+            const result = await this.actor._caffeineStorageBlobIsLive(arg0);
+            return result;
+        }
+    }
+    async _caffeineStorageBlobsToDelete(): Promise<Array<Uint8Array>> {
+        if (this.processError) {
+            try {
+                const result = await this.actor._caffeineStorageBlobsToDelete();
+                return result;
+            } catch (e) {
+                this.processError(e);
+                throw new Error("unreachable");
+            }
+        } else {
+            const result = await this.actor._caffeineStorageBlobsToDelete();
+            return result;
+        }
+    }
+    async _caffeineStorageConfirmBlobDeletion(arg0: Array<Uint8Array>): Promise<void> {
+        if (this.processError) {
+            try {
+                const result = await this.actor._caffeineStorageConfirmBlobDeletion(arg0);
+                return result;
+            } catch (e) {
+                this.processError(e);
+                throw new Error("unreachable");
+            }
+        } else {
+            const result = await this.actor._caffeineStorageConfirmBlobDeletion(arg0);
+            return result;
+        }
+    }
+    async _caffeineStorageCreateCertificate(arg0: string): Promise<_CaffeineStorageCreateCertificateResult> {
+        if (this.processError) {
+            try {
+                const result = await this.actor._caffeineStorageCreateCertificate(arg0);
+                return result;
+            } catch (e) {
+                this.processError(e);
+                throw new Error("unreachable");
+            }
+        } else {
+            const result = await this.actor._caffeineStorageCreateCertificate(arg0);
+            return result;
+        }
+    }
+    async _caffeineStorageRefillCashier(arg0: _CaffeineStorageRefillInformation | null): Promise<_CaffeineStorageRefillResult> {
+        if (this.processError) {
+            try {
+                const result = await this.actor._caffeineStorageRefillCashier(to_candid_opt_n1(this._uploadFile, this._downloadFile, arg0));
+                return from_candid__CaffeineStorageRefillResult_n4(this._uploadFile, this._downloadFile, result);
+            } catch (e) {
+                this.processError(e);
+                throw new Error("unreachable");
+            }
+        } else {
+            const result = await this.actor._caffeineStorageRefillCashier(to_candid_opt_n1(this._uploadFile, this._downloadFile, arg0));
+            return from_candid__CaffeineStorageRefillResult_n4(this._uploadFile, this._downloadFile, result);
+        }
+    }
+    async _caffeineStorageUpdateGatewayPrincipals(): Promise<void> {
+        if (this.processError) {
+            try {
+                const result = await this.actor._caffeineStorageUpdateGatewayPrincipals();
+                return result;
+            } catch (e) {
+                this.processError(e);
+                throw new Error("unreachable");
+            }
+        } else {
+            const result = await this.actor._caffeineStorageUpdateGatewayPrincipals();
+            return result;
+        }
+    }
     async _initializeAccessControlWithSecret(arg0: string): Promise<void> {
         if (this.processError) {
             try {
@@ -234,353 +230,73 @@ export class Backend implements backendInterface {
             return result;
         }
     }
-    async activateModule(arg0: string): Promise<void> {
-        if (this.processError) {
-            try {
-                const result = await this.actor.activateModule(arg0);
-                return result;
-            } catch (e) {
-                this.processError(e);
-                throw new Error("unreachable");
-            }
-        } else {
-            const result = await this.actor.activateModule(arg0);
-            return result;
-        }
-    }
-    async addImprovementLog(arg0: string, arg1: string): Promise<void> {
-        if (this.processError) {
-            try {
-                const result = await this.actor.addImprovementLog(arg0, arg1);
-                return result;
-            } catch (e) {
-                this.processError(e);
-                throw new Error("unreachable");
-            }
-        } else {
-            const result = await this.actor.addImprovementLog(arg0, arg1);
-            return result;
-        }
-    }
-    async addMemory(arg0: string): Promise<void> {
-        if (this.processError) {
-            try {
-                const result = await this.actor.addMemory(arg0);
-                return result;
-            } catch (e) {
-                this.processError(e);
-                throw new Error("unreachable");
-            }
-        } else {
-            const result = await this.actor.addMemory(arg0);
-            return result;
-        }
-    }
     async assignCallerUserRole(arg0: Principal, arg1: UserRole): Promise<void> {
         if (this.processError) {
             try {
-                const result = await this.actor.assignCallerUserRole(arg0, to_candid_UserRole_n1(this._uploadFile, this._downloadFile, arg1));
+                const result = await this.actor.assignCallerUserRole(arg0, to_candid_UserRole_n8(this._uploadFile, this._downloadFile, arg1));
                 return result;
             } catch (e) {
                 this.processError(e);
                 throw new Error("unreachable");
             }
         } else {
-            const result = await this.actor.assignCallerUserRole(arg0, to_candid_UserRole_n1(this._uploadFile, this._downloadFile, arg1));
+            const result = await this.actor.assignCallerUserRole(arg0, to_candid_UserRole_n8(this._uploadFile, this._downloadFile, arg1));
             return result;
         }
     }
-    async createCommand(arg0: string, arg1: string): Promise<void> {
+    async deletePlan(arg0: string): Promise<boolean> {
         if (this.processError) {
             try {
-                const result = await this.actor.createCommand(arg0, arg1);
+                const result = await this.actor.deletePlan(arg0);
                 return result;
             } catch (e) {
                 this.processError(e);
                 throw new Error("unreachable");
             }
         } else {
-            const result = await this.actor.createCommand(arg0, arg1);
+            const result = await this.actor.deletePlan(arg0);
             return result;
-        }
-    }
-    async createUserProfile(arg0: string): Promise<void> {
-        if (this.processError) {
-            try {
-                const result = await this.actor.createUserProfile(arg0);
-                return result;
-            } catch (e) {
-                this.processError(e);
-                throw new Error("unreachable");
-            }
-        } else {
-            const result = await this.actor.createUserProfile(arg0);
-            return result;
-        }
-    }
-    async deactivateModule(arg0: string): Promise<void> {
-        if (this.processError) {
-            try {
-                const result = await this.actor.deactivateModule(arg0);
-                return result;
-            } catch (e) {
-                this.processError(e);
-                throw new Error("unreachable");
-            }
-        } else {
-            const result = await this.actor.deactivateModule(arg0);
-            return result;
-        }
-    }
-    async deleteCommand(arg0: bigint): Promise<void> {
-        if (this.processError) {
-            try {
-                const result = await this.actor.deleteCommand(arg0);
-                return result;
-            } catch (e) {
-                this.processError(e);
-                throw new Error("unreachable");
-            }
-        } else {
-            const result = await this.actor.deleteCommand(arg0);
-            return result;
-        }
-    }
-    async deleteMemory(arg0: bigint): Promise<void> {
-        if (this.processError) {
-            try {
-                const result = await this.actor.deleteMemory(arg0);
-                return result;
-            } catch (e) {
-                this.processError(e);
-                throw new Error("unreachable");
-            }
-        } else {
-            const result = await this.actor.deleteMemory(arg0);
-            return result;
-        }
-    }
-    async deleteRule(arg0: bigint): Promise<void> {
-        if (this.processError) {
-            try {
-                const result = await this.actor.deleteRule(arg0);
-                return result;
-            } catch (e) {
-                this.processError(e);
-                throw new Error("unreachable");
-            }
-        } else {
-            const result = await this.actor.deleteRule(arg0);
-            return result;
-        }
-    }
-    async executeCommand(arg0: string): Promise<string> {
-        if (this.processError) {
-            try {
-                const result = await this.actor.executeCommand(arg0);
-                return result;
-            } catch (e) {
-                this.processError(e);
-                throw new Error("unreachable");
-            }
-        } else {
-            const result = await this.actor.executeCommand(arg0);
-            return result;
-        }
-    }
-    async getActiveModules(): Promise<Array<string>> {
-        if (this.processError) {
-            try {
-                const result = await this.actor.getActiveModules();
-                return result;
-            } catch (e) {
-                this.processError(e);
-                throw new Error("unreachable");
-            }
-        } else {
-            const result = await this.actor.getActiveModules();
-            return result;
-        }
-    }
-    async getAllCommands(): Promise<Array<Command>> {
-        if (this.processError) {
-            try {
-                const result = await this.actor.getAllCommands();
-                return result;
-            } catch (e) {
-                this.processError(e);
-                throw new Error("unreachable");
-            }
-        } else {
-            const result = await this.actor.getAllCommands();
-            return result;
-        }
-    }
-    async getAllMemories(): Promise<Array<Memory>> {
-        if (this.processError) {
-            try {
-                const result = await this.actor.getAllMemories();
-                return result;
-            } catch (e) {
-                this.processError(e);
-                throw new Error("unreachable");
-            }
-        } else {
-            const result = await this.actor.getAllMemories();
-            return result;
-        }
-    }
-    async getAllRules(): Promise<Array<BehaviorRule>> {
-        if (this.processError) {
-            try {
-                const result = await this.actor.getAllRules();
-                return result;
-            } catch (e) {
-                this.processError(e);
-                throw new Error("unreachable");
-            }
-        } else {
-            const result = await this.actor.getAllRules();
-            return result;
-        }
-    }
-    async getAllRulesOrdered(): Promise<Array<BehaviorRule>> {
-        if (this.processError) {
-            try {
-                const result = await this.actor.getAllRulesOrdered();
-                return result;
-            } catch (e) {
-                this.processError(e);
-                throw new Error("unreachable");
-            }
-        } else {
-            const result = await this.actor.getAllRulesOrdered();
-            return result;
-        }
-    }
-    async getCallerUserProfile(): Promise<UserProfile | null> {
-        if (this.processError) {
-            try {
-                const result = await this.actor.getCallerUserProfile();
-                return from_candid_opt_n3(this._uploadFile, this._downloadFile, result);
-            } catch (e) {
-                this.processError(e);
-                throw new Error("unreachable");
-            }
-        } else {
-            const result = await this.actor.getCallerUserProfile();
-            return from_candid_opt_n3(this._uploadFile, this._downloadFile, result);
         }
     }
     async getCallerUserRole(): Promise<UserRole> {
         if (this.processError) {
             try {
                 const result = await this.actor.getCallerUserRole();
-                return from_candid_UserRole_n4(this._uploadFile, this._downloadFile, result);
+                return from_candid_UserRole_n10(this._uploadFile, this._downloadFile, result);
             } catch (e) {
                 this.processError(e);
                 throw new Error("unreachable");
             }
         } else {
             const result = await this.actor.getCallerUserRole();
-            return from_candid_UserRole_n4(this._uploadFile, this._downloadFile, result);
+            return from_candid_UserRole_n10(this._uploadFile, this._downloadFile, result);
         }
     }
-    async getChatMessages(arg0: bigint, arg1: bigint): Promise<Array<ChatMessage>> {
+    async getPlanById(arg0: string): Promise<Plan | null> {
         if (this.processError) {
             try {
-                const result = await this.actor.getChatMessages(arg0, arg1);
+                const result = await this.actor.getPlanById(arg0);
+                return from_candid_opt_n12(this._uploadFile, this._downloadFile, result);
+            } catch (e) {
+                this.processError(e);
+                throw new Error("unreachable");
+            }
+        } else {
+            const result = await this.actor.getPlanById(arg0);
+            return from_candid_opt_n12(this._uploadFile, this._downloadFile, result);
+        }
+    }
+    async getPlans(): Promise<Array<Plan>> {
+        if (this.processError) {
+            try {
+                const result = await this.actor.getPlans();
                 return result;
             } catch (e) {
                 this.processError(e);
                 throw new Error("unreachable");
             }
         } else {
-            const result = await this.actor.getChatMessages(arg0, arg1);
-            return result;
-        }
-    }
-    async getCodeSnippets(): Promise<Array<CodeSnippet>> {
-        if (this.processError) {
-            try {
-                const result = await this.actor.getCodeSnippets();
-                return result;
-            } catch (e) {
-                this.processError(e);
-                throw new Error("unreachable");
-            }
-        } else {
-            const result = await this.actor.getCodeSnippets();
-            return result;
-        }
-    }
-    async getExcelFiles(): Promise<Array<ExcelFile>> {
-        if (this.processError) {
-            try {
-                const result = await this.actor.getExcelFiles();
-                return from_candid_vec_n6(this._uploadFile, this._downloadFile, result);
-            } catch (e) {
-                this.processError(e);
-                throw new Error("unreachable");
-            }
-        } else {
-            const result = await this.actor.getExcelFiles();
-            return from_candid_vec_n6(this._uploadFile, this._downloadFile, result);
-        }
-    }
-    async getImprovementLogs(arg0: bigint, arg1: bigint): Promise<Array<ImprovementLog>> {
-        if (this.processError) {
-            try {
-                const result = await this.actor.getImprovementLogs(arg0, arg1);
-                return result;
-            } catch (e) {
-                this.processError(e);
-                throw new Error("unreachable");
-            }
-        } else {
-            const result = await this.actor.getImprovementLogs(arg0, arg1);
-            return result;
-        }
-    }
-    async getPersonalitySettings(): Promise<PersonalitySettings> {
-        if (this.processError) {
-            try {
-                const result = await this.actor.getPersonalitySettings();
-                return result;
-            } catch (e) {
-                this.processError(e);
-                throw new Error("unreachable");
-            }
-        } else {
-            const result = await this.actor.getPersonalitySettings();
-            return result;
-        }
-    }
-    async getUserProfile(arg0: Principal): Promise<UserProfile | null> {
-        if (this.processError) {
-            try {
-                const result = await this.actor.getUserProfile(arg0);
-                return from_candid_opt_n3(this._uploadFile, this._downloadFile, result);
-            } catch (e) {
-                this.processError(e);
-                throw new Error("unreachable");
-            }
-        } else {
-            const result = await this.actor.getUserProfile(arg0);
-            return from_candid_opt_n3(this._uploadFile, this._downloadFile, result);
-        }
-    }
-    async getWebsites(): Promise<Array<Website>> {
-        if (this.processError) {
-            try {
-                const result = await this.actor.getWebsites();
-                return result;
-            } catch (e) {
-                this.processError(e);
-                throw new Error("unreachable");
-            }
-        } else {
-            const result = await this.actor.getWebsites();
+            const result = await this.actor.getPlans();
             return result;
         }
     }
@@ -598,297 +314,63 @@ export class Backend implements backendInterface {
             return result;
         }
     }
-    async saveCallerUserProfile(arg0: UserProfile): Promise<void> {
+    async savePlan(arg0: string, arg1: string, arg2: string, arg3: string): Promise<boolean> {
         if (this.processError) {
             try {
-                const result = await this.actor.saveCallerUserProfile(arg0);
+                const result = await this.actor.savePlan(arg0, arg1, arg2, arg3);
                 return result;
             } catch (e) {
                 this.processError(e);
                 throw new Error("unreachable");
             }
         } else {
-            const result = await this.actor.saveCallerUserProfile(arg0);
+            const result = await this.actor.savePlan(arg0, arg1, arg2, arg3);
             return result;
         }
     }
-    async saveChatMessage(arg0: string, arg1: string): Promise<void> {
+    async updatePlan(arg0: string, arg1: string, arg2: string, arg3: string): Promise<boolean> {
         if (this.processError) {
             try {
-                const result = await this.actor.saveChatMessage(arg0, arg1);
+                const result = await this.actor.updatePlan(arg0, arg1, arg2, arg3);
                 return result;
             } catch (e) {
                 this.processError(e);
                 throw new Error("unreachable");
             }
         } else {
-            const result = await this.actor.saveChatMessage(arg0, arg1);
+            const result = await this.actor.updatePlan(arg0, arg1, arg2, arg3);
             return result;
         }
     }
-    async saveCodeSnippet(arg0: string, arg1: string, arg2: string): Promise<void> {
-        if (this.processError) {
-            try {
-                const result = await this.actor.saveCodeSnippet(arg0, arg1, arg2);
-                return result;
-            } catch (e) {
-                this.processError(e);
-                throw new Error("unreachable");
-            }
-        } else {
-            const result = await this.actor.saveCodeSnippet(arg0, arg1, arg2);
-            return result;
-        }
-    }
-    async saveExcelAnalysis(arg0: bigint, arg1: string): Promise<void> {
-        if (this.processError) {
-            try {
-                const result = await this.actor.saveExcelAnalysis(arg0, arg1);
-                return result;
-            } catch (e) {
-                this.processError(e);
-                throw new Error("unreachable");
-            }
-        } else {
-            const result = await this.actor.saveExcelAnalysis(arg0, arg1);
-            return result;
-        }
-    }
-    async saveExcelFile(arg0: string, arg1: Uint8Array): Promise<void> {
-        if (this.processError) {
-            try {
-                const result = await this.actor.saveExcelFile(arg0, arg1);
-                return result;
-            } catch (e) {
-                this.processError(e);
-                throw new Error("unreachable");
-            }
-        } else {
-            const result = await this.actor.saveExcelFile(arg0, arg1);
-            return result;
-        }
-    }
-    async saveOnboardingComplete(arg0: boolean): Promise<void> {
-        if (this.processError) {
-            try {
-                const result = await this.actor.saveOnboardingComplete(arg0);
-                return result;
-            } catch (e) {
-                this.processError(e);
-                throw new Error("unreachable");
-            }
-        } else {
-            const result = await this.actor.saveOnboardingComplete(arg0);
-            return result;
-        }
-    }
-    async saveWebsite(arg0: string, arg1: string, arg2: string, arg3: string): Promise<void> {
-        if (this.processError) {
-            try {
-                const result = await this.actor.saveWebsite(arg0, arg1, arg2, arg3);
-                return result;
-            } catch (e) {
-                this.processError(e);
-                throw new Error("unreachable");
-            }
-        } else {
-            const result = await this.actor.saveWebsite(arg0, arg1, arg2, arg3);
-            return result;
-        }
-    }
-    async setBehaviorRule(arg0: string, arg1: bigint): Promise<void> {
-        if (this.processError) {
-            try {
-                const result = await this.actor.setBehaviorRule(arg0, arg1);
-                return result;
-            } catch (e) {
-                this.processError(e);
-                throw new Error("unreachable");
-            }
-        } else {
-            const result = await this.actor.setBehaviorRule(arg0, arg1);
-            return result;
-        }
-    }
-    async setPersonalitySettings(arg0: string): Promise<void> {
-        if (this.processError) {
-            try {
-                const result = await this.actor.setPersonalitySettings(arg0);
-                return result;
-            } catch (e) {
-                this.processError(e);
-                throw new Error("unreachable");
-            }
-        } else {
-            const result = await this.actor.setPersonalitySettings(arg0);
-            return result;
-        }
-    }
-    async updatePreferences(arg0: string): Promise<void> {
-        if (this.processError) {
-            try {
-                const result = await this.actor.updatePreferences(arg0);
-                return result;
-            } catch (e) {
-                this.processError(e);
-                throw new Error("unreachable");
-            }
-        } else {
-            const result = await this.actor.updatePreferences(arg0);
-            return result;
-        }
-    }
-    async updateRulePriority(arg0: bigint, arg1: bigint): Promise<void> {
-        if (this.processError) {
-            try {
-                const result = await this.actor.updateRulePriority(arg0, arg1);
-                return result;
-            } catch (e) {
-                this.processError(e);
-                throw new Error("unreachable");
-            }
-        } else {
-            const result = await this.actor.updateRulePriority(arg0, arg1);
-            return result;
-        }
-    }
-    // Tasks
-    async addTask(arg0: string, arg1: string, arg2: bigint | null, arg3: string): Promise<void> {
-        const deadline: [] | [bigint] = arg2 === null ? [] : [arg2];
-        const result = await this.actor.addTask(arg0, arg1, deadline, arg3);
-        return result;
-    }
-    async getAllTasks(): Promise<Array<any>> {
-        const result = await this.actor.getAllTasks();
-        return result.map((t: any) => ({ ...t, deadline: t.deadline.length > 0 ? t.deadline[0] : undefined }));
-    }
-    async updateTaskCompletion(arg0: bigint, arg1: boolean): Promise<void> {
-        const result = await this.actor.updateTaskCompletion(arg0, arg1);
-        return result;
-    }
-    async deleteTask(arg0: bigint): Promise<void> {
-        const result = await this.actor.deleteTask(arg0);
-        return result;
-    }
-    // Notes
-    async addNote(arg0: string, arg1: string, arg2: string, arg3: string[]): Promise<void> {
-        const result = await this.actor.addNote(arg0, arg1, arg2, arg3);
-        return result;
-    }
-    async getAllNotes(): Promise<Array<any>> {
-        const result = await this.actor.getAllNotes();
-        return result;
-    }
-    async updateNote(arg0: bigint, arg1: string, arg2: string, arg3: string, arg4: string[]): Promise<void> {
-        const result = await this.actor.updateNote(arg0, arg1, arg2, arg3, arg4);
-        return result;
-    }
-    async deleteNote(arg0: bigint): Promise<void> {
-        const result = await this.actor.deleteNote(arg0);
-        return result;
-    }
-    // Finance
-    async addFinanceEntry(arg0: bigint, arg1: string, arg2: string, arg3: bigint): Promise<void> {
-        const result = await this.actor.addFinanceEntry(arg0, arg1, arg2, arg3);
-        return result;
-    }
-    async getAllFinanceEntries(): Promise<Array<any>> {
-        const result = await this.actor.getAllFinanceEntries();
-        return result;
-    }
-    async deleteFinanceEntry(arg0: bigint): Promise<void> {
-        const result = await this.actor.deleteFinanceEntry(arg0);
-        return result;
-    }
-    // Knowledge Folders
-    async createFolder(name: string, parentId: bigint | null): Promise<bigint> {
-        const candid_parentId: [] | [bigint] = parentId === null ? [] : [parentId];
-        const result = await (this.actor as any).createFolder(name, candid_parentId);
-        return result as bigint;
-    }
-    async getFolders(): Promise<Array<any>> {
-        const result = await (this.actor as any).getFolders();
-        return (result as Array<any>).map((f: any) => ({
-            ...f,
-            parentId: f.parentId.length === 0 ? null : f.parentId[0],
-        }));
-    }
-    async deleteFolder(id: bigint): Promise<void> {
-        await (this.actor as any).deleteFolder(id);
-    }
-    // Wiki Pages
-    async saveWikiPage(folderId: bigint, overview: string, keyConcepts: string, tips: string): Promise<void> {
-        await (this.actor as any).saveWikiPage(folderId, overview, keyConcepts, tips);
-    }
-    async getWikiPageByFolder(folderId: bigint): Promise<any | null> {
-        const result = await (this.actor as any).getWikiPageByFolder(folderId);
-        return result.length === 0 ? null : result[0];
-    }
-    async deleteWikiPage(id: bigint): Promise<void> {
-        await (this.actor as any).deleteWikiPage(id);
-    }
-    // Chat Threads
-    async createChatThread(name: string, moduleTag: string | null): Promise<bigint> {
-        const candid_moduleTag: [] | [string] = moduleTag === null ? [] : [moduleTag];
-        const result = await (this.actor as any).createChatThread(name, candid_moduleTag);
-        return result as bigint;
-    }
-    async getChatThreads(): Promise<Array<any>> {
-        const result = await (this.actor as any).getChatThreads();
-        return (result as Array<any>).map((t: any) => ({
-            ...t,
-            moduleTag: t.moduleTag.length === 0 ? null : t.moduleTag[0],
-        }));
-    }
-    async deleteChatThread(id: bigint): Promise<void> {
-        await (this.actor as any).deleteChatThread(id);
-    }
-    async saveThreadMessage(threadId: bigint, role: string, content: string): Promise<void> {
-        await (this.actor as any).saveThreadMessage(threadId, role, content);
-    }
-    async getThreadMessages(threadId: bigint, page: bigint, pageSize: bigint): Promise<Array<any>> {
-        const result = await (this.actor as any).getThreadMessages(threadId, page, pageSize);
-        return result as Array<any>;
-    }
-    async deleteThreadMessage(threadId: bigint, messageId: bigint): Promise<void> {
-        await (this.actor as any).deleteThreadMessage(threadId, messageId);
-    }
-
 }
-function from_candid_ExcelFile_n7(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: _ExcelFile): ExcelFile {
-    return from_candid_record_n8(_uploadFile, _downloadFile, value);
+function from_candid_UserRole_n10(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: _UserRole): UserRole {
+    return from_candid_variant_n11(_uploadFile, _downloadFile, value);
 }
-function from_candid_UserRole_n4(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: _UserRole): UserRole {
-    return from_candid_variant_n5(_uploadFile, _downloadFile, value);
+function from_candid__CaffeineStorageRefillResult_n4(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: __CaffeineStorageRefillResult): _CaffeineStorageRefillResult {
+    return from_candid_record_n5(_uploadFile, _downloadFile, value);
 }
-function from_candid_opt_n3(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: [] | [_UserProfile]): UserProfile | null {
+function from_candid_opt_n12(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: [] | [_Plan]): Plan | null {
     return value.length === 0 ? null : value[0];
 }
-function from_candid_opt_n9(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: [] | [string]): string | null {
+function from_candid_opt_n6(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: [] | [boolean]): boolean | null {
     return value.length === 0 ? null : value[0];
 }
-function from_candid_record_n8(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: {
-    id: bigint;
-    analysisResult: [] | [string];
-    uploadTimestamp: _Time;
-    filename: string;
-    rawData: Uint8Array;
+function from_candid_opt_n7(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: [] | [bigint]): bigint | null {
+    return value.length === 0 ? null : value[0];
+}
+function from_candid_record_n5(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: {
+    success: [] | [boolean];
+    topped_up_amount: [] | [bigint];
 }): {
-    id: bigint;
-    analysisResult?: string;
-    uploadTimestamp: Time;
-    filename: string;
-    rawData: Uint8Array;
+    success?: boolean;
+    topped_up_amount?: bigint;
 } {
     return {
-        id: value.id,
-        analysisResult: record_opt_to_undefined(from_candid_opt_n9(_uploadFile, _downloadFile, value.analysisResult)),
-        uploadTimestamp: value.uploadTimestamp,
-        filename: value.filename,
-        rawData: value.rawData
+        success: record_opt_to_undefined(from_candid_opt_n6(_uploadFile, _downloadFile, value.success)),
+        topped_up_amount: record_opt_to_undefined(from_candid_opt_n7(_uploadFile, _downloadFile, value.topped_up_amount))
     };
 }
-function from_candid_variant_n5(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: {
+function from_candid_variant_n11(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: {
     admin: null;
 } | {
     user: null;
@@ -897,13 +379,25 @@ function from_candid_variant_n5(_uploadFile: (file: ExternalBlob) => Promise<Uin
 }): UserRole {
     return "admin" in value ? UserRole.admin : "user" in value ? UserRole.user : "guest" in value ? UserRole.guest : value;
 }
-function from_candid_vec_n6(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: Array<_ExcelFile>): Array<ExcelFile> {
-    return value.map((x)=>from_candid_ExcelFile_n7(_uploadFile, _downloadFile, x));
+function to_candid_UserRole_n8(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: UserRole): _UserRole {
+    return to_candid_variant_n9(_uploadFile, _downloadFile, value);
 }
-function to_candid_UserRole_n1(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: UserRole): _UserRole {
-    return to_candid_variant_n2(_uploadFile, _downloadFile, value);
+function to_candid__CaffeineStorageRefillInformation_n2(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: _CaffeineStorageRefillInformation): __CaffeineStorageRefillInformation {
+    return to_candid_record_n3(_uploadFile, _downloadFile, value);
 }
-function to_candid_variant_n2(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: UserRole): {
+function to_candid_opt_n1(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: _CaffeineStorageRefillInformation | null): [] | [__CaffeineStorageRefillInformation] {
+    return value === null ? candid_none() : candid_some(to_candid__CaffeineStorageRefillInformation_n2(_uploadFile, _downloadFile, value));
+}
+function to_candid_record_n3(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: {
+    proposed_top_up_amount?: bigint;
+}): {
+    proposed_top_up_amount: [] | [bigint];
+} {
+    return {
+        proposed_top_up_amount: value.proposed_top_up_amount ? candid_some(value.proposed_top_up_amount) : candid_none()
+    };
+}
+function to_candid_variant_n9(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: UserRole): {
     admin: null;
 } | {
     user: null;

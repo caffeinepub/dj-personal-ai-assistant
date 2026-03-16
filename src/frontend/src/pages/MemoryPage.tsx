@@ -98,7 +98,7 @@ function useMemoryNodes() {
     queryKey: ["memoryNodes"],
     queryFn: async () => {
       if (!actor) return [];
-      const raw = await actor.getAllMemories();
+      const raw = await (actor as any).getAllMemories();
       return parseMemoryNodes(raw);
     },
     enabled: !!actor && !isFetching,

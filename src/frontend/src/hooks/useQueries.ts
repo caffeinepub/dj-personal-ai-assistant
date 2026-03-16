@@ -10,7 +10,7 @@ import type {
   PersonalitySettings,
   UserProfile,
   Website,
-} from "../backend.d.ts";
+} from "../types/backendTypes";
 
 // Knowledge Folder types (defined locally since they are not in backend.ts)
 export interface KnowledgeFolder {
@@ -62,6 +62,7 @@ export interface ThreadMessage {
   timestamp: bigint;
 }
 
+import type { Plan } from "../assistant/planner/planTypes";
 import { useActor } from "./useActor";
 
 // Local type definitions for new modules (not yet in generated backend.ts)
@@ -101,7 +102,7 @@ export function useUserProfile() {
     queryKey: ["userProfile"],
     queryFn: async () => {
       if (!actor) throw new Error("Actor not ready");
-      return actor.getCallerUserProfile();
+      return (actor as any).getCallerUserProfile();
     },
     enabled: !!actor && !isFetching,
     retry: false,
@@ -114,7 +115,7 @@ export function useCreateUserProfile() {
   return useMutation({
     mutationFn: async (name: string) => {
       if (!actor) throw new Error("Actor not available");
-      await actor.createUserProfile(name);
+      await (actor as any).createUserProfile(name);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["userProfile"] });
@@ -140,7 +141,7 @@ export function useUpdateUserProfile() {
         personalitySettings: profile.personalitySettings,
         onboardingComplete: profile.onboardingComplete ?? false,
       };
-      await actor.saveCallerUserProfile(fullProfile);
+      await (actor as any).saveCallerUserProfile(fullProfile);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["userProfile"] });
@@ -155,7 +156,7 @@ export function useMemories() {
     queryKey: ["memories"],
     queryFn: async () => {
       if (!actor) return [];
-      return actor.getAllMemories();
+      return (actor as any).getAllMemories();
     },
     enabled: !!actor && !isFetching,
   });
@@ -167,8 +168,8 @@ export function useAddMemory() {
   return useMutation({
     mutationFn: async (content: string) => {
       if (!actor) throw new Error("Actor not available");
-      await actor.addMemory(content);
-      await actor.addImprovementLog(
+      await (actor as any).addMemory(content);
+      await (actor as any).addImprovementLog(
         "Memory",
         `Added memory: ${content.substring(0, 50)}...`,
       );
@@ -186,8 +187,11 @@ export function useDeleteMemory() {
   return useMutation({
     mutationFn: async (id: bigint) => {
       if (!actor) throw new Error("Actor not available");
-      await actor.deleteMemory(id);
-      await actor.addImprovementLog("Memory", `Deleted memory ID: ${id}`);
+      await (actor as any).deleteMemory(id);
+      await (actor as any).addImprovementLog(
+        "Memory",
+        `Deleted memory ID: ${id}`,
+      );
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["memories"] });
@@ -203,7 +207,7 @@ export function useCustomCommands() {
     queryKey: ["customCommands"],
     queryFn: async () => {
       if (!actor) return [];
-      return actor.getAllCommands();
+      return (actor as any).getAllCommands();
     },
     enabled: !!actor && !isFetching,
   });
@@ -215,8 +219,11 @@ export function useCreateCustomCommand() {
   return useMutation({
     mutationFn: async ({ name, action }: { name: string; action: string }) => {
       if (!actor) throw new Error("Actor not available");
-      await actor.createCommand(name, action);
-      await actor.addImprovementLog("Command", `Created command: ${name}`);
+      await (actor as any).createCommand(name, action);
+      await (actor as any).addImprovementLog(
+        "Command",
+        `Created command: ${name}`,
+      );
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["customCommands"] });
@@ -231,8 +238,11 @@ export function useDeleteCommand() {
   return useMutation({
     mutationFn: async (id: bigint) => {
       if (!actor) throw new Error("Actor not available");
-      await actor.deleteCommand(id);
-      await actor.addImprovementLog("Command", `Deleted command ID: ${id}`);
+      await (actor as any).deleteCommand(id);
+      await (actor as any).addImprovementLog(
+        "Command",
+        `Deleted command ID: ${id}`,
+      );
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["customCommands"] });
@@ -248,7 +258,7 @@ export function useBehaviorRules() {
     queryKey: ["behaviorRules"],
     queryFn: async () => {
       if (!actor) return [];
-      return actor.getAllRules();
+      return (actor as any).getAllRules();
     },
     enabled: !!actor && !isFetching,
   });
@@ -260,7 +270,7 @@ export function useGetRulesOrdered() {
     queryKey: ["behaviorRulesOrdered"],
     queryFn: async () => {
       if (!actor) return [];
-      return actor.getAllRulesOrdered();
+      return (actor as any).getAllRulesOrdered();
     },
     enabled: !!actor && !isFetching,
   });
@@ -275,8 +285,8 @@ export function useSetBehaviorRule() {
       priority = 0n,
     }: { ruleText: string; priority?: bigint }) => {
       if (!actor) throw new Error("Actor not available");
-      await actor.setBehaviorRule(ruleText, priority);
-      await actor.addImprovementLog(
+      await (actor as any).setBehaviorRule(ruleText, priority);
+      await (actor as any).addImprovementLog(
         "Rule",
         `Set rule: ${ruleText.substring(0, 50)}`,
       );
@@ -298,7 +308,7 @@ export function useUpdateRulePriority() {
       newPriority,
     }: { id: bigint; newPriority: bigint }) => {
       if (!actor) throw new Error("Actor not available");
-      await actor.updateRulePriority(id, newPriority);
+      await (actor as any).updateRulePriority(id, newPriority);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["behaviorRules"] });
@@ -313,7 +323,7 @@ export function useSaveOnboardingComplete() {
   return useMutation({
     mutationFn: async (completed: boolean) => {
       if (!actor) throw new Error("Actor not available");
-      await actor.saveOnboardingComplete(completed);
+      await (actor as any).saveOnboardingComplete(completed);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["userProfile"] });
@@ -327,8 +337,8 @@ export function useDeleteBehaviorRule() {
   return useMutation({
     mutationFn: async (id: bigint) => {
       if (!actor) throw new Error("Actor not available");
-      await actor.deleteRule(id);
-      await actor.addImprovementLog("Rule", `Deleted rule ID: ${id}`);
+      await (actor as any).deleteRule(id);
+      await (actor as any).addImprovementLog("Rule", `Deleted rule ID: ${id}`);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["behaviorRules"] });
@@ -344,7 +354,7 @@ export function usePersonalitySettings() {
     queryKey: ["personalitySettings"],
     queryFn: async () => {
       if (!actor) return { communicationStyle: "professional" };
-      return actor.getPersonalitySettings();
+      return (actor as any).getPersonalitySettings();
     },
     enabled: !!actor && !isFetching,
   });
@@ -356,8 +366,8 @@ export function useSetPersonalitySettings() {
   return useMutation({
     mutationFn: async (style: string) => {
       if (!actor) throw new Error("Actor not available");
-      await actor.setPersonalitySettings(style);
-      await actor.addImprovementLog(
+      await (actor as any).setPersonalitySettings(style);
+      await (actor as any).addImprovementLog(
         "Personality",
         `Changed style to: ${style}`,
       );
@@ -376,7 +386,7 @@ export function useChatMessages() {
     queryKey: ["chatMessages"],
     queryFn: async () => {
       if (!actor) return [];
-      return actor.getChatMessages(0n, 100n);
+      return (actor as any).getChatMessages(0n, 100n);
     },
     enabled: !!actor && !isFetching,
   });
@@ -391,7 +401,7 @@ export function useSaveChatMessage() {
       content,
     }: { role: string; content: string }) => {
       if (!actor) throw new Error("Actor not available");
-      await actor.saveChatMessage(role, content);
+      await (actor as any).saveChatMessage(role, content);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["chatMessages"] });
@@ -406,7 +416,7 @@ export function useActiveModules() {
     queryKey: ["activeModules"],
     queryFn: async () => {
       if (!actor) return [];
-      return actor.getActiveModules();
+      return (actor as any).getActiveModules();
     },
     enabled: !!actor && !isFetching,
   });
@@ -418,8 +428,8 @@ export function useActivateModule() {
   return useMutation({
     mutationFn: async (moduleName: string) => {
       if (!actor) throw new Error("Actor not available");
-      await actor.activateModule(moduleName);
-      await actor.addImprovementLog(
+      await (actor as any).activateModule(moduleName);
+      await (actor as any).addImprovementLog(
         "Module",
         `Activated module: ${moduleName}`,
       );
@@ -437,8 +447,8 @@ export function useDeactivateModule() {
   return useMutation({
     mutationFn: async (moduleName: string) => {
       if (!actor) throw new Error("Actor not available");
-      await actor.deactivateModule(moduleName);
-      await actor.addImprovementLog(
+      await (actor as any).deactivateModule(moduleName);
+      await (actor as any).addImprovementLog(
         "Module",
         `Deactivated module: ${moduleName}`,
       );
@@ -457,7 +467,7 @@ export function useImprovementLogs() {
     queryKey: ["improvementLogs"],
     queryFn: async () => {
       if (!actor) return [];
-      return actor.getImprovementLogs(0n, 50n);
+      return (actor as any).getImprovementLogs(0n, 50n);
     },
     enabled: !!actor && !isFetching,
   });
@@ -470,7 +480,7 @@ export function useCodeSnippets() {
     queryKey: ["codeSnippets"],
     queryFn: async () => {
       if (!actor) return [];
-      return actor.getCodeSnippets();
+      return (actor as any).getCodeSnippets();
     },
     enabled: !!actor && !isFetching,
   });
@@ -490,7 +500,7 @@ export function useSaveCodeSnippet() {
       code: string;
     }) => {
       if (!actor) throw new Error("Actor not available");
-      await actor.saveCodeSnippet(language, title, code);
+      await (actor as any).saveCodeSnippet(language, title, code);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["codeSnippets"] });
@@ -505,7 +515,7 @@ export function useExcelFiles() {
     queryKey: ["excelFiles"],
     queryFn: async () => {
       if (!actor) return [];
-      return actor.getExcelFiles();
+      return (actor as any).getExcelFiles();
     },
     enabled: !!actor && !isFetching,
   });
@@ -520,7 +530,7 @@ export function useSaveExcelFile() {
       data,
     }: { filename: string; data: Uint8Array }) => {
       if (!actor) throw new Error("Actor not available");
-      await actor.saveExcelFile(filename, data);
+      await (actor as any).saveExcelFile(filename, data);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["excelFiles"] });
@@ -537,7 +547,7 @@ export function useSaveExcelAnalysis() {
       analysis,
     }: { fileId: bigint; analysis: string }) => {
       if (!actor) throw new Error("Actor not available");
-      await actor.saveExcelAnalysis(fileId, analysis);
+      await (actor as any).saveExcelAnalysis(fileId, analysis);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["excelFiles"] });
@@ -552,7 +562,7 @@ export function useWebsites() {
     queryKey: ["websites"],
     queryFn: async () => {
       if (!actor) return [];
-      return actor.getWebsites();
+      return (actor as any).getWebsites();
     },
     enabled: !!actor && !isFetching,
   });
@@ -574,7 +584,7 @@ export function useSaveWebsite() {
       js: string;
     }) => {
       if (!actor) throw new Error("Actor not available");
-      await actor.saveWebsite(name, html, css, js);
+      await (actor as any).saveWebsite(name, html, css, js);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["websites"] });
@@ -589,7 +599,7 @@ export function useTasks() {
     queryKey: ["tasks"],
     queryFn: async () => {
       if (!actor) return [];
-      return actor.getAllTasks() as Promise<Task[]>;
+      return (actor as any).getAllTasks() as Promise<Task[]>;
     },
     enabled: !!actor && !isFetching,
   });
@@ -611,7 +621,7 @@ export function useAddTask() {
       priority: string;
     }) => {
       if (!actor) throw new Error("Actor not available");
-      await actor.addTask(title, description, deadline, priority);
+      await (actor as any).addTask(title, description, deadline, priority);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["tasks"] });
@@ -628,7 +638,7 @@ export function useUpdateTaskCompletion() {
       completed,
     }: { id: bigint; completed: boolean }) => {
       if (!actor) throw new Error("Actor not available");
-      await actor.updateTaskCompletion(id, completed);
+      await (actor as any).updateTaskCompletion(id, completed);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["tasks"] });
@@ -642,7 +652,7 @@ export function useDeleteTask() {
   return useMutation({
     mutationFn: async (id: bigint) => {
       if (!actor) throw new Error("Actor not available");
-      await actor.deleteTask(id);
+      await (actor as any).deleteTask(id);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["tasks"] });
@@ -657,7 +667,7 @@ export function useNotes() {
     queryKey: ["notes"],
     queryFn: async () => {
       if (!actor) return [];
-      return actor.getAllNotes() as Promise<Note[]>;
+      return (actor as any).getAllNotes() as Promise<Note[]>;
     },
     enabled: !!actor && !isFetching,
   });
@@ -679,7 +689,7 @@ export function useAddNote() {
       tags: string[];
     }) => {
       if (!actor) throw new Error("Actor not available");
-      await actor.addNote(title, content, summary, tags);
+      await (actor as any).addNote(title, content, summary, tags);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["notes"] });
@@ -705,7 +715,7 @@ export function useUpdateNote() {
       tags: string[];
     }) => {
       if (!actor) throw new Error("Actor not available");
-      await actor.updateNote(id, title, content, summary, tags);
+      await (actor as any).updateNote(id, title, content, summary, tags);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["notes"] });
@@ -719,7 +729,7 @@ export function useDeleteNote() {
   return useMutation({
     mutationFn: async (id: bigint) => {
       if (!actor) throw new Error("Actor not available");
-      await actor.deleteNote(id);
+      await (actor as any).deleteNote(id);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["notes"] });
@@ -734,7 +744,7 @@ export function useFinanceEntries() {
     queryKey: ["financeEntries"],
     queryFn: async () => {
       if (!actor) return [];
-      return actor.getAllFinanceEntries() as Promise<FinanceEntry[]>;
+      return (actor as any).getAllFinanceEntries() as Promise<FinanceEntry[]>;
     },
     enabled: !!actor && !isFetching,
   });
@@ -756,7 +766,12 @@ export function useAddFinanceEntry() {
       entryDate: bigint;
     }) => {
       if (!actor) throw new Error("Actor not available");
-      await actor.addFinanceEntry(amount, category, description, entryDate);
+      await (actor as any).addFinanceEntry(
+        amount,
+        category,
+        description,
+        entryDate,
+      );
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["financeEntries"] });
@@ -770,7 +785,7 @@ export function useDeleteFinanceEntry() {
   return useMutation({
     mutationFn: async (id: bigint) => {
       if (!actor) throw new Error("Actor not available");
-      await actor.deleteFinanceEntry(id);
+      await (actor as any).deleteFinanceEntry(id);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["financeEntries"] });
@@ -785,7 +800,7 @@ export function useKnowledgeFolders() {
     queryKey: ["knowledgeFolders"],
     queryFn: async () => {
       if (!actor) return [];
-      const folders = await actor.getFolders();
+      const folders = await (actor as any).getFolders();
       return folders as KnowledgeFolder[];
     },
     enabled: !!actor && !isFetching,
@@ -801,7 +816,7 @@ export function useCreateKnowledgeFolder() {
       parentId,
     }: { name: string; parentId: bigint | null }) => {
       if (!actor) throw new Error("Actor not available");
-      return actor.createFolder(name, parentId);
+      return (actor as any).createFolder(name, parentId);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["knowledgeFolders"] });
@@ -815,7 +830,7 @@ export function useDeleteKnowledgeFolder() {
   return useMutation({
     mutationFn: async (id: bigint) => {
       if (!actor) throw new Error("Actor not available");
-      await actor.deleteFolder(id);
+      await (actor as any).deleteFolder(id);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["knowledgeFolders"] });
@@ -830,7 +845,7 @@ export function useWikiPageByFolder(folderId: bigint | null) {
     queryKey: ["wikiPage", folderId?.toString()],
     queryFn: async () => {
       if (!actor || folderId === null) return null;
-      return actor.getWikiPageByFolder(folderId);
+      return (actor as any).getWikiPageByFolder(folderId);
     },
     enabled: !!actor && !isFetching && folderId !== null,
   });
@@ -852,7 +867,7 @@ export function useSaveWikiPage() {
       tips: string;
     }) => {
       if (!actor) throw new Error("Actor not available");
-      await actor.saveWikiPage(folderId, overview, keyConcepts, tips);
+      await (actor as any).saveWikiPage(folderId, overview, keyConcepts, tips);
     },
     onSuccess: (
       _data: unknown,
@@ -899,5 +914,84 @@ export function useThreadMessages(threadId: bigint | null) {
     },
     enabled: !!actor && !isFetching && threadId !== null,
     refetchInterval: 30000,
+  });
+}
+
+// ── Plan Queries ──────────────────────────────────────────────────────────────
+
+export function usePlans() {
+  const { actor, isFetching } = useActor();
+  return useQuery<Plan[]>({
+    queryKey: ["plans"],
+    queryFn: async () => {
+      if (!actor) return [];
+      const results = await actor.getPlans();
+      return results.map((raw: any) => ({
+        id: raw.id,
+        goal: raw.goal,
+        steps: (() => {
+          try {
+            return JSON.parse(raw.stepsJson);
+          } catch {
+            return [];
+          }
+        })(),
+        createdAt: Number(raw.createdAt),
+        status: raw.status as Plan["status"],
+      }));
+    },
+    enabled: !!actor && !isFetching,
+  });
+}
+
+export function useSavePlan() {
+  const { actor } = useActor();
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (plan: Plan) => {
+      if (!actor) throw new Error("Actor not available");
+      await actor.savePlan(
+        plan.id,
+        plan.goal,
+        JSON.stringify(plan.steps),
+        plan.status,
+      );
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["plans"] });
+    },
+  });
+}
+
+export function useUpdatePlan() {
+  const { actor } = useActor();
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (plan: Plan) => {
+      if (!actor) throw new Error("Actor not available");
+      await actor.updatePlan(
+        plan.id,
+        plan.goal,
+        JSON.stringify(plan.steps),
+        plan.status,
+      );
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["plans"] });
+    },
+  });
+}
+
+export function useDeletePlan() {
+  const { actor } = useActor();
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (id: string) => {
+      if (!actor) throw new Error("Actor not available");
+      await actor.deletePlan(id);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["plans"] });
+    },
   });
 }

@@ -2,45 +2,44 @@
 
 ## Current State
 
-DJ is a full-stack PWA running on React + TypeScript frontend and Motoko backend on ICP. The assistant pipeline is:
-
-User Input → Intent Engine → Entity Extraction → Context Engine → Decision Engine → Skill Router → Skill Execution → Reply Composer → Response Generator → Voice + Chat Output
-
-Skills: tasksSkill, notesSkill, financeSkill, knowledgeSkill registered in skillRegistry.ts.
-Proactive state persists in localStorage via proactiveState.ts.
-No memory graph system exists. DJ has no long-term memory of user facts, goals, habits, or preferences beyond what is stored in UserProfile.
+DJ has a fully modular assistant pipeline:
+- Skill-based architecture with TasksSkill, NotesSkill, FinanceSkill, KnowledgeSkill, PlannerSkill
+- Memory Graph system (on-chain, with extraction, search, decay)
+- Cognitive Planning Engine (on-chain plans with steps)
+- Proactive Behavior Engine (task reminders, overdue alerts, knowledge staleness, daily briefing)
+- Context Engine (current page, recent actions, time of day)
+- proactiveState.ts with persistent localStorage cooldown + trigger dedup
 
 ## Requested Changes (Diff)
 
 ### Add
-- `assistant/memory/memoryGraph.ts` — MemoryNode type, MemoryType enum, MemoryRelationship interface (for future graph links)
-- `assistant/memory/memoryStore.ts` — CRUD wrappers: saveMemory, updateMemory, deleteMemory, getMemoryById, getMemoriesByTag; duplicate guard; decay logic
-- `assistant/memory/memorySearch.ts` — searchRelevantMemories(query), getRecentMemories(), getImportantMemories(); returns up to 5 results
-- `assistant/memory/memoryExtractor.ts` — pattern-matching rules for all 7 memory types; retroactive scan on first run using memoryExtractionInitialized flag; duplicate prevention; skips short (<10 char) and system messages
-- `pages/MemoryPage.tsx` — /memory route with search bar, filter tabs (All/Profile/Goals/Preferences/Habits/Knowledge), memory cards (content, type badge, tags, importance stars, created date, edit + delete)
-- New Motoko backend methods: saveMemory, updateMemory, deleteMemory, getMemoryById, getMemoriesByTag, searchMemories
-- New backend.ts wrapper methods for all 6 memory canister calls
-- `memoryExtractionInitialized` boolean field added to proactiveState.ts persistent shape
+- `assistant/autonomy/autonomyEngine.ts` — React hook that runs an evaluation every 30 minutes and on-demand via chat commands; integrates with the Proactive Engine to dispatch suggestions
+- `assistant/autonomy/autonomyRules.ts` — 5 rule definitions: Stalled Plan (7 days no progress), Goal Support (goal in memory but no plan), Habit Reinforcement (frequent behavior patterns), Knowledge Growth (followed topics not reviewed recently), Task Overload (too many tasks today)
+- `assistant/autonomy/autonomyEvaluator.ts` — Evaluates system state (plans, tasks, memories, knowledge topics) against all rules and returns an array of `AutonomySuggestion` objects
+- `assistant/autonomy/autonomySuggestions.ts` — `AutonomySuggestion` type definition and helper to route suggestions through the Proactive Engine
+- New intent detection in `intentEngine.ts` for: "DJ review my goals", "DJ what should I focus on", "DJ suggest improvements" → `AUTONOMY_REVIEW` intent
+- New case in `assistantController.ts` for `AUTONOMY_REVIEW` action — triggers immediate evaluation
+- `AutonomyEngine` component mounted in `App.tsx`
+- Settings toggle: "Enable Autonomy Suggestions" in the Assistant Behavior section of SettingsPage
 
 ### Modify
-- `assistantController.ts` — insert Memory Extraction after Stage 2 (entity extraction); insert Memory Search after Stage 6.5 (reply compose); pass relevantMemories to replyComposer; handle REMEMBER/FORGET/MEMORY_QUERY intents via memoryStore
-- `replyComposer.ts` — extend ReplyComposerInput with optional `relevantMemories?: MemoryNode[]`; reference memories in context prefix when present
-- `intentEngine.ts` — add REMEMBER, FORGET, MEMORY_QUERY intents
-- `App.tsx` — add /memory protected route pointing to MemoryPage
-- Navigation (Layout or nav component) — add Memory link
-- `proactiveState.ts` — add memoryExtractionInitialized to state shape
+- `intentEngine.ts` — add `AUTONOMY_REVIEW` intent
+- `decisionEngine.ts` — add `AUTONOMY_REVIEW` action case
+- `assistantController.ts` — handle `AUTONOMY_REVIEW` action
+- `SettingsPage.tsx` — add "Enable Autonomy Suggestions" toggle in Assistant Behavior section
+- `App.tsx` — mount `<AutonomyEngine />` component
 
 ### Remove
-- Nothing removed
+- Nothing removed; all existing features preserved
 
 ## Implementation Plan
 
-1. Regenerate Motoko backend with 6 new memory methods
-2. Add backend.ts wrapper methods for all memory calls
-3. Create assistant/memory/ directory with 4 files
-4. Extend proactiveState.ts with memoryExtractionInitialized flag
-5. Update intentEngine.ts with 3 new intents
-6. Update assistantController.ts to run extraction and search in pipeline
-7. Update replyComposer.ts to accept and use relevantMemories
-8. Build MemoryPage.tsx with full CRUD UI
-9. Add /memory route to App.tsx and nav link
+1. Create `autonomySuggestions.ts` with `AutonomySuggestion` type and dispatch helper
+2. Create `autonomyRules.ts` with 5 rule functions, each returning `AutonomySuggestion | null`
+3. Create `autonomyEvaluator.ts` that runs all rules against system state and returns suggestions
+4. Create `autonomyEngine.ts` React hook with 30-min interval + manual trigger via custom event
+5. Add `AUTONOMY_REVIEW` to `intentEngine.ts`
+6. Add `AUTONOMY_REVIEW` action to `decisionEngine.ts`
+7. Handle `AUTONOMY_REVIEW` in `assistantController.ts`
+8. Add "Enable Autonomy Suggestions" toggle to SettingsPage
+9. Mount `<AutonomyEngine />` in App.tsx

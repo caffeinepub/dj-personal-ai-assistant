@@ -9,7 +9,7 @@
  *   "MEMORY_GRAPH:{...MemoryNode JSON (without backendId)...}"
  */
 
-import type { Memory } from "../../backend.d.ts";
+import type { Memory } from "../../types/backendTypes";
 import { MEMORY_PREFIX, generateMemoryId } from "./memoryGraph";
 import type { MemoryNode, MemoryType } from "./memoryGraph";
 
@@ -108,35 +108,44 @@ export async function deduplicateOrSave(
   const duplicate = existing.find(
     (n) => n.content.toLowerCase() === data.content.toLowerCase(),
   );
+
   if (duplicate) {
-    // Update lastAccessed only
-    const updated = { ...duplicate, lastAccessed: Date.now() };
+    // Update lastAccessed timestamp
+    const updated: MemoryNode = {
+      ...duplicate,
+      lastAccessed: Date.now(),
+    };
     await updateMemoryNode(actor, updated);
-    return null; // signal: duplicate
+    return null; // duplicate, not newly saved
   }
+
   return saveMemoryNode(actor, data);
 }
 
 /**
- * Apply decay to nodes that haven't been accessed in 30+ days.
- * Reduces importance by 1; archives at importance 0.
- * Fire-and-forget safe.
+ * Apply memory decay: reduce importance of nodes not accessed in 30 days.
+ * Archives nodes that reach importance 0.
  */
-export async function applyDecay(
+export async function applyMemoryDecay(
   actor: any,
   memories: Memory[],
 ): Promise<void> {
+  const nodes = parseMemoryNodes(memories, true);
   const now = Date.now();
-  const nodes = parseMemoryNodes(memories);
+
   for (const node of nodes) {
-    if (now - node.lastAccessed > THIRTY_DAYS_MS) {
-      const newImportance = node.importance - 1;
+    const daysSinceAccess = (now - node.lastAccessed) / THIRTY_DAYS_MS;
+    if (daysSinceAccess >= 1) {
+      const newImportance = Math.max(0, node.importance - 1);
       const updated: MemoryNode = {
         ...node,
-        importance: Math.max(0, newImportance),
-        archived: newImportance <= 0,
+        importance: newImportance,
+        archived: newImportance === 0,
       };
-      await updateMemoryNode(actor, updated).catch(() => {});
+      await updateMemoryNode(actor, updated);
     }
   }
 }
+
+// Re-export MemoryType for convenience
+export type { MemoryType };

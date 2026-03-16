@@ -1,6 +1,8 @@
-import type { Memory } from "../backend.d.ts";
+import type { Memory } from "../types/backendTypes";
 
 export type KnowledgeSourceType = "website" | "pdf" | "word" | "pptx" | "txt";
+
+export type RefreshInterval = "daily" | "weekly" | "monthly" | "none";
 
 export interface KnowledgeSource {
   id: bigint;
@@ -11,10 +13,23 @@ export interface KnowledgeSource {
   summary: string;
   category: string;
   timestamp: bigint;
-  folderId?: string; // string representation of bigint folder ID
+  folderId?: string;
+}
+
+export interface CuratedSuggestion {
+  title: string;
+  url: string;
+  description: string;
+}
+
+export interface RefreshMeta {
+  interval: RefreshInterval;
+  lastRefreshed: number;
 }
 
 const KNOWLEDGE_PREFIX = "[KNOWLEDGE_SOURCE]";
+
+// ── Encoding / decoding ──────────────────────────────────────────────────────
 
 export function encodeKnowledgeSource(
   type: KnowledgeSourceType,
@@ -37,6 +52,10 @@ export function encodeKnowledgeSource(
   const safeSummary = summary.replace(/\|/g, " ");
   const folderPart = folderId ? ` | folderId:${folderId}` : "";
   return `${KNOWLEDGE_PREFIX} type:${type} | title:${safeTitle} | url:${safeUrl} | category:${safeCategory}${folderPart} | summary:${safeSummary} | content:${safeContent}`;
+}
+
+export function isKnowledgeSource(memory: Memory): boolean {
+  return memory.content.startsWith(KNOWLEDGE_PREFIX);
 }
 
 export function parseKnowledgeSource(memory: Memory): KnowledgeSource | null {
@@ -82,283 +101,250 @@ export function parseKnowledgeSource(memory: Memory): KnowledgeSource | null {
   }
 }
 
+// ── Search ────────────────────────────────────────────────────────────────────
+
 export function searchKnowledgeSources(
   sources: KnowledgeSource[],
   query: string,
 ): KnowledgeSource[] {
   if (!query.trim()) return sources;
   const lower = query.toLowerCase();
-  return sources.filter(
-    (s) =>
-      s.title.toLowerCase().includes(lower) ||
-      s.content.toLowerCase().includes(lower) ||
-      s.summary.toLowerCase().includes(lower) ||
-      s.url.toLowerCase().includes(lower) ||
-      s.category.toLowerCase().includes(lower),
-  );
+  return sources
+    .filter(
+      (s) =>
+        s.title.toLowerCase().includes(lower) ||
+        s.content.toLowerCase().includes(lower) ||
+        s.summary.toLowerCase().includes(lower) ||
+        s.category.toLowerCase().includes(lower),
+    )
+    .sort((a, b) => {
+      const aTitle = a.title.toLowerCase().includes(lower) ? 1 : 0;
+      const bTitle = b.title.toLowerCase().includes(lower) ? 1 : 0;
+      return bTitle - aTitle;
+    });
 }
 
 export function getRelevantContext(
-  sources: KnowledgeSource[],
-  userMessage: string,
-): { context: string; titles: string[] } {
-  if (sources.length === 0) return { context: "", titles: [] };
+  content: string,
+  query: string,
+  maxLength = 800,
+): string {
+  const lower = query.toLowerCase();
+  const lines = content.split("\n").filter((l) => l.trim().length > 0);
 
-  const words = userMessage
-    .toLowerCase()
+  const keywords = lower
     .split(/\s+/)
-    .filter((w) => w.length > 4);
+    .filter((w) => w.length > 3)
+    .slice(0, 5);
+  const scoredLines = lines.map((line) => ({
+    line,
+    score: keywords.filter((kw) => line.toLowerCase().includes(kw)).length,
+  }));
 
-  if (words.length === 0) return { context: "", titles: [] };
-
-  const scored = sources
-    .map((source) => {
-      const searchText = `${source.title} ${source.content}`.toLowerCase();
-      const score = words.reduce(
-        (acc, word) => acc + (searchText.includes(word) ? 1 : 0),
-        0,
-      );
-      return { source, score };
-    })
-    .filter((item) => item.score > 0)
+  const relevantLines = scoredLines
+    .filter((l) => l.score > 0)
     .sort((a, b) => b.score - a.score)
-    .slice(0, 2);
+    .slice(0, 8)
+    .map((l) => l.line);
 
-  if (scored.length === 0) return { context: "", titles: [] };
-
-  const titles = scored.map((item) => item.source.title);
-  const context = scored
-    .map(
-      (item) =>
-        `[From: ${item.source.title}]\n${item.source.content.slice(0, 500)}`,
-    )
-    .join("\n\n");
-
-  return { context, titles };
-}
-
-export function isKnowledgeSource(memory: Memory): boolean {
-  return memory.content.startsWith(KNOWLEDGE_PREFIX);
-}
-
-export function extractTextFromHtml(html: string): string {
-  const text = html
-    .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, "")
-    .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, "")
-    .replace(/<[^>]+>/g, " ")
-    .replace(/&amp;/g, "&")
-    .replace(/&lt;/g, "<")
-    .replace(/&gt;/g, ">")
-    .replace(/&quot;/g, '"')
-    .replace(/&#39;/g, "'")
-    .replace(/&nbsp;/g, " ")
-    .replace(/\s+/g, " ")
-    .trim();
-  return text;
-}
-
-// ─── Scheduled Knowledge Refresh ─────────────────────────────────────────────
-
-const REFRESH_META_KEY = "dj_knowledge_refresh_meta";
-
-export type RefreshInterval = "none" | "daily" | "weekly" | "monthly";
-
-export interface RefreshMeta {
-  lastRefreshed: number; // unix ms
-  interval: RefreshInterval;
-}
-
-export function getRefreshMeta(): Record<string, RefreshMeta> {
-  try {
-    return JSON.parse(localStorage.getItem(REFRESH_META_KEY) || "{}");
-  } catch {
-    return {};
+  if (relevantLines.length === 0) {
+    return content.slice(0, maxLength);
   }
+
+  return relevantLines.join("\n").slice(0, maxLength);
 }
 
-export function setRefreshMeta(id: string, meta: RefreshMeta) {
-  const all = getRefreshMeta();
-  all[id] = meta;
-  localStorage.setItem(REFRESH_META_KEY, JSON.stringify(all));
-}
+// ── Topic suggestions ───────────────────────────────────────────────────────
 
-export function isSourceStale(id: string): boolean {
-  const all = getRefreshMeta();
-  const meta = all[id];
-  if (!meta || meta.interval === "none") return false;
-  const now = Date.now();
-  const intervals: Record<string, number> = {
-    daily: 86400000,
-    weekly: 604800000,
-    monthly: 2592000000,
+export function generateTopicSuggestions(topic: string): CuratedSuggestion[] {
+  const lower = topic.toLowerCase();
+  const curated: Record<string, CuratedSuggestion[]> = {
+    networking: [
+      {
+        title: "Cisco Enterprise Networking",
+        url: "https://www.cisco.com/c/en/us/solutions/enterprise-networks/",
+        description: "Cisco's guide to enterprise networking solutions",
+      },
+      {
+        title: "CompTIA Network Security Guide",
+        url: "https://www.comptia.org/content/guides/what-is-network-security",
+        description: "Introduction to network security fundamentals",
+      },
+    ],
+    security: [
+      {
+        title: "SANS Reading Room",
+        url: "https://www.sans.org/reading-room/",
+        description: "SANS Institute security research and whitepapers",
+      },
+      {
+        title: "OWASP Top Ten",
+        url: "https://owasp.org/www-project-top-ten/",
+        description: "The ten most critical web application security risks",
+      },
+    ],
+    finance: [
+      {
+        title: "Investopedia Personal Finance",
+        url: "https://www.investopedia.com/personal-finance-4427760",
+        description: "Personal finance tips and guides",
+      },
+      {
+        title: "NerdWallet Budgeting Tips",
+        url: "https://www.nerdwallet.com/article/finance/budgeting-tips",
+        description: "Practical budgeting strategies",
+      },
+    ],
+    productivity: [
+      {
+        title: "Todoist Productivity Methods",
+        url: "https://todoist.com/productivity-methods",
+        description: "Popular productivity frameworks and methods",
+      },
+      {
+        title: "Lifehacker Productivity",
+        url: "https://www.lifehacker.com/productivity",
+        description: "Practical productivity tips and tools",
+      },
+    ],
+    bitcoin: [
+      {
+        title: "Bitcoin: How It Works",
+        url: "https://bitcoin.org/en/how-it-works",
+        description: "Official Bitcoin introduction and guide",
+      },
+      {
+        title: "Investopedia: Bitcoin",
+        url: "https://www.investopedia.com/terms/b/bitcoin.asp",
+        description: "Comprehensive Bitcoin explainer",
+      },
+    ],
+    ethereum: [
+      {
+        title: "What is Ethereum?",
+        url: "https://ethereum.org/en/what-is-ethereum/",
+        description: "Official Ethereum introduction",
+      },
+      {
+        title: "Investopedia: Ethereum",
+        url: "https://www.investopedia.com/terms/e/ethereum.asp",
+        description: "Ethereum explainer for investors",
+      },
+    ],
+    ai: [
+      {
+        title: "IBM: What is AI?",
+        url: "https://www.ibm.com/topics/artificial-intelligence",
+        description: "IBM's overview of artificial intelligence",
+      },
+      {
+        title: "McKinsey: State of AI",
+        url: "https://www.mckinsey.com/capabilities/quantumblack/our-insights/the-state-of-ai",
+        description: "McKinsey's annual AI industry report",
+      },
+    ],
   };
-  return now - meta.lastRefreshed > intervals[meta.interval];
+
+  for (const [key, suggestions] of Object.entries(curated)) {
+    if (lower.includes(key)) return suggestions;
+  }
+  return [];
 }
 
-export function getStaleSourceIds(sources: KnowledgeSource[]): string[] {
-  return sources
-    .filter((s) => s.sourceType === "website" && isSourceStale(String(s.id)))
-    .map((s) => String(s.id));
-}
-
-// ─── Followed Topics (Auto-Research Mode) ────────────────────────────────────
+// ── Followed topics (localStorage-persisted) ──────────────────────────────────
 
 const FOLLOWED_TOPICS_KEY = "dj_followed_topics";
 
 export function getFollowedTopics(): string[] {
   try {
-    return JSON.parse(localStorage.getItem(FOLLOWED_TOPICS_KEY) || "[]");
+    const raw = localStorage.getItem(FOLLOWED_TOPICS_KEY);
+    return raw ? (JSON.parse(raw) as string[]) : [];
   } catch {
     return [];
   }
 }
 
-export function addFollowedTopic(topic: string) {
+export function addFollowedTopic(topic: string): void {
   const topics = getFollowedTopics();
   if (!topics.includes(topic)) {
-    localStorage.setItem(
-      FOLLOWED_TOPICS_KEY,
-      JSON.stringify([...topics, topic]),
-    );
+    topics.push(topic);
+    localStorage.setItem(FOLLOWED_TOPICS_KEY, JSON.stringify(topics));
   }
 }
 
-export function removeFollowedTopic(topic: string) {
+export function removeFollowedTopic(topic: string): void {
   const topics = getFollowedTopics().filter((t) => t !== topic);
   localStorage.setItem(FOLLOWED_TOPICS_KEY, JSON.stringify(topics));
 }
 
-export function generateTopicSuggestions(
-  topic: string,
-): Array<{ title: string; url: string; description: string }> {
-  const encoded = encodeURIComponent(topic);
-  const topicLower = topic.toLowerCase();
+// ── Refresh metadata (localStorage-persisted) ────────────────────────────────
 
-  const curated: Record<
-    string,
-    Array<{ title: string; url: string; description: string }>
-  > = {
-    bitcoin: [
-      {
-        title: "Bitcoin - Wikipedia",
-        url: "https://en.wikipedia.org/wiki/Bitcoin",
-        description: "Comprehensive overview of Bitcoin and blockchain",
-      },
-      {
-        title: "Bitcoin.org",
-        url: "https://bitcoin.org/en/",
-        description: "Official Bitcoin project homepage",
-      },
-      {
-        title: "Bitcoin - Investopedia",
-        url: "https://www.investopedia.com/terms/b/bitcoin.asp",
-        description: "Financial guide to Bitcoin",
-      },
-      {
-        title: "CoinDesk Bitcoin News",
-        url: "https://www.coindesk.com/tag/bitcoin/",
-        description: "Latest Bitcoin news and analysis",
-      },
-    ],
-    ethereum: [
-      {
-        title: "Ethereum - Wikipedia",
-        url: "https://en.wikipedia.org/wiki/Ethereum",
-        description: "Complete guide to Ethereum blockchain",
-      },
-      {
-        title: "Ethereum.org",
-        url: "https://ethereum.org/en/",
-        description: "Official Ethereum foundation site",
-      },
-      {
-        title: "Ethereum Docs",
-        url: "https://ethereum.org/en/developers/docs/",
-        description: "Official Ethereum developer documentation",
-      },
-    ],
-    "artificial intelligence": [
-      {
-        title: "AI - Wikipedia",
-        url: "https://en.wikipedia.org/wiki/Artificial_intelligence",
-        description: "Comprehensive overview of AI",
-      },
-      {
-        title: "AI - Britannica",
-        url: "https://www.britannica.com/technology/artificial-intelligence",
-        description: "Encyclopedia article on AI",
-      },
-      {
-        title: "MIT CSAIL AI",
-        url: "https://www.csail.mit.edu/research/artificial-intelligence",
-        description: "MIT's AI research overview",
-      },
-      {
-        title: "AI News - BBC",
-        url: "https://www.bbc.com/news/topics/ce1qrvleleqt/artificial-intelligence",
-        description: "Latest AI news from BBC",
-      },
-    ],
-    cybersecurity: [
-      {
-        title: "Cybersecurity - Wikipedia",
-        url: "https://en.wikipedia.org/wiki/Computer_security",
-        description: "Overview of cybersecurity concepts",
-      },
-      {
-        title: "NIST Cybersecurity Framework",
-        url: "https://www.nist.gov/cyberframework",
-        description: "NIST's cybersecurity framework",
-      },
-      {
-        title: "Cybersecurity News - Krebs on Security",
-        url: "https://krebsonsecurity.com/",
-        description: "Leading cybersecurity news blog",
-      },
-    ],
-    finance: [
-      {
-        title: "Personal Finance - Investopedia",
-        url: "https://www.investopedia.com/personal-finance-4427760",
-        description: "Personal finance guide",
-      },
-      {
-        title: "Finance - Wikipedia",
-        url: "https://en.wikipedia.org/wiki/Finance",
-        description: "Overview of finance",
-      },
-      {
-        title: "Money - BBC",
-        url: "https://www.bbc.com/news/business/market-data",
-        description: "Financial news from BBC",
-      },
-    ],
-  };
+const REFRESH_META_KEY = "dj_source_refresh_meta";
 
-  for (const key of Object.keys(curated)) {
-    if (topicLower.includes(key)) return curated[key];
+/** Returns the full refresh-meta store (keyed by string source ID). */
+export function getRefreshMeta(): Record<string, RefreshMeta> {
+  try {
+    const raw = localStorage.getItem(REFRESH_META_KEY);
+    return raw ? (JSON.parse(raw) as Record<string, RefreshMeta>) : {};
+  } catch {
+    return {};
   }
+}
 
-  return [
-    {
-      title: `Wikipedia: ${topic}`,
-      url: `https://en.wikipedia.org/wiki/${encoded}`,
-      description: `Wikipedia article on ${topic}`,
-    },
-    {
-      title: `Britannica: ${topic}`,
-      url: `https://www.britannica.com/search?query=${encoded}`,
-      description: `Encyclopedia Britannica on ${topic}`,
-    },
-    {
-      title: `BBC News: ${topic}`,
-      url: `https://www.bbc.com/search?q=${encoded}`,
-      description: `BBC News coverage of ${topic}`,
-    },
-    {
-      title: `TechRadar: ${topic}`,
-      url: `https://www.techradar.com/search?searchTerm=${encoded}`,
-      description: `TechRadar articles on ${topic}`,
-    },
-  ];
+export function setRefreshMeta(sourceId: string, meta: RefreshMeta): void {
+  try {
+    const store = getRefreshMeta();
+    store[sourceId] = meta;
+    localStorage.setItem(REFRESH_META_KEY, JSON.stringify(store));
+  } catch {
+    // ignore
+  }
+}
+
+// ── Staleness checks ────────────────────────────────────────────────────────────
+
+const INTERVAL_MS: Record<Exclude<RefreshInterval, "none">, number> = {
+  daily: 24 * 60 * 60 * 1000,
+  weekly: 7 * 24 * 60 * 60 * 1000,
+  monthly: 30 * 24 * 60 * 60 * 1000,
+};
+
+/** Check if a source (by string ID) is stale based on its refresh schedule. */
+export function isSourceStale(sourceId: string): boolean {
+  const store = getRefreshMeta();
+  const meta = store[sourceId];
+  if (!meta || meta.interval === "none") return false;
+  const elapsed = Date.now() - meta.lastRefreshed;
+  return (
+    elapsed > INTERVAL_MS[meta.interval as Exclude<RefreshInterval, "none">]
+  );
+}
+
+/** Return IDs (as strings) of all sources that are currently stale. */
+export function getStaleSourceIds(sources: KnowledgeSource[]): string[] {
+  return sources
+    .filter((s) => isSourceStale(String(s.id)))
+    .map((s) => String(s.id));
+}
+
+// ── HTML text extraction ─────────────────────────────────────────────────────────
+
+/**
+ * Strip HTML tags and return plain text content.
+ * Preserves newlines from block-level elements.
+ */
+export function extractTextFromHtml(html: string): string {
+  return html
+    .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, "")
+    .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, "")
+    .replace(/<br\s*\/?>/gi, "\n")
+    .replace(/<\/(?:p|div|h[1-6]|li|tr|blockquote)>/gi, "\n")
+    .replace(/<[^>]+>/g, "")
+    .replace(/&amp;/g, "&")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&nbsp;/g, " ")
+    .replace(/&quot;/g, '"')
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
 }

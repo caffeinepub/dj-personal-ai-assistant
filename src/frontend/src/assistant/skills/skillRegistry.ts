@@ -12,6 +12,7 @@
 import { FinanceSkill } from "./financeSkill";
 import { KnowledgeSkill } from "./knowledgeSkill";
 import { NotesSkill } from "./notesSkill";
+import { PlannerSkill } from "./plannerSkill";
 import { TasksSkill } from "./tasksSkill";
 import type { Skill } from "./types";
 
@@ -20,4 +21,5 @@ export const skills: Skill[] = [
   NotesSkill,
   FinanceSkill,
   KnowledgeSkill,
+  PlannerSkill,
 ];

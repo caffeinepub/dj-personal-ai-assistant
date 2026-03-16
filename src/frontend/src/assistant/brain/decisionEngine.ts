@@ -10,7 +10,7 @@
 import type { ExtractedEntities } from "./entityExtractor";
 import type { Intent } from "./intentEngine";
 
-// ── Decision types ────────────────────────────────────────────────────────────
+// ── Decision types ───────────────────────────────────────────────────────────────────
 
 export type Decision =
   | { action: "SEARCH_KNOWLEDGE"; query: string }
@@ -41,6 +41,9 @@ export type Decision =
       category: string;
       isIncome: boolean;
     }
+  | { action: "CREATE_PLAN"; rawMessage: string }
+  | { action: "SHOW_PLANS"; rawMessage: string }
+  | { action: "AUTONOMY_REVIEW" }
   | { action: "GENERAL_RESPONSE"; originalMessage: string };
 
 /**
@@ -151,6 +154,15 @@ export function makeDecision(
         category: entities.data.category,
         isIncome: entities.data.isIncome,
       };
+
+    case "CREATE_PLAN":
+      return { action: "CREATE_PLAN", rawMessage: originalMessage };
+
+    case "SHOW_PLANS":
+      return { action: "SHOW_PLANS", rawMessage: originalMessage };
+
+    case "AUTONOMY_REVIEW":
+      return { action: "AUTONOMY_REVIEW" };
   }
 
   return { action: "GENERAL_RESPONSE", originalMessage };

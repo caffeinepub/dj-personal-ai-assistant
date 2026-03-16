@@ -1,4 +1,5 @@
 import { Toaster } from "@/components/ui/sonner";
+import { AutonomyEngine } from "./components/AutonomyEngine";
 import { ErrorBoundary } from "./components/ErrorBoundary";
 import { ProactiveEngine } from "./components/ProactiveEngine";
 import { ContextEngineProvider } from "./context/ContextEngineContext";
@@ -14,6 +15,7 @@ import { KnowledgePage } from "./pages/KnowledgePage";
 import { LoginPage } from "./pages/LoginPage";
 import { MemoryPage } from "./pages/MemoryPage";
 import { NotesPage } from "./pages/NotesPage";
+import { PlansPage } from "./pages/PlansPage";
 import { ProfilePage } from "./pages/ProfilePage";
 import { SettingsPage } from "./pages/SettingsPage";
 import { SetupWizardPage } from "./pages/SetupWizardPage";
@@ -63,6 +65,7 @@ function App() {
       <BrowserRouter>
         <ContextEngineProvider>
           <ProactiveEngine />
+          <AutonomyEngine />
           <Routes>
             <Route path="/login" element={<LoginPage />} />
             <Route path="/setup" element={<SetupWizardPage />} />
@@ -175,6 +178,14 @@ function App() {
               element={
                 <ProtectedRoute>
                   <MemoryPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/plans"
+              element={
+                <ProtectedRoute>
+                  <PlansPage />
                 </ProtectedRoute>
               }
             />

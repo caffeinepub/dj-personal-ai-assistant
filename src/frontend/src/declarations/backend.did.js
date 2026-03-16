@@ -8,410 +8,147 @@
 
 import { IDL } from '@icp-sdk/core/candid';
 
+export const _CaffeineStorageCreateCertificateResult = IDL.Record({
+  'method' : IDL.Text,
+  'blob_hash' : IDL.Text,
+});
+export const _CaffeineStorageRefillInformation = IDL.Record({
+  'proposed_top_up_amount' : IDL.Opt(IDL.Nat),
+});
+export const _CaffeineStorageRefillResult = IDL.Record({
+  'success' : IDL.Opt(IDL.Bool),
+  'topped_up_amount' : IDL.Opt(IDL.Nat),
+});
 export const UserRole = IDL.Variant({
   'admin' : IDL.Null,
   'user' : IDL.Null,
   'guest' : IDL.Null,
 });
-export const Time = IDL.Int;
-export const Command = IDL.Record({
-  'id' : IDL.Nat,
-  'name' : IDL.Text,
-  'timestamp' : Time,
-  'actionDescription' : IDL.Text,
-});
-export const Memory = IDL.Record({
-  'id' : IDL.Nat,
-  'content' : IDL.Text,
-  'timestamp' : Time,
-});
-export const BehaviorRule = IDL.Record({
-  'id' : IDL.Nat,
-  'ruleText' : IDL.Text,
-  'timestamp' : Time,
-  'priority' : IDL.Nat,
-});
-export const PersonalitySettings = IDL.Record({
-  'communicationStyle' : IDL.Text,
-});
-export const UserProfile = IDL.Record({
-  'name' : IDL.Text,
-  'onboardingComplete' : IDL.Bool,
-  'preferences' : IDL.Text,
-  'personalitySettings' : PersonalitySettings,
-});
-export const ChatMessage = IDL.Record({
-  'id' : IDL.Nat,
-  'content' : IDL.Text,
-  'role' : IDL.Text,
-  'timestamp' : Time,
-});
-export const ChatThread = IDL.Record({
-  'id' : IDL.Nat,
-  'name' : IDL.Text,
-  'moduleTag' : IDL.Opt(IDL.Text),
-  'createdAt' : Time,
-});
-export const ThreadMessage = IDL.Record({
-  'id' : IDL.Nat,
-  'threadId' : IDL.Nat,
-  'role' : IDL.Text,
-  'content' : IDL.Text,
-  'timestamp' : Time,
-});
-export const CodeSnippet = IDL.Record({
-  'id' : IDL.Nat,
-  'title' : IDL.Text,
-  'codeContent' : IDL.Text,
-  'language' : IDL.Text,
-  'timestamp' : Time,
-});
-export const ExcelFile = IDL.Record({
-  'id' : IDL.Nat,
-  'analysisResult' : IDL.Opt(IDL.Text),
-  'uploadTimestamp' : Time,
-  'filename' : IDL.Text,
-  'rawData' : IDL.Vec(IDL.Nat8),
-});
-export const ImprovementLog = IDL.Record({
-  'id' : IDL.Nat,
-  'entryType' : IDL.Text,
-  'description' : IDL.Text,
-  'timestamp' : Time,
-});
-export const Website = IDL.Record({
-  'id' : IDL.Nat,
-  'htmlContent' : IDL.Text,
-  'templateName' : IDL.Text,
-  'timestamp' : Time,
-  'cssContent' : IDL.Text,
-  'jsContent' : IDL.Text,
-});
-export const Task = IDL.Record({
-  'id' : IDL.Nat,
-  'title' : IDL.Text,
-  'description' : IDL.Text,
-  'deadline' : IDL.Opt(Time),
-  'priority' : IDL.Text,
-  'completed' : IDL.Bool,
-  'createdAt' : Time,
-});
-export const Note = IDL.Record({
-  'id' : IDL.Nat,
-  'title' : IDL.Text,
-  'content' : IDL.Text,
-  'summary' : IDL.Text,
-  'tags' : IDL.Vec(IDL.Text),
-  'createdAt' : Time,
-  'updatedAt' : Time,
-});
-export const FinanceEntry = IDL.Record({
-  'id' : IDL.Nat,
-  'amount' : IDL.Int,
-  'category' : IDL.Text,
-  'description' : IDL.Text,
-  'entryDate' : Time,
-  'createdAt' : Time,
-});
-export const KnowledgeFolder = IDL.Record({
-  'id' : IDL.Nat,
-  'name' : IDL.Text,
-  'parentId' : IDL.Opt(IDL.Nat),
-  'createdAt' : Time,
-});
-export const WikiPage = IDL.Record({
-  'id' : IDL.Nat,
-  'folderId' : IDL.Nat,
-  'overviewSection' : IDL.Text,
-  'keyConceptsSection' : IDL.Text,
-  'tipsSection' : IDL.Text,
-  'lastEditedAt' : Time,
+export const Plan = IDL.Record({
+  'id' : IDL.Text,
+  'status' : IDL.Text,
+  'goal' : IDL.Text,
+  'stepsJson' : IDL.Text,
+  'createdAt' : IDL.Int,
 });
 
 export const idlService = IDL.Service({
+  '_caffeineStorageBlobIsLive' : IDL.Func(
+      [IDL.Vec(IDL.Nat8)],
+      [IDL.Bool],
+      ['query'],
+    ),
+  '_caffeineStorageBlobsToDelete' : IDL.Func(
+      [],
+      [IDL.Vec(IDL.Vec(IDL.Nat8))],
+      ['query'],
+    ),
+  '_caffeineStorageConfirmBlobDeletion' : IDL.Func(
+      [IDL.Vec(IDL.Vec(IDL.Nat8))],
+      [],
+      [],
+    ),
+  '_caffeineStorageCreateCertificate' : IDL.Func(
+      [IDL.Text],
+      [_CaffeineStorageCreateCertificateResult],
+      [],
+    ),
+  '_caffeineStorageRefillCashier' : IDL.Func(
+      [IDL.Opt(_CaffeineStorageRefillInformation)],
+      [_CaffeineStorageRefillResult],
+      [],
+    ),
+  '_caffeineStorageUpdateGatewayPrincipals' : IDL.Func([], [], []),
   '_initializeAccessControlWithSecret' : IDL.Func([IDL.Text], [], []),
-  'activateModule' : IDL.Func([IDL.Text], [], []),
-  'addImprovementLog' : IDL.Func([IDL.Text, IDL.Text], [], []),
-  'addMemory' : IDL.Func([IDL.Text], [], []),
   'assignCallerUserRole' : IDL.Func([IDL.Principal, UserRole], [], []),
-  'createCommand' : IDL.Func([IDL.Text, IDL.Text], [], []),
-  'createUserProfile' : IDL.Func([IDL.Text], [], []),
-  'deactivateModule' : IDL.Func([IDL.Text], [], []),
-  'deleteCommand' : IDL.Func([IDL.Nat], [], []),
-  'deleteMemory' : IDL.Func([IDL.Nat], [], []),
-  'deleteRule' : IDL.Func([IDL.Nat], [], []),
-  'executeCommand' : IDL.Func([IDL.Text], [IDL.Text], ['query']),
-  'getActiveModules' : IDL.Func([], [IDL.Vec(IDL.Text)], ['query']),
-  'getAllCommands' : IDL.Func([], [IDL.Vec(Command)], ['query']),
-  'getAllMemories' : IDL.Func([], [IDL.Vec(Memory)], ['query']),
-  'getAllRules' : IDL.Func([], [IDL.Vec(BehaviorRule)], ['query']),
-  'getAllRulesOrdered' : IDL.Func([], [IDL.Vec(BehaviorRule)], ['query']),
-  'getCallerUserProfile' : IDL.Func([], [IDL.Opt(UserProfile)], ['query']),
+  'deletePlan' : IDL.Func([IDL.Text], [IDL.Bool], []),
   'getCallerUserRole' : IDL.Func([], [UserRole], ['query']),
-  'getChatMessages' : IDL.Func(
-      [IDL.Nat, IDL.Nat],
-      [IDL.Vec(ChatMessage)],
-      ['query'],
-    ),
-  'getCodeSnippets' : IDL.Func([], [IDL.Vec(CodeSnippet)], ['query']),
-  'getExcelFiles' : IDL.Func([], [IDL.Vec(ExcelFile)], ['query']),
-  'getImprovementLogs' : IDL.Func(
-      [IDL.Nat, IDL.Nat],
-      [IDL.Vec(ImprovementLog)],
-      ['query'],
-    ),
-  'getPersonalitySettings' : IDL.Func([], [PersonalitySettings], ['query']),
-  'getUserProfile' : IDL.Func(
-      [IDL.Principal],
-      [IDL.Opt(UserProfile)],
-      ['query'],
-    ),
-  'getWebsites' : IDL.Func([], [IDL.Vec(Website)], ['query']),
+  'getPlanById' : IDL.Func([IDL.Text], [IDL.Opt(Plan)], ['query']),
+  'getPlans' : IDL.Func([], [IDL.Vec(Plan)], ['query']),
   'isCallerAdmin' : IDL.Func([], [IDL.Bool], ['query']),
-  'saveCallerUserProfile' : IDL.Func([UserProfile], [], []),
-  'saveChatMessage' : IDL.Func([IDL.Text, IDL.Text], [], []),
-  'saveCodeSnippet' : IDL.Func([IDL.Text, IDL.Text, IDL.Text], [], []),
-  'saveExcelAnalysis' : IDL.Func([IDL.Nat, IDL.Text], [], []),
-  'saveExcelFile' : IDL.Func([IDL.Text, IDL.Vec(IDL.Nat8)], [], []),
-  'saveOnboardingComplete' : IDL.Func([IDL.Bool], [], []),
-  'saveWebsite' : IDL.Func([IDL.Text, IDL.Text, IDL.Text, IDL.Text], [], []),
-  'setBehaviorRule' : IDL.Func([IDL.Text, IDL.Nat], [], []),
-  'setPersonalitySettings' : IDL.Func([IDL.Text], [], []),
-  'updatePreferences' : IDL.Func([IDL.Text], [], []),
-  'updateRulePriority' : IDL.Func([IDL.Nat, IDL.Nat], [], []),
-  // Tasks
-  'addTask' : IDL.Func([IDL.Text, IDL.Text, IDL.Opt(Time), IDL.Text], [], []),
-  'getAllTasks' : IDL.Func([], [IDL.Vec(Task)], ['query']),
-  'updateTaskCompletion' : IDL.Func([IDL.Nat, IDL.Bool], [], []),
-  'deleteTask' : IDL.Func([IDL.Nat], [], []),
-  // Notes
-  'addNote' : IDL.Func([IDL.Text, IDL.Text, IDL.Text, IDL.Vec(IDL.Text)], [], []),
-  'getAllNotes' : IDL.Func([], [IDL.Vec(Note)], ['query']),
-  'updateNote' : IDL.Func([IDL.Nat, IDL.Text, IDL.Text, IDL.Text, IDL.Vec(IDL.Text)], [], []),
-  'deleteNote' : IDL.Func([IDL.Nat], [], []),
-  // Finance
-  'addFinanceEntry' : IDL.Func([IDL.Int, IDL.Text, IDL.Text, Time], [], []),
-  'getAllFinanceEntries' : IDL.Func([], [IDL.Vec(FinanceEntry)], ['query']),
-  'deleteFinanceEntry' : IDL.Func([IDL.Nat], [], []),
-  // Knowledge Folders
-  'createFolder' : IDL.Func([IDL.Text, IDL.Opt(IDL.Nat)], [IDL.Nat], []),
-  'getFolders' : IDL.Func([], [IDL.Vec(KnowledgeFolder)], ['query']),
-  'deleteFolder' : IDL.Func([IDL.Nat], [], []),
-  // Wiki Pages
-  'saveWikiPage' : IDL.Func([IDL.Nat, IDL.Text, IDL.Text, IDL.Text], [], []),
-  'getWikiPageByFolder' : IDL.Func([IDL.Nat], [IDL.Opt(WikiPage)], ['query']),
-  'deleteWikiPage' : IDL.Func([IDL.Nat], [], []),
-  // Chat Threads
-  'createChatThread' : IDL.Func([IDL.Text, IDL.Opt(IDL.Text)], [IDL.Nat], []),
-  'getChatThreads' : IDL.Func([], [IDL.Vec(ChatThread)], ['query']),
-  'deleteChatThread' : IDL.Func([IDL.Nat], [], []),
-  'saveThreadMessage' : IDL.Func([IDL.Nat, IDL.Text, IDL.Text], [], []),
-  'getThreadMessages' : IDL.Func([IDL.Nat, IDL.Nat, IDL.Nat], [IDL.Vec(ThreadMessage)], ['query']),
-  'deleteThreadMessage' : IDL.Func([IDL.Nat, IDL.Nat], [], []),
+  'savePlan' : IDL.Func(
+      [IDL.Text, IDL.Text, IDL.Text, IDL.Text],
+      [IDL.Bool],
+      [],
+    ),
+  'updatePlan' : IDL.Func(
+      [IDL.Text, IDL.Text, IDL.Text, IDL.Text],
+      [IDL.Bool],
+      [],
+    ),
 });
 
 export const idlInitArgs = [];
 
 export const idlFactory = ({ IDL }) => {
+  const _CaffeineStorageCreateCertificateResult = IDL.Record({
+    'method' : IDL.Text,
+    'blob_hash' : IDL.Text,
+  });
+  const _CaffeineStorageRefillInformation = IDL.Record({
+    'proposed_top_up_amount' : IDL.Opt(IDL.Nat),
+  });
+  const _CaffeineStorageRefillResult = IDL.Record({
+    'success' : IDL.Opt(IDL.Bool),
+    'topped_up_amount' : IDL.Opt(IDL.Nat),
+  });
   const UserRole = IDL.Variant({
     'admin' : IDL.Null,
     'user' : IDL.Null,
     'guest' : IDL.Null,
   });
-  const Time = IDL.Int;
-  const Command = IDL.Record({
-    'id' : IDL.Nat,
-    'name' : IDL.Text,
-    'timestamp' : Time,
-    'actionDescription' : IDL.Text,
-  });
-  const Memory = IDL.Record({
-    'id' : IDL.Nat,
-    'content' : IDL.Text,
-    'timestamp' : Time,
-  });
-  const BehaviorRule = IDL.Record({
-    'id' : IDL.Nat,
-    'ruleText' : IDL.Text,
-    'timestamp' : Time,
-    'priority' : IDL.Nat,
-  });
-  const PersonalitySettings = IDL.Record({ 'communicationStyle' : IDL.Text });
-  const UserProfile = IDL.Record({
-    'name' : IDL.Text,
-    'onboardingComplete' : IDL.Bool,
-    'preferences' : IDL.Text,
-    'personalitySettings' : PersonalitySettings,
-  });
-  const ChatMessage = IDL.Record({
-    'id' : IDL.Nat,
-    'content' : IDL.Text,
-    'role' : IDL.Text,
-    'timestamp' : Time,
-  });
-  const ChatThread = IDL.Record({
-    'id' : IDL.Nat,
-    'name' : IDL.Text,
-    'moduleTag' : IDL.Opt(IDL.Text),
-    'createdAt' : Time,
-  });
-  const ThreadMessage = IDL.Record({
-    'id' : IDL.Nat,
-    'threadId' : IDL.Nat,
-    'role' : IDL.Text,
-    'content' : IDL.Text,
-    'timestamp' : Time,
-  });
-  const CodeSnippet = IDL.Record({
-    'id' : IDL.Nat,
-    'title' : IDL.Text,
-    'codeContent' : IDL.Text,
-    'language' : IDL.Text,
-    'timestamp' : Time,
-  });
-  const ExcelFile = IDL.Record({
-    'id' : IDL.Nat,
-    'analysisResult' : IDL.Opt(IDL.Text),
-    'uploadTimestamp' : Time,
-    'filename' : IDL.Text,
-    'rawData' : IDL.Vec(IDL.Nat8),
-  });
-  const ImprovementLog = IDL.Record({
-    'id' : IDL.Nat,
-    'entryType' : IDL.Text,
-    'description' : IDL.Text,
-    'timestamp' : Time,
-  });
-  const Website = IDL.Record({
-    'id' : IDL.Nat,
-    'htmlContent' : IDL.Text,
-    'templateName' : IDL.Text,
-    'timestamp' : Time,
-    'cssContent' : IDL.Text,
-    'jsContent' : IDL.Text,
-  });
-  const Task = IDL.Record({
-    'id' : IDL.Nat,
-    'title' : IDL.Text,
-    'description' : IDL.Text,
-    'deadline' : IDL.Opt(Time),
-    'priority' : IDL.Text,
-    'completed' : IDL.Bool,
-    'createdAt' : Time,
-  });
-  const Note = IDL.Record({
-    'id' : IDL.Nat,
-    'title' : IDL.Text,
-    'content' : IDL.Text,
-    'summary' : IDL.Text,
-    'tags' : IDL.Vec(IDL.Text),
-    'createdAt' : Time,
-    'updatedAt' : Time,
-  });
-  const FinanceEntry = IDL.Record({
-    'id' : IDL.Nat,
-    'amount' : IDL.Int,
-    'category' : IDL.Text,
-    'description' : IDL.Text,
-    'entryDate' : Time,
-    'createdAt' : Time,
-  });
-  
-  const KnowledgeFolder = IDL.Record({
-    'id' : IDL.Nat,
-    'name' : IDL.Text,
-    'parentId' : IDL.Opt(IDL.Nat),
-    'createdAt' : Time,
-  });
-  const WikiPage = IDL.Record({
-    'id' : IDL.Nat,
-    'folderId' : IDL.Nat,
-    'overviewSection' : IDL.Text,
-    'keyConceptsSection' : IDL.Text,
-    'tipsSection' : IDL.Text,
-    'lastEditedAt' : Time,
+  const Plan = IDL.Record({
+    'id' : IDL.Text,
+    'status' : IDL.Text,
+    'goal' : IDL.Text,
+    'stepsJson' : IDL.Text,
+    'createdAt' : IDL.Int,
   });
   
   return IDL.Service({
+    '_caffeineStorageBlobIsLive' : IDL.Func(
+        [IDL.Vec(IDL.Nat8)],
+        [IDL.Bool],
+        ['query'],
+      ),
+    '_caffeineStorageBlobsToDelete' : IDL.Func(
+        [],
+        [IDL.Vec(IDL.Vec(IDL.Nat8))],
+        ['query'],
+      ),
+    '_caffeineStorageConfirmBlobDeletion' : IDL.Func(
+        [IDL.Vec(IDL.Vec(IDL.Nat8))],
+        [],
+        [],
+      ),
+    '_caffeineStorageCreateCertificate' : IDL.Func(
+        [IDL.Text],
+        [_CaffeineStorageCreateCertificateResult],
+        [],
+      ),
+    '_caffeineStorageRefillCashier' : IDL.Func(
+        [IDL.Opt(_CaffeineStorageRefillInformation)],
+        [_CaffeineStorageRefillResult],
+        [],
+      ),
+    '_caffeineStorageUpdateGatewayPrincipals' : IDL.Func([], [], []),
     '_initializeAccessControlWithSecret' : IDL.Func([IDL.Text], [], []),
-    'activateModule' : IDL.Func([IDL.Text], [], []),
-    'addImprovementLog' : IDL.Func([IDL.Text, IDL.Text], [], []),
-    'addMemory' : IDL.Func([IDL.Text], [], []),
     'assignCallerUserRole' : IDL.Func([IDL.Principal, UserRole], [], []),
-    'createCommand' : IDL.Func([IDL.Text, IDL.Text], [], []),
-    'createUserProfile' : IDL.Func([IDL.Text], [], []),
-    'deactivateModule' : IDL.Func([IDL.Text], [], []),
-    'deleteCommand' : IDL.Func([IDL.Nat], [], []),
-    'deleteMemory' : IDL.Func([IDL.Nat], [], []),
-    'deleteRule' : IDL.Func([IDL.Nat], [], []),
-    'executeCommand' : IDL.Func([IDL.Text], [IDL.Text], ['query']),
-    'getActiveModules' : IDL.Func([], [IDL.Vec(IDL.Text)], ['query']),
-    'getAllCommands' : IDL.Func([], [IDL.Vec(Command)], ['query']),
-    'getAllMemories' : IDL.Func([], [IDL.Vec(Memory)], ['query']),
-    'getAllRules' : IDL.Func([], [IDL.Vec(BehaviorRule)], ['query']),
-    'getAllRulesOrdered' : IDL.Func([], [IDL.Vec(BehaviorRule)], ['query']),
-    'getCallerUserProfile' : IDL.Func([], [IDL.Opt(UserProfile)], ['query']),
+    'deletePlan' : IDL.Func([IDL.Text], [IDL.Bool], []),
     'getCallerUserRole' : IDL.Func([], [UserRole], ['query']),
-    'getChatMessages' : IDL.Func(
-        [IDL.Nat, IDL.Nat],
-        [IDL.Vec(ChatMessage)],
-        ['query'],
-      ),
-    'getCodeSnippets' : IDL.Func([], [IDL.Vec(CodeSnippet)], ['query']),
-    'getExcelFiles' : IDL.Func([], [IDL.Vec(ExcelFile)], ['query']),
-    'getImprovementLogs' : IDL.Func(
-        [IDL.Nat, IDL.Nat],
-        [IDL.Vec(ImprovementLog)],
-        ['query'],
-      ),
-    'getPersonalitySettings' : IDL.Func([], [PersonalitySettings], ['query']),
-    'getUserProfile' : IDL.Func(
-        [IDL.Principal],
-        [IDL.Opt(UserProfile)],
-        ['query'],
-      ),
-    'getWebsites' : IDL.Func([], [IDL.Vec(Website)], ['query']),
+    'getPlanById' : IDL.Func([IDL.Text], [IDL.Opt(Plan)], ['query']),
+    'getPlans' : IDL.Func([], [IDL.Vec(Plan)], ['query']),
     'isCallerAdmin' : IDL.Func([], [IDL.Bool], ['query']),
-    'saveCallerUserProfile' : IDL.Func([UserProfile], [], []),
-    'saveChatMessage' : IDL.Func([IDL.Text, IDL.Text], [], []),
-    'saveCodeSnippet' : IDL.Func([IDL.Text, IDL.Text, IDL.Text], [], []),
-    'saveExcelAnalysis' : IDL.Func([IDL.Nat, IDL.Text], [], []),
-    'saveExcelFile' : IDL.Func([IDL.Text, IDL.Vec(IDL.Nat8)], [], []),
-    'saveOnboardingComplete' : IDL.Func([IDL.Bool], [], []),
-    'saveWebsite' : IDL.Func([IDL.Text, IDL.Text, IDL.Text, IDL.Text], [], []),
-    'setBehaviorRule' : IDL.Func([IDL.Text, IDL.Nat], [], []),
-    'setPersonalitySettings' : IDL.Func([IDL.Text], [], []),
-    'updatePreferences' : IDL.Func([IDL.Text], [], []),
-    'updateRulePriority' : IDL.Func([IDL.Nat, IDL.Nat], [], []),
-    // Tasks
-    'addTask' : IDL.Func([IDL.Text, IDL.Text, IDL.Opt(Time), IDL.Text], [], []),
-    'getAllTasks' : IDL.Func([], [IDL.Vec(Task)], ['query']),
-    'updateTaskCompletion' : IDL.Func([IDL.Nat, IDL.Bool], [], []),
-    'deleteTask' : IDL.Func([IDL.Nat], [], []),
-    // Notes
-    'addNote' : IDL.Func([IDL.Text, IDL.Text, IDL.Text, IDL.Vec(IDL.Text)], [], []),
-    'getAllNotes' : IDL.Func([], [IDL.Vec(Note)], ['query']),
-    'updateNote' : IDL.Func([IDL.Nat, IDL.Text, IDL.Text, IDL.Text, IDL.Vec(IDL.Text)], [], []),
-    'deleteNote' : IDL.Func([IDL.Nat], [], []),
-    // Finance
-    'addFinanceEntry' : IDL.Func([IDL.Int, IDL.Text, IDL.Text, Time], [], []),
-    'getAllFinanceEntries' : IDL.Func([], [IDL.Vec(FinanceEntry)], ['query']),
-    'deleteFinanceEntry' : IDL.Func([IDL.Nat], [], []),
-    // Knowledge Folders
-    'createFolder' : IDL.Func([IDL.Text, IDL.Opt(IDL.Nat)], [IDL.Nat], []),
-    'getFolders' : IDL.Func([], [IDL.Vec(KnowledgeFolder)], ['query']),
-    'deleteFolder' : IDL.Func([IDL.Nat], [], []),
-    // Wiki Pages
-    'saveWikiPage' : IDL.Func([IDL.Nat, IDL.Text, IDL.Text, IDL.Text], [], []),
-    'getWikiPageByFolder' : IDL.Func([IDL.Nat], [IDL.Opt(WikiPage)], ['query']),
-    'deleteWikiPage' : IDL.Func([IDL.Nat], [], []),
-    // Chat Threads
-    'createChatThread' : IDL.Func([IDL.Text, IDL.Opt(IDL.Text)], [IDL.Nat], []),
-    'getChatThreads' : IDL.Func([], [IDL.Vec(ChatThread)], ['query']),
-    'deleteChatThread' : IDL.Func([IDL.Nat], [], []),
-    'saveThreadMessage' : IDL.Func([IDL.Nat, IDL.Text, IDL.Text], [], []),
-    'getThreadMessages' : IDL.Func([IDL.Nat, IDL.Nat, IDL.Nat], [IDL.Vec(ThreadMessage)], ['query']),
-    'deleteThreadMessage' : IDL.Func([IDL.Nat, IDL.Nat], [], []),
+    'savePlan' : IDL.Func(
+        [IDL.Text, IDL.Text, IDL.Text, IDL.Text],
+        [IDL.Bool],
+        [],
+      ),
+    'updatePlan' : IDL.Func(
+        [IDL.Text, IDL.Text, IDL.Text, IDL.Text],
+        [IDL.Bool],
+        [],
+      ),
   });
 };
 

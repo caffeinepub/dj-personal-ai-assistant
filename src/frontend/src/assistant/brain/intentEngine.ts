@@ -22,6 +22,9 @@ export type Intent =
   | "ADD_TASK"
   | "ADD_NOTE"
   | "ADD_FINANCE"
+  | "CREATE_PLAN"
+  | "SHOW_PLANS"
+  | "AUTONOMY_REVIEW"
   | "GENERAL";
 
 export interface IntentResult {
@@ -105,6 +108,34 @@ export function detectIntent(message: string): IntentResult {
   );
   if (deactivateMatch)
     return { intent: "DEACTIVATE_MODULE", match: deactivateMatch };
+
+  // ── Autonomy review ────────────────────────────────────────────────────────
+  if (
+    lower.includes("review my goals") ||
+    lower.includes("what should i focus on") ||
+    lower.includes("suggest improvements") ||
+    lower.includes("autonomy review") ||
+    lower.match(/dj,?\s+(review|suggest|focus)/i)
+  )
+    return { intent: "AUTONOMY_REVIEW" };
+
+  // ── Planner ────────────────────────────────────────────────────────────────
+  if (
+    lower.includes("show my plans") ||
+    lower.includes("show plans") ||
+    lower.includes("list plans") ||
+    lower.includes("my plans")
+  )
+    return { intent: "SHOW_PLANS" };
+
+  if (
+    lower.match(/(?:create|make|build|set\s+up)\s+a\s+plan\s+(?:for|to)/i) ||
+    lower.match(
+      /^(dj,?\s*)?(i\s+want\s+to|my\s+goal\s+is|i\s+plan\s+to)\s+/i,
+    ) ||
+    lower.match(/plan\s+for\s+.{3,}/i)
+  )
+    return { intent: "CREATE_PLAN" };
 
   // ── Task creation ──────────────────────────────────────────────────────────
   if (
