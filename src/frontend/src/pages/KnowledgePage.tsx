@@ -41,6 +41,8 @@ import {
   Loader2,
   Plus,
   Presentation,
+  RefreshCcw,
+  Rss,
   Search,
   Sparkles,
   Tag,
@@ -65,10 +67,19 @@ import {
 } from "../hooks/useQueries";
 import {
   type KnowledgeSource,
+  type RefreshInterval,
+  addFollowedTopic,
   encodeKnowledgeSource,
   extractTextFromHtml,
+  generateTopicSuggestions,
+  getFollowedTopics,
+  getRefreshMeta,
+  getStaleSourceIds,
+  isSourceStale,
   parseKnowledgeSource,
+  removeFollowedTopic,
   searchKnowledgeSources,
+  setRefreshMeta,
 } from "../utils/knowledgeSources";
 
 const PRESET_CATEGORIES = [
@@ -876,12 +887,20 @@ function FolderBreadcrumb({
 function SourceCard({
   source,
   onDelete,
+  onRefresh,
   index,
 }: {
   source: KnowledgeSource;
   onDelete: (id: bigint, title: string) => void;
+  onRefresh?: (source: KnowledgeSource) => Promise<void>;
   index: number;
 }) {
+  const id = String(source.id);
+  const meta = getRefreshMeta()[id];
+  const interval: RefreshInterval = meta?.interval ?? "none";
+  const stale = isSourceStale(id);
+  const [isRefreshing, setIsRefreshing] = useState(false);
+
   const formatTs = (ts: bigint) => {
     const d = new Date(Number(ts) / 1_000_000);
     return d.toLocaleDateString("en-US", {
@@ -891,10 +910,38 @@ function SourceCard({
     });
   };
 
+  const handleIntervalChange = (val: string) => {
+    setRefreshMeta(id, {
+      lastRefreshed: meta?.lastRefreshed ?? Date.now(),
+      interval: val as RefreshInterval,
+    });
+    // Force re-render by causing a small state update
+    window.dispatchEvent(new CustomEvent("dj_refresh_meta_changed"));
+  };
+
+  const handleRefresh = async () => {
+    if (!onRefresh) return;
+    setIsRefreshing(true);
+    try {
+      await onRefresh(source);
+      setRefreshMeta(id, { lastRefreshed: Date.now(), interval });
+      window.dispatchEvent(new CustomEvent("dj_refresh_meta_changed"));
+      toast.success(`"${source.title}" refreshed`);
+    } catch {
+      toast.error("Refresh failed");
+    } finally {
+      setIsRefreshing(false);
+    }
+  };
+
   return (
     <div
       data-ocid={`knowledge.sources.item.${index}`}
-      className="group relative flex items-start gap-3 rounded-xl border border-primary/20 bg-card/50 p-4 transition-all hover:border-primary/40 hover:bg-card/80"
+      className={`group relative flex items-start gap-3 rounded-xl border bg-card/50 p-4 transition-all hover:bg-card/80 ${
+        stale
+          ? "border-amber-500/40 hover:border-amber-500/60"
+          : "border-primary/20 hover:border-primary/40"
+      }`}
     >
       <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-primary/30 bg-primary/10">
         <SourceTypeIcon type={source.sourceType} />
@@ -905,6 +952,11 @@ function SourceCard({
             {source.title}
           </p>
           <SourceTypeBadge type={source.sourceType} />
+          {stale && (
+            <Badge className="border-amber-500/50 bg-amber-500/15 text-amber-400 text-xs">
+              Stale
+            </Badge>
+          )}
           {source.category && (
             <Badge className="border-secondary/30 bg-secondary/10 text-secondary text-xs">
               {source.category}
@@ -921,9 +973,45 @@ function SourceCard({
             {source.summary}
           </p>
         )}
-        <p className="mt-2 text-xs text-muted-foreground/50">
-          {formatTs(source.timestamp)}
-        </p>
+        <div className="mt-2 flex flex-wrap items-center gap-2">
+          <p className="text-xs text-muted-foreground/50">
+            {formatTs(source.timestamp)}
+          </p>
+          {source.sourceType === "website" && (
+            <div className="flex items-center gap-1.5">
+              <Select value={interval} onValueChange={handleIntervalChange}>
+                <SelectTrigger
+                  data-ocid={`knowledge.sources.refresh_interval.select.${index}`}
+                  className="h-6 border-primary/20 bg-card/30 text-xs w-28 px-2 py-0"
+                >
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent className="border-primary/30 bg-card text-xs">
+                  <SelectItem value="none">No refresh</SelectItem>
+                  <SelectItem value="daily">Daily</SelectItem>
+                  <SelectItem value="weekly">Weekly</SelectItem>
+                  <SelectItem value="monthly">Monthly</SelectItem>
+                </SelectContent>
+              </Select>
+              {interval !== "none" && onRefresh && (
+                <button
+                  type="button"
+                  data-ocid={`knowledge.sources.refresh.button.${index}`}
+                  onClick={handleRefresh}
+                  disabled={isRefreshing}
+                  title="Re-fetch this URL now"
+                  className="rounded p-0.5 text-muted-foreground hover:text-primary disabled:opacity-50"
+                >
+                  {isRefreshing ? (
+                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                  ) : (
+                    <RefreshCcw className="h-3.5 w-3.5" />
+                  )}
+                </button>
+              )}
+            </div>
+          )}
+        </div>
       </div>
       <button
         type="button"
@@ -1515,6 +1603,177 @@ function AddSourceForm({
 
 // ─── Main Knowledge Page ──────────────────────────────────────────────────────
 
+// ─── Follow Topics Tab ────────────────────────────────────────────────────────
+
+function FollowTopicsTab({
+  onFetchAndAdd,
+  fetchingUrls,
+  addedUrls,
+}: {
+  onFetchAndAdd: (source: {
+    title: string;
+    url: string;
+    description: string;
+  }) => Promise<void>;
+  fetchingUrls: Record<string, boolean>;
+  addedUrls: Set<string>;
+}) {
+  const [topics, setTopics] = useState<string[]>(() => getFollowedTopics());
+  const [inputVal, setInputVal] = useState("");
+
+  const refresh = () => setTopics(getFollowedTopics());
+
+  const handleFollow = () => {
+    const t = inputVal.trim();
+    if (!t) return;
+    addFollowedTopic(t);
+    setInputVal("");
+    refresh();
+  };
+
+  const handleUnfollow = (topic: string) => {
+    removeFollowedTopic(topic);
+    refresh();
+  };
+
+  return (
+    <div className="space-y-5">
+      {/* Add topic input */}
+      <Card className="border-primary/40 glow-border">
+        <CardHeader className="pb-3">
+          <CardTitle className="flex items-center gap-2 font-display">
+            <Rss className="h-5 w-5 text-secondary" />
+            Auto-Research Mode
+          </CardTitle>
+          <CardDescription>
+            Follow topics and DJ will suggest new URLs to fetch periodically to
+            keep your knowledge current.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="flex gap-2">
+            <Input
+              data-ocid="knowledge.follow.input"
+              placeholder='e.g. "Bitcoin", "Cybersecurity", "AI"'
+              value={inputVal}
+              onChange={(e) => setInputVal(e.target.value)}
+              onKeyDown={(e) => e.key === "Enter" && handleFollow()}
+              className="border-primary/30 bg-card/50"
+            />
+            <Button
+              data-ocid="knowledge.follow.button"
+              onClick={handleFollow}
+              disabled={!inputVal.trim()}
+              className="shrink-0 border border-secondary/40 bg-secondary/10 text-secondary hover:bg-secondary/20"
+            >
+              <Rss className="mr-2 h-4 w-4" />
+              Follow
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+
+      {topics.length === 0 ? (
+        <div
+          data-ocid="knowledge.follow.empty_state"
+          className="flex flex-col items-center gap-3 rounded-xl border border-dashed border-primary/30 py-14 text-center"
+        >
+          <Rss className="h-10 w-10 text-primary/20" />
+          <div>
+            <p className="font-medium text-muted-foreground">
+              No followed topics
+            </p>
+            <p className="mt-1 text-sm text-muted-foreground/60">
+              Follow a topic above to see URL suggestions here.
+            </p>
+          </div>
+        </div>
+      ) : (
+        <div className="space-y-4">
+          {topics.map((topic, ti) => {
+            const suggestions = generateTopicSuggestions(topic);
+            return (
+              <Card
+                key={topic}
+                data-ocid={`knowledge.follow.item.${ti + 1}`}
+                className="border-primary/30 bg-card/50"
+              >
+                <CardHeader className="pb-2">
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="flex items-center gap-2">
+                      <Rss className="h-4 w-4 text-secondary" />
+                      <CardTitle className="text-base font-semibold">
+                        {topic}
+                      </CardTitle>
+                    </div>
+                    <button
+                      type="button"
+                      data-ocid={`knowledge.follow.delete_button.${ti + 1}`}
+                      onClick={() => handleUnfollow(topic)}
+                      className="rounded-lg p-1.5 text-muted-foreground hover:bg-destructive/20 hover:text-destructive"
+                      title="Unfollow topic"
+                    >
+                      <X className="h-4 w-4" />
+                    </button>
+                  </div>
+                </CardHeader>
+                <CardContent className="space-y-2">
+                  <p className="text-xs text-muted-foreground">
+                    {suggestions.length} suggested sources
+                  </p>
+                  {suggestions.map((s) => {
+                    const isAdded = addedUrls.has(s.url);
+                    const isFetching = fetchingUrls[s.url];
+                    return (
+                      <div
+                        key={s.url}
+                        className={`flex items-start gap-3 rounded-lg border p-3 transition-all ${
+                          isAdded
+                            ? "border-green-500/40 bg-green-500/5"
+                            : "border-primary/20 bg-card/30 hover:border-primary/40"
+                        }`}
+                      >
+                        <Globe className="mt-0.5 h-4 w-4 shrink-0 text-blue-400" />
+                        <div className="min-w-0 flex-1">
+                          <p className="text-sm font-medium truncate">
+                            {s.title}
+                          </p>
+                          <p className="text-xs text-muted-foreground/70 truncate">
+                            {s.url}
+                          </p>
+                        </div>
+                        <Button
+                          data-ocid="knowledge.follow.add_source.button"
+                          size="sm"
+                          disabled={isAdded || isFetching}
+                          onClick={() => onFetchAndAdd(s)}
+                          className={`shrink-0 h-7 px-2 text-xs ${
+                            isAdded
+                              ? "border-green-500/40 bg-green-500/10 text-green-400"
+                              : "border-primary/40 bg-primary/20 text-primary hover:bg-primary/30"
+                          }`}
+                        >
+                          {isFetching ? (
+                            <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                          ) : isAdded ? (
+                            <CheckCircle className="h-3.5 w-3.5" />
+                          ) : (
+                            <Plus className="h-3.5 w-3.5" />
+                          )}
+                        </Button>
+                      </div>
+                    );
+                  })}
+                </CardContent>
+              </Card>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
 export function KnowledgePage() {
   const { data: memories = [] } = useMemories();
   const { data: folders = [] } = useKnowledgeFolders();
@@ -1620,6 +1879,74 @@ export function KnowledgePage() {
   };
 
   const selectedFolder = folders.find((f) => String(f.id) === selectedFolderId);
+
+  // Stale sources state
+  const [staleIds, setStaleIds] = useState<string[]>(() =>
+    getStaleSourceIds(
+      memories
+        .map(parseKnowledgeSource)
+        .filter((s): s is KnowledgeSource => s !== null),
+    ),
+  );
+  const [isRefreshingAll, setIsRefreshingAll] = useState(false);
+
+  // Re-check stale on localStorage change events
+  useEffect(() => {
+    const handler = () => {
+      setStaleIds(getStaleSourceIds(knowledgeSources));
+    };
+    window.addEventListener("dj_refresh_meta_changed", handler);
+    return () => window.removeEventListener("dj_refresh_meta_changed", handler);
+  }, [knowledgeSources]);
+
+  // Refresh a single website source
+  const handleRefreshSource = async (source: KnowledgeSource) => {
+    if (!source.url) return;
+    let content = "";
+    try {
+      const resp = await fetch(source.url);
+      const html = await resp.text();
+      content = extractTextFromHtml(html).slice(0, 2000);
+    } catch {
+      content = source.content;
+    }
+    // Delete old and re-add
+    await deleteMemory.mutateAsync(source.id);
+    const encoded = encodeKnowledgeSource(
+      "website",
+      source.title,
+      source.url,
+      content,
+      source.category,
+      source.folderId,
+    );
+    await addMemory.mutateAsync(encoded);
+  };
+
+  const handleRefreshAll = async () => {
+    const staleSources = knowledgeSources.filter((s) =>
+      staleIds.includes(String(s.id)),
+    );
+    if (staleSources.length === 0) return;
+    setIsRefreshingAll(true);
+    try {
+      for (const s of staleSources) {
+        await handleRefreshSource(s);
+        setRefreshMeta(String(s.id), {
+          lastRefreshed: Date.now(),
+          interval: getRefreshMeta()[String(s.id)]?.interval ?? "none",
+        });
+      }
+      setStaleIds([]);
+      toast.success(
+        `${staleSources.length} source${staleSources.length !== 1 ? "s" : ""} refreshed`,
+      );
+    } catch {
+      toast.error("Some sources failed to refresh");
+    } finally {
+      setIsRefreshingAll(false);
+    }
+  };
 
   // Research state (lifted here for all-sources view)
   const [researchTopic, setResearchTopic] = useState("");
@@ -1854,6 +2181,35 @@ export function KnowledgePage() {
           </div>
         </div>
 
+        {/* Stale sources banner */}
+        {staleIds.length > 0 && (
+          <div
+            data-ocid="knowledge.stale.panel"
+            className="mb-4 flex flex-wrap items-center gap-3 rounded-xl border border-amber-500/40 bg-amber-500/10 px-4 py-3"
+          >
+            <RefreshCcw className="h-4 w-4 shrink-0 text-amber-400" />
+            <p className="flex-1 text-sm text-amber-300">
+              <strong>{staleIds.length}</strong> source
+              {staleIds.length !== 1 ? "s" : ""} need refreshing based on your
+              schedule.
+            </p>
+            <Button
+              data-ocid="knowledge.stale.refresh_all.button"
+              size="sm"
+              onClick={handleRefreshAll}
+              disabled={isRefreshingAll}
+              className="shrink-0 border border-amber-500/40 bg-amber-500/20 text-amber-300 hover:bg-amber-500/30"
+            >
+              {isRefreshingAll ? (
+                <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
+              ) : (
+                <RefreshCcw className="mr-1.5 h-3.5 w-3.5" />
+              )}
+              Refresh All
+            </Button>
+          </div>
+        )}
+
         {/* Mobile folder toggle */}
         <button
           type="button"
@@ -1987,6 +2343,7 @@ export function KnowledgePage() {
                             key={String(s.id)}
                             source={s}
                             onDelete={handleDeleteSource}
+                            onRefresh={handleRefreshSource}
                             index={i + 1}
                           />
                         ))}
@@ -2045,32 +2402,47 @@ export function KnowledgePage() {
             ) : (
               /* All Sources view */
               <Tabs defaultValue="research">
-                <TabsList className="mb-4 grid w-full grid-cols-3 border border-primary/30 bg-card/80">
+                <TabsList className="mb-4 grid w-full grid-cols-4 border border-primary/30 bg-card/80">
                   <TabsTrigger
                     data-ocid="knowledge.research.tab"
                     value="research"
-                    className="data-[state=active]:bg-primary/20 data-[state=active]:text-primary"
+                    className="data-[state=active]:bg-primary/20 data-[state=active]:text-primary text-xs sm:text-sm"
                   >
-                    <Sparkles className="mr-1.5 h-4 w-4" />
-                    Research
+                    <Sparkles className="mr-1 h-3.5 w-3.5 sm:mr-1.5 sm:h-4 sm:w-4" />
+                    <span className="hidden sm:inline">Research</span>
+                    <span className="sm:hidden">Find</span>
+                  </TabsTrigger>
+                  <TabsTrigger
+                    data-ocid="knowledge.follow.tab"
+                    value="follow"
+                    className="data-[state=active]:bg-secondary/20 data-[state=active]:text-secondary text-xs sm:text-sm"
+                  >
+                    <Rss className="mr-1 h-3.5 w-3.5 sm:mr-1.5 sm:h-4 sm:w-4" />
+                    Follow
+                    {getFollowedTopics().length > 0 && (
+                      <Badge className="ml-1 border-secondary/30 bg-secondary/10 text-secondary text-xs">
+                        {getFollowedTopics().length}
+                      </Badge>
+                    )}
                   </TabsTrigger>
                   <TabsTrigger
                     data-ocid="knowledge.add.tab"
                     value="add"
-                    className="data-[state=active]:bg-primary/20 data-[state=active]:text-primary"
+                    className="data-[state=active]:bg-primary/20 data-[state=active]:text-primary text-xs sm:text-sm"
                   >
-                    <Plus className="mr-1.5 h-4 w-4" />
-                    Add Source
+                    <Plus className="mr-1 h-3.5 w-3.5 sm:mr-1.5 sm:h-4 sm:w-4" />
+                    Add
                   </TabsTrigger>
                   <TabsTrigger
                     data-ocid="knowledge.sources.tab"
                     value="sources"
-                    className="data-[state=active]:bg-primary/20 data-[state=active]:text-primary"
+                    className="data-[state=active]:bg-primary/20 data-[state=active]:text-primary text-xs sm:text-sm"
                   >
-                    <BookOpen className="mr-1.5 h-4 w-4" />
-                    My Sources
+                    <BookOpen className="mr-1 h-3.5 w-3.5 sm:mr-1.5 sm:h-4 sm:w-4" />
+                    <span className="hidden sm:inline">My Sources</span>
+                    <span className="sm:hidden">Sources</span>
                     {knowledgeSources.length > 0 && (
-                      <Badge className="ml-1.5 border-primary/30 bg-primary/20 text-primary text-xs">
+                      <Badge className="ml-1 border-primary/30 bg-primary/20 text-primary text-xs">
                         {knowledgeSources.length}
                       </Badge>
                     )}
@@ -2208,6 +2580,15 @@ export function KnowledgePage() {
                   </Card>
                 </TabsContent>
 
+                {/* FOLLOW TOPICS TAB */}
+                <TabsContent value="follow" className="space-y-4">
+                  <FollowTopicsTab
+                    onFetchAndAdd={handleFetchResearchSource}
+                    fetchingUrls={fetchingUrls}
+                    addedUrls={addedUrls}
+                  />
+                </TabsContent>
+
                 {/* ADD SOURCE TAB */}
                 <TabsContent value="add">
                   <Card className="border-primary/40">
@@ -2296,6 +2677,7 @@ export function KnowledgePage() {
                           key={String(s.id)}
                           source={s}
                           onDelete={handleDeleteSource}
+                          onRefresh={handleRefreshSource}
                           index={i + 1}
                         />
                       ))}

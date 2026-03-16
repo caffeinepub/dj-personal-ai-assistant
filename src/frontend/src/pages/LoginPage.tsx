@@ -22,7 +22,6 @@ export function LoginPage() {
   const [name, setName] = useState("");
   const [showNamePrompt, setShowNamePrompt] = useState(false);
 
-  // Consider authenticated for either fresh login or stored identity
   const isAuthenticated =
     loginStatus === "success" ||
     (loginStatus === "idle" &&
@@ -39,9 +38,20 @@ export function LoginPage() {
     }
   }, [isAuthenticated, profile, isProfileLoading, navigate]);
 
-  const handleLogin = async () => {
+  // Show login error toast
+  useEffect(() => {
+    if (loginStatus === "loginError") {
+      toast.error("Login failed. Please try again.");
+    }
+  }, [loginStatus]);
+
+  const handleLogin = () => {
+    if (loginStatus === "initializing") {
+      toast.error("Still initializing, please wait a moment and try again.");
+      return;
+    }
     try {
-      await login();
+      login();
     } catch (_error) {
       toast.error("Login failed. Please try again.");
     }
@@ -88,6 +98,7 @@ export function LoginPage() {
                 disabled={createProfile.isPending}
                 className="w-full bg-primary text-primary-foreground hover:bg-primary/90"
                 size="lg"
+                data-ocid="login.submit_button"
               >
                 {createProfile.isPending ? (
                   <>
@@ -104,6 +115,9 @@ export function LoginPage() {
       </div>
     );
   }
+
+  const isButtonDisabled =
+    loginStatus === "logging-in" || loginStatus === "initializing";
 
   return (
     <div className="flex min-h-screen flex-col items-center justify-center p-4">
@@ -128,11 +142,17 @@ export function LoginPage() {
         <CardContent>
           <Button
             onClick={handleLogin}
-            disabled={loginStatus === "logging-in"}
+            disabled={isButtonDisabled}
             className="w-full bg-primary text-primary-foreground hover:bg-primary/90"
             size="lg"
+            data-ocid="login.primary_button"
           >
-            {loginStatus === "logging-in" ? (
+            {loginStatus === "initializing" ? (
+              <>
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                Initializing...
+              </>
+            ) : loginStatus === "logging-in" ? (
               <>
                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                 Connecting...
@@ -141,6 +161,11 @@ export function LoginPage() {
               "Login with Internet Identity"
             )}
           </Button>
+          {loginStatus === "initializing" && (
+            <p className="mt-2 text-center text-xs text-muted-foreground">
+              Loading authentication system...
+            </p>
+          )}
         </CardContent>
       </Card>
 

@@ -156,3 +156,209 @@ export function extractTextFromHtml(html: string): string {
     .trim();
   return text;
 }
+
+// ─── Scheduled Knowledge Refresh ─────────────────────────────────────────────
+
+const REFRESH_META_KEY = "dj_knowledge_refresh_meta";
+
+export type RefreshInterval = "none" | "daily" | "weekly" | "monthly";
+
+export interface RefreshMeta {
+  lastRefreshed: number; // unix ms
+  interval: RefreshInterval;
+}
+
+export function getRefreshMeta(): Record<string, RefreshMeta> {
+  try {
+    return JSON.parse(localStorage.getItem(REFRESH_META_KEY) || "{}");
+  } catch {
+    return {};
+  }
+}
+
+export function setRefreshMeta(id: string, meta: RefreshMeta) {
+  const all = getRefreshMeta();
+  all[id] = meta;
+  localStorage.setItem(REFRESH_META_KEY, JSON.stringify(all));
+}
+
+export function isSourceStale(id: string): boolean {
+  const all = getRefreshMeta();
+  const meta = all[id];
+  if (!meta || meta.interval === "none") return false;
+  const now = Date.now();
+  const intervals: Record<string, number> = {
+    daily: 86400000,
+    weekly: 604800000,
+    monthly: 2592000000,
+  };
+  return now - meta.lastRefreshed > intervals[meta.interval];
+}
+
+export function getStaleSourceIds(sources: KnowledgeSource[]): string[] {
+  return sources
+    .filter((s) => s.sourceType === "website" && isSourceStale(String(s.id)))
+    .map((s) => String(s.id));
+}
+
+// ─── Followed Topics (Auto-Research Mode) ────────────────────────────────────
+
+const FOLLOWED_TOPICS_KEY = "dj_followed_topics";
+
+export function getFollowedTopics(): string[] {
+  try {
+    return JSON.parse(localStorage.getItem(FOLLOWED_TOPICS_KEY) || "[]");
+  } catch {
+    return [];
+  }
+}
+
+export function addFollowedTopic(topic: string) {
+  const topics = getFollowedTopics();
+  if (!topics.includes(topic)) {
+    localStorage.setItem(
+      FOLLOWED_TOPICS_KEY,
+      JSON.stringify([...topics, topic]),
+    );
+  }
+}
+
+export function removeFollowedTopic(topic: string) {
+  const topics = getFollowedTopics().filter((t) => t !== topic);
+  localStorage.setItem(FOLLOWED_TOPICS_KEY, JSON.stringify(topics));
+}
+
+export function generateTopicSuggestions(
+  topic: string,
+): Array<{ title: string; url: string; description: string }> {
+  const encoded = encodeURIComponent(topic);
+  const topicLower = topic.toLowerCase();
+
+  const curated: Record<
+    string,
+    Array<{ title: string; url: string; description: string }>
+  > = {
+    bitcoin: [
+      {
+        title: "Bitcoin - Wikipedia",
+        url: "https://en.wikipedia.org/wiki/Bitcoin",
+        description: "Comprehensive overview of Bitcoin and blockchain",
+      },
+      {
+        title: "Bitcoin.org",
+        url: "https://bitcoin.org/en/",
+        description: "Official Bitcoin project homepage",
+      },
+      {
+        title: "Bitcoin - Investopedia",
+        url: "https://www.investopedia.com/terms/b/bitcoin.asp",
+        description: "Financial guide to Bitcoin",
+      },
+      {
+        title: "CoinDesk Bitcoin News",
+        url: "https://www.coindesk.com/tag/bitcoin/",
+        description: "Latest Bitcoin news and analysis",
+      },
+    ],
+    ethereum: [
+      {
+        title: "Ethereum - Wikipedia",
+        url: "https://en.wikipedia.org/wiki/Ethereum",
+        description: "Complete guide to Ethereum blockchain",
+      },
+      {
+        title: "Ethereum.org",
+        url: "https://ethereum.org/en/",
+        description: "Official Ethereum foundation site",
+      },
+      {
+        title: "Ethereum Docs",
+        url: "https://ethereum.org/en/developers/docs/",
+        description: "Official Ethereum developer documentation",
+      },
+    ],
+    "artificial intelligence": [
+      {
+        title: "AI - Wikipedia",
+        url: "https://en.wikipedia.org/wiki/Artificial_intelligence",
+        description: "Comprehensive overview of AI",
+      },
+      {
+        title: "AI - Britannica",
+        url: "https://www.britannica.com/technology/artificial-intelligence",
+        description: "Encyclopedia article on AI",
+      },
+      {
+        title: "MIT CSAIL AI",
+        url: "https://www.csail.mit.edu/research/artificial-intelligence",
+        description: "MIT's AI research overview",
+      },
+      {
+        title: "AI News - BBC",
+        url: "https://www.bbc.com/news/topics/ce1qrvleleqt/artificial-intelligence",
+        description: "Latest AI news from BBC",
+      },
+    ],
+    cybersecurity: [
+      {
+        title: "Cybersecurity - Wikipedia",
+        url: "https://en.wikipedia.org/wiki/Computer_security",
+        description: "Overview of cybersecurity concepts",
+      },
+      {
+        title: "NIST Cybersecurity Framework",
+        url: "https://www.nist.gov/cyberframework",
+        description: "NIST's cybersecurity framework",
+      },
+      {
+        title: "Cybersecurity News - Krebs on Security",
+        url: "https://krebsonsecurity.com/",
+        description: "Leading cybersecurity news blog",
+      },
+    ],
+    finance: [
+      {
+        title: "Personal Finance - Investopedia",
+        url: "https://www.investopedia.com/personal-finance-4427760",
+        description: "Personal finance guide",
+      },
+      {
+        title: "Finance - Wikipedia",
+        url: "https://en.wikipedia.org/wiki/Finance",
+        description: "Overview of finance",
+      },
+      {
+        title: "Money - BBC",
+        url: "https://www.bbc.com/news/business/market-data",
+        description: "Financial news from BBC",
+      },
+    ],
+  };
+
+  for (const key of Object.keys(curated)) {
+    if (topicLower.includes(key)) return curated[key];
+  }
+
+  return [
+    {
+      title: `Wikipedia: ${topic}`,
+      url: `https://en.wikipedia.org/wiki/${encoded}`,
+      description: `Wikipedia article on ${topic}`,
+    },
+    {
+      title: `Britannica: ${topic}`,
+      url: `https://www.britannica.com/search?query=${encoded}`,
+      description: `Encyclopedia Britannica on ${topic}`,
+    },
+    {
+      title: `BBC News: ${topic}`,
+      url: `https://www.bbc.com/search?q=${encoded}`,
+      description: `BBC News coverage of ${topic}`,
+    },
+    {
+      title: `TechRadar: ${topic}`,
+      url: `https://www.techradar.com/search?searchTerm=${encoded}`,
+      description: `TechRadar articles on ${topic}`,
+    },
+  ];
+}

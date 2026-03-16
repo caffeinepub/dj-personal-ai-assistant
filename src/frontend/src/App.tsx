@@ -1,4 +1,5 @@
 import { Toaster } from "@/components/ui/sonner";
+import { ContextEngineProvider } from "./context/ContextEngineContext";
 import { useInternetIdentity } from "./hooks/useInternetIdentity";
 import { useUserProfile } from "./hooks/useQueries";
 import { BrowserRouter, Navigate, Route, Routes } from "./lib/router-shim";
@@ -13,6 +14,7 @@ import { NotesPage } from "./pages/NotesPage";
 import { ProfilePage } from "./pages/ProfilePage";
 import { SettingsPage } from "./pages/SettingsPage";
 import { SetupWizardPage } from "./pages/SetupWizardPage";
+import { SystemStatusPage } from "./pages/SystemStatusPage";
 import { TasksPage } from "./pages/TasksPage";
 import { TeachDJPage } from "./pages/TeachDJPage";
 import { WebsitePage } from "./pages/WebsitePage";
@@ -56,106 +58,116 @@ function App() {
   return (
     <>
       <BrowserRouter>
-        <Routes>
-          <Route path="/login" element={<LoginPage />} />
-          <Route path="/setup" element={<SetupWizardPage />} />
-          <Route
-            path="/"
-            element={
-              <ProtectedRoute>
-                <DashboardPage />
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path="/chat"
-            element={
-              <ProtectedRoute>
-                <ChatPage />
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path="/excel"
-            element={
-              <ProtectedRoute>
-                <ExcelPage />
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path="/coding"
-            element={
-              <ProtectedRoute>
-                <CodingPage />
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path="/website"
-            element={
-              <ProtectedRoute>
-                <WebsitePage />
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path="/profile"
-            element={
-              <ProtectedRoute>
-                <ProfilePage />
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path="/settings"
-            element={
-              <ProtectedRoute>
-                <SettingsPage />
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path="/teach"
-            element={
-              <ProtectedRoute>
-                <TeachDJPage />
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path="/knowledge"
-            element={
-              <ProtectedRoute>
-                <KnowledgePage />
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path="/tasks"
-            element={
-              <ProtectedRoute>
-                <TasksPage />
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path="/notes"
-            element={
-              <ProtectedRoute>
-                <NotesPage />
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path="/finance"
-            element={
-              <ProtectedRoute>
-                <FinancePage />
-              </ProtectedRoute>
-            }
-          />
-        </Routes>
+        <ContextEngineProvider>
+          <Routes>
+            <Route path="/login" element={<LoginPage />} />
+            <Route path="/setup" element={<SetupWizardPage />} />
+            <Route
+              path="/"
+              element={
+                <ProtectedRoute>
+                  <DashboardPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/chat"
+              element={
+                <ProtectedRoute>
+                  <ChatPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/excel"
+              element={
+                <ProtectedRoute>
+                  <ExcelPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/coding"
+              element={
+                <ProtectedRoute>
+                  <CodingPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/website"
+              element={
+                <ProtectedRoute>
+                  <WebsitePage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/profile"
+              element={
+                <ProtectedRoute>
+                  <ProfilePage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/settings"
+              element={
+                <ProtectedRoute>
+                  <SettingsPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/teach"
+              element={
+                <ProtectedRoute>
+                  <TeachDJPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/knowledge"
+              element={
+                <ProtectedRoute>
+                  <KnowledgePage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/tasks"
+              element={
+                <ProtectedRoute>
+                  <TasksPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/notes"
+              element={
+                <ProtectedRoute>
+                  <NotesPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/finance"
+              element={
+                <ProtectedRoute>
+                  <FinancePage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/system-status"
+              element={
+                <ProtectedRoute>
+                  <SystemStatusPage />
+                </ProtectedRoute>
+              }
+            />
+          </Routes>
+        </ContextEngineProvider>
       </BrowserRouter>
       <Toaster />
     </>

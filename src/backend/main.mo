@@ -131,6 +131,23 @@ actor {
     onboardingComplete : Bool;
   };
 
+
+  // ----- Chat Thread Types & Storage -----
+  type ChatThread = {
+    id : Nat;
+    name : Text;
+    moduleTag : ?Text;
+    createdAt : Time.Time;
+  };
+
+  type ThreadMessage = {
+    id : Nat;
+    threadId : Nat;
+    role : Text;
+    content : Text;
+    timestamp : Time.Time;
+  };
+
   module Memory {
     public func toTimestampOrder(memory1 : Memory, memory2 : Memory) : Order.Order {
       Int.compare(memory1.timestamp, memory2.timestamp);
@@ -186,6 +203,10 @@ actor {
   var nextFinanceEntryId = 1;
   var nextFolderId = 1;
   var nextWikiPageId = 1;
+  let userChatThreads = Map.empty<Principal, List.List<ChatThread>>();
+  let userThreadMessages = Map.empty<Principal, List.List<ThreadMessage>>();
+  var nextChatThreadId = 1;
+  var nextThreadMessageId = 1;
 
   // ----- Authorization -----
   let accessControlState = AccessControl.initState();
@@ -949,6 +970,113 @@ actor {
       case (?pages) {
         let filtered = pages.filter(func(p) { p.id != id });
         userWikiPages.add(caller, filtered);
+      };
+    };
+  };
+
+
+  // ----- Chat Threads -----
+  public shared ({ caller }) func createChatThread(name : Text, moduleTag : ?Text) : async Nat {
+    if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
+      Runtime.trap("Unauthorized");
+    };
+    let thread : ChatThread = {
+      id = nextChatThreadId;
+      name;
+      moduleTag;
+      createdAt = Time.now();
+    };
+    nextChatThreadId += 1;
+    let current = switch (userChatThreads.get(caller)) {
+      case (null) { List.empty<ChatThread>() };
+      case (?t) { t };
+    };
+    current.add(thread);
+    userChatThreads.add(caller, current);
+    thread.id
+  };
+
+  public query ({ caller }) func getChatThreads() : async [ChatThread] {
+    if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
+      Runtime.trap("Unauthorized");
+    };
+    switch (userChatThreads.get(caller)) {
+      case (null) { [] };
+      case (?threads) { threads.toArray() };
+    };
+  };
+
+  public shared ({ caller }) func deleteChatThread(id : Nat) : async () {
+    if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
+      Runtime.trap("Unauthorized");
+    };
+    switch (userChatThreads.get(caller)) {
+      case (null) { Runtime.trap("No threads found") };
+      case (?threads) {
+        let filtered = threads.filter(func(t) { t.id != id });
+        userChatThreads.add(caller, filtered);
+      };
+    };
+    // Also delete all messages for this thread
+    switch (userThreadMessages.get(caller)) {
+      case (null) {};
+      case (?msgs) {
+        let filtered = msgs.filter(func(m : ThreadMessage) : Bool { m.threadId != id });
+        userThreadMessages.add(caller, filtered);
+      };
+    };
+  };
+
+  public shared ({ caller }) func saveThreadMessage(threadId : Nat, role : Text, content : Text) : async () {
+    if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
+      Runtime.trap("Unauthorized");
+    };
+    let msg : ThreadMessage = {
+      id = nextThreadMessageId;
+      threadId;
+      role;
+      content;
+      timestamp = Time.now();
+    };
+    nextThreadMessageId += 1;
+    let current = switch (userThreadMessages.get(caller)) {
+      case (null) { List.empty<ThreadMessage>() };
+      case (?m) { m };
+    };
+    current.add(msg);
+    userThreadMessages.add(caller, current);
+  };
+
+  public query ({ caller }) func getThreadMessages(threadId : Nat, page : Nat, pageSize : Nat) : async [ThreadMessage] {
+    if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
+      Runtime.trap("Unauthorized");
+    };
+    switch (userThreadMessages.get(caller)) {
+      case (null) { [] };
+      case (?msgs) {
+        let forThread = msgs.toArray().filter(func(m : ThreadMessage) : Bool { m.threadId == threadId });
+        let sorted = forThread.sort(func(a : ThreadMessage, b : ThreadMessage) : Order.Order {
+          Int.compare(a.timestamp, b.timestamp)
+        });
+        let start = page * pageSize;
+        if (start >= sorted.size()) { return [] };
+        let end = Int.min(start + pageSize, sorted.size());
+        sorted.sliceToArray(start, end)
+      };
+    };
+  };
+
+  public shared ({ caller }) func deleteThreadMessage(threadId : Nat, messageId : Nat) : async () {
+    if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
+      Runtime.trap("Unauthorized");
+    };
+    switch (userThreadMessages.get(caller)) {
+      case (null) { Runtime.trap("No messages found") };
+      case (?msgs) {
+        let filtered = msgs.filter(func(m : ThreadMessage) : Bool {
+          not (m.threadId == threadId and m.id == messageId)
+        });
+        userThreadMessages.add(caller, filtered);
       };
     };
   };

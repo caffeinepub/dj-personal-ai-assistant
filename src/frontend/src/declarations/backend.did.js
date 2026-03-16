@@ -46,6 +46,19 @@ export const ChatMessage = IDL.Record({
   'role' : IDL.Text,
   'timestamp' : Time,
 });
+export const ChatThread = IDL.Record({
+  'id' : IDL.Nat,
+  'name' : IDL.Text,
+  'moduleTag' : IDL.Opt(IDL.Text),
+  'createdAt' : Time,
+});
+export const ThreadMessage = IDL.Record({
+  'id' : IDL.Nat,
+  'threadId' : IDL.Nat,
+  'role' : IDL.Text,
+  'content' : IDL.Text,
+  'timestamp' : Time,
+});
 export const CodeSnippet = IDL.Record({
   'id' : IDL.Nat,
   'title' : IDL.Text,
@@ -99,6 +112,20 @@ export const FinanceEntry = IDL.Record({
   'description' : IDL.Text,
   'entryDate' : Time,
   'createdAt' : Time,
+});
+export const KnowledgeFolder = IDL.Record({
+  'id' : IDL.Nat,
+  'name' : IDL.Text,
+  'parentId' : IDL.Opt(IDL.Nat),
+  'createdAt' : Time,
+});
+export const WikiPage = IDL.Record({
+  'id' : IDL.Nat,
+  'folderId' : IDL.Nat,
+  'overviewSection' : IDL.Text,
+  'keyConceptsSection' : IDL.Text,
+  'tipsSection' : IDL.Text,
+  'lastEditedAt' : Time,
 });
 
 export const idlService = IDL.Service({
@@ -166,6 +193,21 @@ export const idlService = IDL.Service({
   'addFinanceEntry' : IDL.Func([IDL.Int, IDL.Text, IDL.Text, Time], [], []),
   'getAllFinanceEntries' : IDL.Func([], [IDL.Vec(FinanceEntry)], ['query']),
   'deleteFinanceEntry' : IDL.Func([IDL.Nat], [], []),
+  // Knowledge Folders
+  'createFolder' : IDL.Func([IDL.Text, IDL.Opt(IDL.Nat)], [IDL.Nat], []),
+  'getFolders' : IDL.Func([], [IDL.Vec(KnowledgeFolder)], ['query']),
+  'deleteFolder' : IDL.Func([IDL.Nat], [], []),
+  // Wiki Pages
+  'saveWikiPage' : IDL.Func([IDL.Nat, IDL.Text, IDL.Text, IDL.Text], [], []),
+  'getWikiPageByFolder' : IDL.Func([IDL.Nat], [IDL.Opt(WikiPage)], ['query']),
+  'deleteWikiPage' : IDL.Func([IDL.Nat], [], []),
+  // Chat Threads
+  'createChatThread' : IDL.Func([IDL.Text, IDL.Opt(IDL.Text)], [IDL.Nat], []),
+  'getChatThreads' : IDL.Func([], [IDL.Vec(ChatThread)], ['query']),
+  'deleteChatThread' : IDL.Func([IDL.Nat], [], []),
+  'saveThreadMessage' : IDL.Func([IDL.Nat, IDL.Text, IDL.Text], [], []),
+  'getThreadMessages' : IDL.Func([IDL.Nat, IDL.Nat, IDL.Nat], [IDL.Vec(ThreadMessage)], ['query']),
+  'deleteThreadMessage' : IDL.Func([IDL.Nat, IDL.Nat], [], []),
 });
 
 export const idlInitArgs = [];
@@ -205,6 +247,19 @@ export const idlFactory = ({ IDL }) => {
     'id' : IDL.Nat,
     'content' : IDL.Text,
     'role' : IDL.Text,
+    'timestamp' : Time,
+  });
+  const ChatThread = IDL.Record({
+    'id' : IDL.Nat,
+    'name' : IDL.Text,
+    'moduleTag' : IDL.Opt(IDL.Text),
+    'createdAt' : Time,
+  });
+  const ThreadMessage = IDL.Record({
+    'id' : IDL.Nat,
+    'threadId' : IDL.Nat,
+    'role' : IDL.Text,
+    'content' : IDL.Text,
     'timestamp' : Time,
   });
   const CodeSnippet = IDL.Record({
@@ -350,6 +405,13 @@ export const idlFactory = ({ IDL }) => {
     'saveWikiPage' : IDL.Func([IDL.Nat, IDL.Text, IDL.Text, IDL.Text], [], []),
     'getWikiPageByFolder' : IDL.Func([IDL.Nat], [IDL.Opt(WikiPage)], ['query']),
     'deleteWikiPage' : IDL.Func([IDL.Nat], [], []),
+    // Chat Threads
+    'createChatThread' : IDL.Func([IDL.Text, IDL.Opt(IDL.Text)], [IDL.Nat], []),
+    'getChatThreads' : IDL.Func([], [IDL.Vec(ChatThread)], ['query']),
+    'deleteChatThread' : IDL.Func([IDL.Nat], [], []),
+    'saveThreadMessage' : IDL.Func([IDL.Nat, IDL.Text, IDL.Text], [], []),
+    'getThreadMessages' : IDL.Func([IDL.Nat, IDL.Nat, IDL.Nat], [IDL.Vec(ThreadMessage)], ['query']),
+    'deleteThreadMessage' : IDL.Func([IDL.Nat, IDL.Nat], [], []),
   });
 };
 

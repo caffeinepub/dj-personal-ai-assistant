@@ -6,6 +6,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import {
+  Activity,
   BookOpen,
   CheckSquare,
   Code,
@@ -21,12 +22,22 @@ import {
   StickyNote,
   User,
 } from "lucide-react";
+import { useEffect } from "react";
+import { useContextEngine } from "../context/ContextEngineContext";
 import { useInternetIdentity } from "../hooks/useInternetIdentity";
 import { Link, useLocation } from "../lib/router-shim";
+import { HudBackground } from "./HudBackground";
+import { ProactiveReminders } from "./ProactiveReminders";
 
 export function Layout({ children }: { children: React.ReactNode }) {
   const { clear } = useInternetIdentity();
   const location = useLocation();
+  const { logAction, setCurrentPage } = useContextEngine();
+
+  useEffect(() => {
+    logAction("page_visit", location.pathname);
+    setCurrentPage(location.pathname);
+  }, [location.pathname, logAction, setCurrentPage]);
 
   const allNavItems = [
     { path: "/", icon: Home, label: "Dashboard" },
@@ -40,6 +51,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
     { path: "/website", icon: Globe, label: "Web" },
     { path: "/settings", icon: Settings, label: "Settings" },
     { path: "/profile", icon: User, label: "Profile" },
+    { path: "/system-status", icon: Activity, label: "Status" },
   ];
 
   const mobileNavItems = [
@@ -58,6 +70,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
     { path: "/website", icon: Globe, label: "Website" },
     { path: "/settings", icon: Settings, label: "Settings" },
     { path: "/teach", icon: GraduationCap, label: "Teach DJ" },
+    { path: "/system-status", icon: Activity, label: "Status" },
   ];
 
   const isActive = (path: string) => location.pathname === path;
@@ -65,7 +78,9 @@ export function Layout({ children }: { children: React.ReactNode }) {
 
   return (
     <div className="flex min-h-screen flex-col">
-      <header className="glow-border sticky top-0 z-50 border-b border-primary/30 bg-card/95 backdrop-blur supports-[backdrop-filter]:bg-card/80">
+      <HudBackground />
+      <ProactiveReminders />
+      <header className="holo-border glow-border sticky top-0 z-50 border-b border-primary/30 bg-card/95 backdrop-blur supports-[backdrop-filter]:bg-card/80">
         <div className="container flex h-16 items-center justify-between px-4">
           <Link to="/" className="flex items-center gap-3">
             <span className="glow-text font-display text-3xl font-bold tracking-wider">
@@ -107,9 +122,9 @@ export function Layout({ children }: { children: React.ReactNode }) {
         </div>
       </header>
 
-      <main className="flex-1">{children}</main>
+      <main className="relative z-10 flex-1">{children}</main>
 
-      <nav className="glow-border fixed bottom-0 left-0 right-0 z-50 border-t border-primary/30 bg-card/95 backdrop-blur md:hidden">
+      <nav className="holo-border glow-border fixed bottom-0 left-0 right-0 z-50 border-t border-primary/30 bg-card/95 backdrop-blur md:hidden">
         <div className="flex items-center justify-around px-1 py-1">
           {mobileNavItems.map((item) => {
             const Icon = item.icon;

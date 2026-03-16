@@ -14,6 +14,19 @@ export interface ChatMessage {
   'role' : string,
   'timestamp' : Time,
 }
+export interface ChatThread {
+  'id' : bigint,
+  'name' : string,
+  'moduleTag' : [] | [string],
+  'createdAt' : Time,
+}
+export interface ThreadMessage {
+  'id' : bigint,
+  'threadId' : bigint,
+  'role' : string,
+  'content' : string,
+  'timestamp' : Time,
+}
 export interface CodeSnippet {
   'id' : bigint,
   'title' : string,
@@ -90,6 +103,20 @@ export interface FinanceEntry {
   'entryDate' : Time,
   'createdAt' : Time,
 }
+export interface KnowledgeFolder {
+  'id' : bigint,
+  'name' : string,
+  'parentId' : [] | [bigint],
+  'createdAt' : Time,
+}
+export interface WikiPage {
+  'id' : bigint,
+  'folderId' : bigint,
+  'overviewSection' : string,
+  'keyConceptsSection' : string,
+  'tipsSection' : string,
+  'lastEditedAt' : Time,
+}
 export interface _SERVICE {
   '_initializeAccessControlWithSecret' : ActorMethod<[string], undefined>,
   'activateModule' : ActorMethod<[string], undefined>,
@@ -143,6 +170,21 @@ export interface _SERVICE {
   'addFinanceEntry' : ActorMethod<[bigint, string, string, bigint], undefined>,
   'getAllFinanceEntries' : ActorMethod<[], Array<FinanceEntry>>,
   'deleteFinanceEntry' : ActorMethod<[bigint], undefined>,
+  // Knowledge Folders
+  'createFolder' : ActorMethod<[string, [] | [bigint]], bigint>,
+  'getFolders' : ActorMethod<[], Array<KnowledgeFolder>>,
+  'deleteFolder' : ActorMethod<[bigint], undefined>,
+  // Wiki Pages
+  'saveWikiPage' : ActorMethod<[bigint, string, string, string], undefined>,
+  'getWikiPageByFolder' : ActorMethod<[bigint], [] | [WikiPage]>,
+  'deleteWikiPage' : ActorMethod<[bigint], undefined>,
+  // Chat Threads
+  'createChatThread' : ActorMethod<[string, [] | [string]], bigint>,
+  'getChatThreads' : ActorMethod<[], Array<ChatThread>>,
+  'deleteChatThread' : ActorMethod<[bigint], undefined>,
+  'saveThreadMessage' : ActorMethod<[bigint, string, string], undefined>,
+  'getThreadMessages' : ActorMethod<[bigint, bigint, bigint], Array<ThreadMessage>>,
+  'deleteThreadMessage' : ActorMethod<[bigint, bigint], undefined>,
 }
 export declare const idlService: IDL.ServiceClass;
 export declare const idlInitArgs: IDL.Type[];

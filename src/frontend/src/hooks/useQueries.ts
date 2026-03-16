@@ -28,6 +28,22 @@ export interface WikiPage {
   tipsSection: string;
   lastEditedAt: bigint;
 }
+
+export interface ChatThread {
+  id: bigint;
+  name: string;
+  moduleTag: string | null;
+  createdAt: bigint;
+}
+
+export interface ThreadMessage {
+  id: bigint;
+  threadId: bigint;
+  role: string;
+  content: string;
+  timestamp: bigint;
+}
+
 import { useActor } from "./useActor";
 
 // Local type definitions for new modules (not yet in generated backend.ts)
@@ -833,5 +849,33 @@ export function useSaveWikiPage() {
         queryKey: ["wikiPage", variables.folderId.toString()],
       });
     },
+  });
+}
+
+// Chat Thread Queries
+export function useChatThreads() {
+  const { actor, isFetching } = useActor();
+  return useQuery<ChatThread[]>({
+    queryKey: ["chatThreads"],
+    queryFn: async () => {
+      if (!actor) return [];
+      const result = await (actor as any).getChatThreads();
+      return result as ChatThread[];
+    },
+    enabled: !!actor && !isFetching,
+  });
+}
+
+export function useThreadMessages(threadId: bigint | null) {
+  const { actor, isFetching } = useActor();
+  return useQuery<ThreadMessage[]>({
+    queryKey: ["threadMessages", threadId?.toString()],
+    queryFn: async () => {
+      if (!actor || threadId === null) return [];
+      const result = await (actor as any).getThreadMessages(threadId, 0n, 200n);
+      return result as ThreadMessage[];
+    },
+    enabled: !!actor && !isFetching && threadId !== null,
+    refetchInterval: 5000,
   });
 }

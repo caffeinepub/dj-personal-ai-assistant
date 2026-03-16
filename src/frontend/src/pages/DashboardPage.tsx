@@ -7,12 +7,20 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
 import {
   Activity,
   BookOpen,
   Brain,
   CheckSquare,
+  Cloud,
   Code,
   DollarSign,
   FileSpreadsheet,
@@ -20,7 +28,10 @@ import {
   GraduationCap,
   Mic,
   Settings,
+  Sparkles,
   StickyNote,
+  TrendingDown,
+  TrendingUp,
 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
@@ -31,12 +42,26 @@ import {
   useBehaviorRules,
   useCustomCommands,
   useDeactivateModule,
+  useFinanceEntries,
   useImprovementLogs,
   useMemories,
+  useTasks,
   useUserProfile,
 } from "../hooks/useQueries";
 import { Link } from "../lib/router-shim";
 import { isKnowledgeSource } from "../utils/knowledgeSources";
+
+function getTodayDateKey() {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
+
+function getGreeting() {
+  const h = new Date().getHours();
+  if (h < 12) return "Good morning";
+  if (h < 17) return "Good afternoon";
+  return "Good evening";
+}
 
 export function DashboardPage() {
   const { data: profile } = useUserProfile();
@@ -45,6 +70,8 @@ export function DashboardPage() {
   const { data: commands = [] } = useCustomCommands();
   const { data: logs = [] } = useImprovementLogs();
   const { data: rules = [] } = useBehaviorRules();
+  const { data: tasks = [] } = useTasks();
+  const { data: financeEntries = [] } = useFinanceEntries();
 
   const knowledgeSourceCount = memories.filter(isKnowledgeSource).length;
   const regularMemoryCount = memories.filter(
@@ -54,11 +81,60 @@ export function DashboardPage() {
   const deactivateModule = useDeactivateModule();
 
   const [currentTime, setCurrentTime] = useState(new Date());
+  const [briefingOpen, setBriefingOpen] = useState(false);
+  const [weatherCity, setWeatherCity] = useState(
+    () => localStorage.getItem("dj_weather_city") || "",
+  );
+  const [weatherInput, setWeatherInput] = useState(
+    () => localStorage.getItem("dj_weather_city") || "",
+  );
 
   useEffect(() => {
     const timer = setInterval(() => setCurrentTime(new Date()), 1000);
     return () => clearInterval(timer);
   }, []);
+
+  // Auto-show briefing once per day
+  useEffect(() => {
+    const key = `dj_briefing_dismissed_${getTodayDateKey()}`;
+    if (!localStorage.getItem(key)) {
+      const t = setTimeout(() => setBriefingOpen(true), 500);
+      return () => clearTimeout(t);
+    }
+  }, []);
+
+  const dismissBriefing = () => {
+    localStorage.setItem(`dj_briefing_dismissed_${getTodayDateKey()}`, "1");
+    setBriefingOpen(false);
+  };
+
+  // Today's tasks
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const todayEnd = new Date(today);
+  todayEnd.setHours(23, 59, 59, 999);
+  const todayTasks = tasks.filter((t) => {
+    if (t.completed) return false;
+    if (!t.deadline) return false;
+    const dl = new Date(Number(t.deadline) / 1_000_000);
+    return dl >= today && dl <= todayEnd;
+  });
+
+  // Finance summary for current month
+  const now = new Date();
+  const monthStart = new Date(now.getFullYear(), now.getMonth(), 1).getTime();
+  const monthEntries = financeEntries.filter(
+    (e) => Number(e.entryDate) / 1_000_000 >= monthStart,
+  );
+  const totalIncome = monthEntries
+    .filter((e) => Number(e.amount) > 0)
+    .reduce((sum, e) => sum + Number(e.amount), 0);
+  const totalExpenses = monthEntries
+    .filter((e) => Number(e.amount) < 0)
+    .reduce((sum, e) => sum + Math.abs(Number(e.amount)), 0);
+  const balance = totalIncome - totalExpenses;
+
+  const formatAmount = (cents: number) => `₹${(cents / 100).toFixed(2)}`;
 
   const modules = [
     {
@@ -217,8 +293,18 @@ export function DashboardPage() {
             Welcome back, {profile?.name || "User"}
           </h1>
           <p className="text-lg text-muted-foreground">
-            I'm DJ, your personal AI assistant. How can I help you today?
+            I&apos;m DJ, your personal AI assistant. How can I help you today?
           </p>
+          <div className="mt-6">
+            <Button
+              data-ocid="dashboard.briefing_button"
+              onClick={() => setBriefingOpen(true)}
+              className="bg-primary/90 hover:bg-primary gap-2"
+            >
+              <Sparkles className="h-4 w-4" />
+              Get Today&apos;s Briefing
+            </Button>
+          </div>
         </div>
 
         <div className="grid gap-8 lg:grid-cols-3">
@@ -229,7 +315,7 @@ export function DashboardPage() {
                 Voice Interface
               </CardTitle>
               <CardDescription>
-                Say "Hey DJ" to activate voice commands
+                Say &quot;Hey DJ&quot; to activate voice commands
               </CardDescription>
             </CardHeader>
             <CardContent className="flex flex-col items-center justify-center py-12">
@@ -339,12 +425,18 @@ export function DashboardPage() {
                           }`}
                         >
                           <Icon
-                            className={`h-6 w-6 ${isActive ? "text-primary" : "text-muted-foreground"}`}
+                            className={`h-6 w-6 ${
+                              isActive
+                                ? "text-primary"
+                                : "text-muted-foreground"
+                            }`}
                           />
                         </div>
                         <div>
                           <CardTitle
-                            className={`text-lg ${isActive ? "text-primary" : ""}`}
+                            className={`text-lg ${
+                              isActive ? "text-primary" : ""
+                            }`}
                           >
                             {module.name}
                           </CardTitle>
@@ -406,6 +498,177 @@ export function DashboardPage() {
           </CardContent>
         </Card>
       </div>
+
+      {/* Daily Briefing Dialog */}
+      <Dialog open={briefingOpen} onOpenChange={setBriefingOpen}>
+        <DialogContent
+          className="max-w-lg border-primary/40 bg-card/95 backdrop-blur"
+          data-ocid="dashboard.briefing.dialog"
+          style={{ boxShadow: "0 0 40px oklch(0.65 0.25 220 / 0.25)" }}
+        >
+          <DialogHeader>
+            <DialogTitle className="font-display text-2xl glow-text">
+              {getGreeting()}, {profile?.name || "there"} ✨
+            </DialogTitle>
+          </DialogHeader>
+
+          <div className="space-y-5 py-2">
+            {/* Today's Tasks */}
+            <div className="rounded-lg border border-primary/20 bg-primary/5 p-4">
+              <div className="mb-3 flex items-center gap-2">
+                <CheckSquare className="h-4 w-4 text-primary" />
+                <h3 className="font-semibold text-primary">
+                  Today&apos;s Tasks
+                </h3>
+                <Badge className="bg-primary/20 text-primary text-xs">
+                  {todayTasks.length}
+                </Badge>
+              </div>
+              {todayTasks.length === 0 ? (
+                <p className="text-sm text-muted-foreground">
+                  No tasks due today. 🎉
+                </p>
+              ) : (
+                <ul className="space-y-1.5">
+                  {todayTasks.slice(0, 5).map((task) => (
+                    <li
+                      key={task.id.toString()}
+                      className="flex items-start gap-2 text-sm"
+                    >
+                      <span className="mt-0.5 h-1.5 w-1.5 shrink-0 rounded-full bg-primary" />
+                      <span>{task.title}</span>
+                      {task.deadline && (
+                        <span className="ml-auto shrink-0 text-xs text-muted-foreground">
+                          {new Date(
+                            Number(task.deadline) / 1_000_000,
+                          ).toLocaleTimeString([], {
+                            hour: "2-digit",
+                            minute: "2-digit",
+                          })}
+                        </span>
+                      )}
+                    </li>
+                  ))}
+                  {todayTasks.length > 5 && (
+                    <li className="text-xs text-muted-foreground">
+                      +{todayTasks.length - 5} more
+                    </li>
+                  )}
+                </ul>
+              )}
+            </div>
+
+            {/* Finance Summary */}
+            <div className="rounded-lg border border-secondary/20 bg-secondary/5 p-4">
+              <div className="mb-3 flex items-center gap-2">
+                <DollarSign className="h-4 w-4 text-secondary" />
+                <h3 className="font-semibold text-secondary">
+                  Finance This Month
+                </h3>
+              </div>
+              <div className="grid grid-cols-3 gap-3 text-center">
+                <div className="rounded-md bg-green-500/10 p-2">
+                  <TrendingUp className="mx-auto h-4 w-4 text-green-400" />
+                  <p className="mt-1 text-xs text-muted-foreground">Income</p>
+                  <p className="text-sm font-bold text-green-400">
+                    {formatAmount(totalIncome)}
+                  </p>
+                </div>
+                <div className="rounded-md bg-red-500/10 p-2">
+                  <TrendingDown className="mx-auto h-4 w-4 text-red-400" />
+                  <p className="mt-1 text-xs text-muted-foreground">Expenses</p>
+                  <p className="text-sm font-bold text-red-400">
+                    {formatAmount(totalExpenses)}
+                  </p>
+                </div>
+                <div
+                  className={`rounded-md p-2 ${balance >= 0 ? "bg-green-500/10" : "bg-red-500/10"}`}
+                >
+                  <DollarSign
+                    className={`mx-auto h-4 w-4 ${balance >= 0 ? "text-green-400" : "text-red-400"}`}
+                  />
+                  <p className="mt-1 text-xs text-muted-foreground">Balance</p>
+                  <p
+                    className={`text-sm font-bold ${balance >= 0 ? "text-green-400" : "text-red-400"}`}
+                  >
+                    {balance >= 0 ? "+" : ""}
+                    {formatAmount(Math.abs(balance))}
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            {/* Weather */}
+            <div className="rounded-lg border border-muted/40 bg-muted/10 p-4">
+              <div className="mb-3 flex items-center gap-2">
+                <Cloud className="h-4 w-4 text-muted-foreground" />
+                <h3 className="font-semibold text-muted-foreground">Weather</h3>
+              </div>
+              {weatherCity ? (
+                <p className="mb-3 text-sm text-muted-foreground">
+                  City saved:{" "}
+                  <span className="text-foreground font-medium">
+                    {weatherCity}
+                  </span>{" "}
+                  &mdash; live weather requires an external API.
+                </p>
+              ) : (
+                <p className="mb-3 text-sm text-muted-foreground">
+                  Weather data not available &mdash; enter your city below.
+                </p>
+              )}
+              <div className="flex gap-2">
+                <Input
+                  data-ocid="dashboard.weather.input"
+                  placeholder="Enter city name"
+                  value={weatherInput}
+                  onChange={(e) => setWeatherInput(e.target.value)}
+                  className="flex-1 border-muted/40 bg-card/50 text-sm"
+                />
+                <Button
+                  data-ocid="dashboard.weather.button"
+                  size="sm"
+                  variant="outline"
+                  className="border-muted/40"
+                  onClick={() => {
+                    if (weatherInput.trim()) {
+                      localStorage.setItem(
+                        "dj_weather_city",
+                        weatherInput.trim(),
+                      );
+                      setWeatherCity(weatherInput.trim());
+                    }
+                    toast.info(
+                      "Weather lookup not supported — no external APIs available. City saved for reference.",
+                    );
+                  }}
+                >
+                  Check
+                </Button>
+              </div>
+            </div>
+          </div>
+
+          <div className="flex justify-end gap-2 pt-2">
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setBriefingOpen(false)}
+              className="text-muted-foreground"
+            >
+              Close
+            </Button>
+            <Button
+              data-ocid="dashboard.briefing.dismiss_button"
+              size="sm"
+              onClick={dismissBriefing}
+              className="bg-primary/20 text-primary hover:bg-primary/30 border border-primary/30"
+            >
+              Dismiss for today
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </Layout>
   );
 }

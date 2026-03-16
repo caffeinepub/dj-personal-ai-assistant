@@ -29,6 +29,7 @@ import {
 import { useState } from "react";
 import { toast } from "sonner";
 import { Layout } from "../components/Layout";
+import { useContextEngine } from "../context/ContextEngineContext";
 import {
   type Note,
   useAddNote,
@@ -55,6 +56,7 @@ function formatDate(ts: bigint): string {
 
 export function NotesPage() {
   const { data: notes = [], isLoading } = useNotes();
+  const { logAction } = useContextEngine();
   const addNote = useAddNote();
   const updateNote = useUpdateNote();
   const deleteNote = useDeleteNote();
@@ -94,6 +96,7 @@ export function NotesPage() {
       setTitle("");
       setContent("");
       setTags("");
+      logAction("note_added", title);
       toast.success("Note saved");
     } catch {
       toast.error("Failed to save note");

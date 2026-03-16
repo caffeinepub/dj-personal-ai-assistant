@@ -173,7 +173,7 @@ const QUICK_RULE_SHORTCUTS = [
   "End with next action steps",
 ];
 
-const WORK_STYLES = [
+const _WORK_STYLES = [
   { value: "solo", label: "Solo" },
   { value: "collaborative", label: "Collaborative" },
   { value: "mixed", label: "Mixed" },
@@ -206,9 +206,9 @@ export function SettingsPage() {
   const [editLocation, setEditLocation] = useState("");
   const [editGoal, setEditGoal] = useState("");
   const [editInterests, setEditInterests] = useState("");
-  const [editWorkStyle, setEditWorkStyle] = useState("solo");
+  const [editWorkStyle, _setEditWorkStyle] = useState("solo");
   const [editProjects, setEditProjects] = useState("");
-  const [isSavingProfile, setIsSavingProfile] = useState(false);
+  const [_isSavingProfile, _setIsSavingProfile] = useState(false);
 
   // Response style state
   const [formalitySlider, setFormalitySlider] = useState([50]);
@@ -352,8 +352,8 @@ export function SettingsPage() {
     }
   };
 
-  const handleSaveProfile = async () => {
-    setIsSavingProfile(true);
+  const _handleSaveProfile = async () => {
+    _setIsSavingProfile(true);
     try {
       const preferences = [
         editProfession && `Profession: ${editProfession}`,
@@ -389,7 +389,7 @@ export function SettingsPage() {
     } catch (_e) {
       toast.error("Failed to save profile");
     } finally {
-      setIsSavingProfile(false);
+      _setIsSavingProfile(false);
     }
   };
 
@@ -760,113 +760,123 @@ export function SettingsPage() {
         {/* ─── Section F: About You Form ─── */}
         <Section title="Tell DJ About Yourself">
           <div className="space-y-4 rounded-lg border border-muted bg-card/30 p-5">
+            <p className="text-sm text-muted-foreground">
+              These details can only be updated through the Teach DJ module.
+            </p>
             <div className="grid gap-4 sm:grid-cols-2">
               <div className="space-y-1">
-                <Label>Your Name</Label>
-                <Input
-                  value={editName}
-                  onChange={(e) => setEditName(e.target.value)}
-                  className="border-primary/40 bg-background/80 focus:border-primary focus:ring-1 focus:ring-primary text-foreground placeholder:text-muted-foreground"
-                  placeholder="e.g. Alex"
-                  autoComplete="off"
-                  data-ocid="settings.name.input"
-                />
-              </div>
-              <div className="space-y-1">
-                <Label>Profession / Role</Label>
-                <Input
-                  value={editProfession}
-                  onChange={(e) => setEditProfession(e.target.value)}
-                  className="border-primary/40 bg-background/80 focus:border-primary focus:ring-1 focus:ring-primary text-foreground placeholder:text-muted-foreground"
-                  placeholder="e.g. Designer"
-                  autoComplete="off"
-                  data-ocid="settings.profession.input"
-                />
-              </div>
-              <div className="space-y-1">
-                <Label>
-                  Location{" "}
-                  <span className="text-xs text-muted-foreground">
-                    (optional)
-                  </span>
+                <Label className="text-xs text-muted-foreground">
+                  Your Name
                 </Label>
-                <Input
-                  value={editLocation}
-                  onChange={(e) => setEditLocation(e.target.value)}
-                  className="border-primary/40 bg-background/80 focus:border-primary focus:ring-1 focus:ring-primary text-foreground placeholder:text-muted-foreground"
-                  placeholder="e.g. London"
-                  autoComplete="off"
-                  data-ocid="settings.location.input"
-                />
+                <p
+                  className="text-sm text-foreground font-medium min-h-[1.5rem]"
+                  data-ocid="settings.name.panel"
+                >
+                  {editName || (
+                    <span className="text-muted-foreground italic">
+                      Not set
+                    </span>
+                  )}
+                </p>
               </div>
               <div className="space-y-1">
-                <Label>Main Goal</Label>
-                <Input
-                  value={editGoal}
-                  onChange={(e) => setEditGoal(e.target.value)}
-                  className="border-primary/40 bg-background/80 focus:border-primary focus:ring-1 focus:ring-primary text-foreground placeholder:text-muted-foreground"
-                  placeholder="e.g. Launch my startup"
-                  autoComplete="off"
-                  data-ocid="settings.goal.input"
-                />
+                <Label className="text-xs text-muted-foreground">
+                  Profession / Role
+                </Label>
+                <p
+                  className="text-sm text-foreground font-medium min-h-[1.5rem]"
+                  data-ocid="settings.profession.panel"
+                >
+                  {editProfession || (
+                    <span className="text-muted-foreground italic">
+                      Not set
+                    </span>
+                  )}
+                </p>
+              </div>
+              <div className="space-y-1">
+                <Label className="text-xs text-muted-foreground">
+                  Location
+                </Label>
+                <p
+                  className="text-sm text-foreground font-medium min-h-[1.5rem]"
+                  data-ocid="settings.location.panel"
+                >
+                  {editLocation || (
+                    <span className="text-muted-foreground italic">
+                      Not set
+                    </span>
+                  )}
+                </p>
+              </div>
+              <div className="space-y-1">
+                <Label className="text-xs text-muted-foreground">
+                  Main Goal
+                </Label>
+                <p
+                  className="text-sm text-foreground font-medium min-h-[1.5rem]"
+                  data-ocid="settings.goal.panel"
+                >
+                  {editGoal || (
+                    <span className="text-muted-foreground italic">
+                      Not set
+                    </span>
+                  )}
+                </p>
               </div>
             </div>
-            <div className="space-y-1">
-              <Label>Key Interests</Label>
-              <Textarea
-                value={editInterests}
-                onChange={(e) => setEditInterests(e.target.value)}
-                className="border-primary/40 bg-background/80 focus:border-primary focus:ring-1 focus:ring-primary text-foreground placeholder:text-muted-foreground"
-                placeholder="e.g. AI, fitness, jazz music..."
-                rows={2}
-                data-ocid="settings.interests.textarea"
-              />
-            </div>
-            <div className="space-y-2">
-              <Label>Work Style</Label>
-              <div className="flex gap-2">
-                {WORK_STYLES.map(({ value, label }) => (
-                  <button
-                    key={value}
-                    type="button"
-                    onClick={() => setEditWorkStyle(value)}
-                    className={`rounded-md border px-4 py-2 text-sm transition-all ${
-                      editWorkStyle === value
-                        ? "border-primary bg-primary/15 text-primary"
-                        : "border-muted text-muted-foreground hover:border-primary/40"
-                    }`}
-                  >
-                    {label}
-                  </button>
-                ))}
+            {editInterests && (
+              <div className="space-y-1">
+                <Label className="text-xs text-muted-foreground">
+                  Key Interests
+                </Label>
+                <p
+                  className="text-sm text-foreground font-medium"
+                  data-ocid="settings.interests.panel"
+                >
+                  {editInterests}
+                </p>
               </div>
-            </div>
-            <div className="space-y-1">
-              <Label>Current Projects</Label>
-              <Textarea
-                value={editProjects}
-                onChange={(e) => setEditProjects(e.target.value)}
-                className="border-primary/40 bg-background/80 focus:border-primary focus:ring-1 focus:ring-primary text-foreground placeholder:text-muted-foreground"
-                placeholder="e.g. Building a SaaS app, writing a book..."
-                rows={2}
-                data-ocid="settings.projects.textarea"
-              />
-            </div>
-            <Button
-              className="w-full bg-primary"
-              onClick={handleSaveProfile}
-              disabled={isSavingProfile}
-              style={{ boxShadow: "0 0 15px oklch(0.65 0.25 220 / 0.3)" }}
-              data-ocid="settings.profile.submit_button"
-            >
-              {isSavingProfile ? (
-                <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Saving...
-                </>
-              ) : (
-                "Save & Teach DJ"
-              )}
-            </Button>
+            )}
+            {editWorkStyle && (
+              <div className="space-y-1">
+                <Label className="text-xs text-muted-foreground">
+                  Work Style
+                </Label>
+                <p
+                  className="text-sm text-foreground font-medium capitalize"
+                  data-ocid="settings.workstyle.panel"
+                >
+                  {editWorkStyle}
+                </p>
+              </div>
+            )}
+            {editProjects && (
+              <div className="space-y-1">
+                <Label className="text-xs text-muted-foreground">
+                  Current Projects
+                </Label>
+                <p
+                  className="text-sm text-foreground font-medium"
+                  data-ocid="settings.projects.panel"
+                >
+                  {editProjects}
+                </p>
+              </div>
+            )}
+            <Link to="/teach">
+              <Button
+                className="w-full"
+                variant="outline"
+                style={{
+                  borderColor: "oklch(0.65 0.25 220 / 0.5)",
+                  color: "oklch(0.65 0.25 220)",
+                }}
+                data-ocid="settings.profile.edit_button"
+              >
+                Edit in Teach DJ
+              </Button>
+            </Link>
           </div>
         </Section>
 

@@ -17,6 +17,7 @@ import { AlertTriangle, CheckSquare, Clock, Plus, Trash2 } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
 import { Layout } from "../components/Layout";
+import { useContextEngine } from "../context/ContextEngineContext";
 import {
   type Task,
   useAddTask,
@@ -69,6 +70,7 @@ function isDueToday(task: Task): boolean {
 
 export function TasksPage() {
   const { data: tasks = [], isLoading } = useTasks();
+  const { logAction } = useContextEngine();
   const addTask = useAddTask();
   const deleteTask = useDeleteTask();
   const updateCompletion = useUpdateTaskCompletion();
@@ -119,6 +121,7 @@ export function TasksPage() {
       setDescription("");
       setDeadline("");
       setPriority("Medium");
+      logAction("task_added", title);
       toast.success("Task added");
     } catch {
       toast.error("Failed to add task");

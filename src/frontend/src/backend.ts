@@ -827,6 +827,32 @@ export class Backend implements backendInterface {
     async deleteWikiPage(id: bigint): Promise<void> {
         await (this.actor as any).deleteWikiPage(id);
     }
+    // Chat Threads
+    async createChatThread(name: string, moduleTag: string | null): Promise<bigint> {
+        const candid_moduleTag: [] | [string] = moduleTag === null ? [] : [moduleTag];
+        const result = await (this.actor as any).createChatThread(name, candid_moduleTag);
+        return result as bigint;
+    }
+    async getChatThreads(): Promise<Array<any>> {
+        const result = await (this.actor as any).getChatThreads();
+        return (result as Array<any>).map((t: any) => ({
+            ...t,
+            moduleTag: t.moduleTag.length === 0 ? null : t.moduleTag[0],
+        }));
+    }
+    async deleteChatThread(id: bigint): Promise<void> {
+        await (this.actor as any).deleteChatThread(id);
+    }
+    async saveThreadMessage(threadId: bigint, role: string, content: string): Promise<void> {
+        await (this.actor as any).saveThreadMessage(threadId, role, content);
+    }
+    async getThreadMessages(threadId: bigint, page: bigint, pageSize: bigint): Promise<Array<any>> {
+        const result = await (this.actor as any).getThreadMessages(threadId, page, pageSize);
+        return result as Array<any>;
+    }
+    async deleteThreadMessage(threadId: bigint, messageId: bigint): Promise<void> {
+        await (this.actor as any).deleteThreadMessage(threadId, messageId);
+    }
 
 }
 function from_candid_ExcelFile_n7(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: _ExcelFile): ExcelFile {

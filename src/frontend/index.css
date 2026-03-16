@@ -132,3 +132,62 @@
     clip-path: polygon(30% 0%, 70% 0%, 100% 50%, 70% 100%, 30% 100%, 0% 50%);
   }
 }
+
+  /* ── HUD Iron Man Animations ─────────────────────────────────── */
+  @keyframes hud-ring-rotate {
+    from { transform: rotate(0deg); }
+    to { transform: rotate(360deg); }
+  }
+  @keyframes hud-ring-rotate-reverse {
+    from { transform: rotate(360deg); }
+    to { transform: rotate(0deg); }
+  }
+  @keyframes hud-scan {
+    0% { transform: translateY(-100%); opacity: 0; }
+    10% { opacity: 0.6; }
+    90% { opacity: 0.6; }
+    100% { transform: translateY(100vh); opacity: 0; }
+  }
+  @keyframes holo-shimmer {
+    0%, 100% { border-color: oklch(0.65 0.25 220 / 0.4); box-shadow: 0 0 8px oklch(0.65 0.25 220 / 0.2); }
+    50% { border-color: oklch(0.75 0.18 195 / 0.6); box-shadow: 0 0 16px oklch(0.75 0.18 195 / 0.3); }
+  }
+  @keyframes bracket-pulse {
+    0%, 100% { opacity: 0.5; }
+    50% { opacity: 1; }
+  }
+  @keyframes data-stream {
+    0% { transform: translateY(0); opacity: 1; }
+    100% { transform: translateY(-20px); opacity: 0; }
+  }
+  @keyframes status-blink {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.3; }
+  }
+
+  .holo-border {
+    border: 1px solid oklch(0.65 0.25 220 / 0.4);
+    animation: holo-shimmer 4s ease-in-out infinite;
+    position: relative;
+  }
+  .holo-border::before, .holo-border::after {
+    content: '';
+    position: absolute;
+    width: 12px;
+    height: 12px;
+    animation: bracket-pulse 2s ease-in-out infinite;
+    pointer-events: none;
+  }
+  .holo-border::before {
+    top: -1px; left: -1px;
+    border-top: 2px solid oklch(0.75 0.18 195 / 0.9);
+    border-left: 2px solid oklch(0.75 0.18 195 / 0.9);
+  }
+  .holo-border::after {
+    bottom: -1px; right: -1px;
+    border-bottom: 2px solid oklch(0.75 0.18 195 / 0.9);
+    border-right: 2px solid oklch(0.75 0.18 195 / 0.9);
+  }
+  .status-active {
+    animation: status-blink 2s ease-in-out infinite;
+  }

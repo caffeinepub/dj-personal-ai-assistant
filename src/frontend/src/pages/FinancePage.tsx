@@ -21,6 +21,7 @@ import {
 import { useMemo, useState } from "react";
 import { toast } from "sonner";
 import { Layout } from "../components/Layout";
+import { useContextEngine } from "../context/ContextEngineContext";
 import {
   type FinanceEntry,
   useAddFinanceEntry,
@@ -66,6 +67,7 @@ function formatMonth(ym: string): string {
 
 export function FinancePage() {
   const { data: entries = [], isLoading } = useFinanceEntries();
+  const { logAction } = useContextEngine();
   const addEntry = useAddFinanceEntry();
   const deleteEntry = useDeleteFinanceEntry();
 
@@ -164,6 +166,7 @@ export function FinancePage() {
       setAmount("");
       setDescription("");
       setDate(new Date().toISOString().slice(0, 10));
+      logAction("finance_entry_added", category);
       toast.success(`${type === "income" ? "Income" : "Expense"} recorded`);
     } catch {
       toast.error("Failed to record transaction");
