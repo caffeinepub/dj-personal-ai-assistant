@@ -23,6 +23,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Sheet, SheetContent } from "@/components/ui/sheet";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import {
@@ -51,7 +52,7 @@ import {
   Wand2,
   X,
 } from "lucide-react";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import { Layout } from "../components/Layout";
 import type { KnowledgeFolder } from "../hooks/useQueries";
@@ -1814,36 +1815,53 @@ export function KnowledgePage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedCategory, setSelectedCategory] = useState("All");
 
-  const knowledgeSources: KnowledgeSource[] = memories
-    .map(parseKnowledgeSource)
-    .filter((s): s is KnowledgeSource => s !== null);
+  const knowledgeSources: KnowledgeSource[] = useMemo(
+    () =>
+      memories
+        .map(parseKnowledgeSource)
+        .filter((s): s is KnowledgeSource => s !== null),
+    [memories],
+  );
 
-  // Build source counts per folder
-  const sourceCounts: Record<string, number> = {};
-  for (const s of knowledgeSources) {
-    if (s.folderId) {
-      sourceCounts[s.folderId] = (sourceCounts[s.folderId] ?? 0) + 1;
-    }
-  }
-
-  // Filter sources based on selected folder
-  const folderFilteredSources =
-    selectedFolderId === null
-      ? knowledgeSources
-      : knowledgeSources.filter((s) => s.folderId === selectedFolderId);
-
-  const searchFiltered = searchKnowledgeSources(
+  const {
+    sourceCounts,
     folderFilteredSources,
-    searchQuery,
-  );
-  const filteredSources =
-    selectedCategory === "All"
-      ? searchFiltered
-      : searchFiltered.filter((s) => s.category === selectedCategory);
+    filteredSources,
+    storedCategories,
+  } = useMemo(() => {
+    const sourceCounts: Record<string, number> = {};
+    for (const s of knowledgeSources) {
+      if (s.folderId) {
+        sourceCounts[s.folderId] = (sourceCounts[s.folderId] ?? 0) + 1;
+      }
+    }
 
-  const storedCategories = Array.from(
-    new Set(folderFilteredSources.map((s) => s.category).filter(Boolean)),
-  );
+    const folderFilteredSources =
+      selectedFolderId === null
+        ? knowledgeSources
+        : knowledgeSources.filter((s) => s.folderId === selectedFolderId);
+
+    const searchFiltered = searchKnowledgeSources(
+      folderFilteredSources,
+      searchQuery,
+    );
+    const filteredSources =
+      selectedCategory === "All"
+        ? searchFiltered
+        : searchFiltered.filter((s) => s.category === selectedCategory);
+
+    const storedCategories = Array.from(
+      new Set(folderFilteredSources.map((s) => s.category).filter(Boolean)),
+    );
+
+    return {
+      sourceCounts,
+      folderFilteredSources,
+      searchFiltered,
+      filteredSources,
+      storedCategories,
+    };
+  }, [knowledgeSources, selectedFolderId, searchQuery, selectedCategory]);
 
   const handleDeleteSource = async (id: bigint, title: string) => {
     try {
@@ -2234,12 +2252,28 @@ export function KnowledgePage() {
         </button>
 
         <div className="flex gap-6">
-          {/* Folder Sidebar (desktop always visible, mobile collapsible) */}
-          <aside
-            className={`${
-              folderPanelOpen ? "block" : "hidden"
-            } w-full md:block md:w-56 lg:w-64 shrink-0`}
-          >
+          {/* Folder Sidebar: Sheet on mobile, inline on desktop */}
+          <Sheet open={folderPanelOpen} onOpenChange={setFolderPanelOpen}>
+            <SheetContent side="left" className="w-72 p-0 md:hidden">
+              <div className="p-3 pt-6">
+                <p className="mb-2 px-1 text-xs font-semibold uppercase tracking-wider text-muted-foreground/60">
+                  Folders
+                </p>
+                <FolderTree
+                  folders={folders}
+                  selectedFolderId={selectedFolderId}
+                  onSelect={(id) => {
+                    setSelectedFolderId(id);
+                    setFolderPanelOpen(false);
+                  }}
+                  onDelete={(id, name) => setDeletingFolder({ id, name })}
+                  onCreate={handleCreateFolder}
+                  sourceCounts={sourceCounts}
+                />
+              </div>
+            </SheetContent>
+          </Sheet>
+          <aside className="hidden md:block md:w-56 lg:w-64 shrink-0">
             <div className="rounded-xl border border-primary/30 bg-card/50 p-3">
               <p className="mb-2 px-1 text-xs font-semibold uppercase tracking-wider text-muted-foreground/60">
                 Folders

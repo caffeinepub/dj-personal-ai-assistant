@@ -2,8 +2,7 @@ import { Button } from "@/components/ui/button";
 import { AlertTriangle, Bell, X } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
-import { useActor } from "../hooks/useActor";
-import type { Task } from "../hooks/useQueries";
+import { useTasks } from "../hooks/useQueries";
 
 interface ReminderBanner {
   taskId: string;
@@ -19,26 +18,18 @@ function formatTime(date: Date) {
 }
 
 export function ProactiveReminders() {
-  const { actor } = useActor();
+  const { data: tasks = [] } = useTasks();
   const [banners, setBanners] = useState<ReminderBanner[]>([]);
-  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  const actorRef = useRef(actor);
-  actorRef.current = actor;
+  const tasksRef = useRef(tasks);
+  tasksRef.current = tasks;
 
   useEffect(() => {
-    const checkReminders = async () => {
-      const currentActor = actorRef.current;
-      if (!currentActor) return;
-      let tasks: Task[] = [];
-      try {
-        tasks = (await (currentActor as any).getAllTasks()) as Task[];
-      } catch {
-        return;
-      }
+    const checkReminders = () => {
+      const currentTasks = tasksRef.current;
       const now = Date.now();
       const thirtyMin = 30 * 60 * 1000;
 
-      for (const task of tasks) {
+      for (const task of currentTasks) {
         if (task.completed || !task.deadline) continue;
         const deadlineMs = Number(task.deadline) / 1_000_000;
         const taskId = task.id.toString();
@@ -96,10 +87,8 @@ export function ProactiveReminders() {
     };
 
     checkReminders();
-    intervalRef.current = setInterval(checkReminders, 60_000);
-    return () => {
-      if (intervalRef.current) clearInterval(intervalRef.current);
-    };
+    const intervalRef = setInterval(checkReminders, 60_000);
+    return () => clearInterval(intervalRef);
   }, []);
 
   const dismissBanner = (taskId: string) => {
@@ -110,7 +99,7 @@ export function ProactiveReminders() {
   if (banners.length === 0) return null;
 
   return (
-    <div className="fixed left-0 right-0 top-0 z-[100] flex flex-col gap-1 p-2">
+    <div className="flex flex-col gap-1 p-2">
       {banners.map((banner) => (
         <div
           key={banner.taskId}

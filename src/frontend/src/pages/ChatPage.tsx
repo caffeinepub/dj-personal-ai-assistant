@@ -45,13 +45,10 @@ import {
   VolumeX,
   X,
 } from "lucide-react";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import { Layout } from "../components/Layout";
-import {
-  buildContextPrompt,
-  useContextEngine,
-} from "../context/ContextEngineContext";
+import { useContextEngine } from "../context/ContextEngineContext";
 import { useActor } from "../hooks/useActor";
 import {
   type ChatThread,
@@ -69,21 +66,12 @@ import {
   useThreadMessages,
 } from "../hooks/useQueries";
 import { Link } from "../lib/router-shim";
+
 import {
-  extractFocusedAnswer,
-  searchBuiltinKnowledge,
-} from "../utils/builtinKnowledge";
-import {
-  randomGreeting,
-  randomTaskConfirm,
-  smartFallback,
-  wrapResponse,
-} from "../utils/djPersonality";
-import {
-  getRelevantContext,
-  parseKnowledgeSource,
-  searchKnowledgeSources,
-} from "../utils/knowledgeSources";
+  type AssistantDeps,
+  createAssistantController,
+} from "../assistant/brain/assistantController";
+import type { ConversationMessage } from "../assistant/brain/contextEngine";
 import {
   type CommandPatternType,
   getPatternRuleText,
@@ -105,7 +93,7 @@ interface SpeechRecognitionInstance extends EventTarget {
   lang: string;
   onstart: (() => void) | null;
   onresult: ((event: SpeechRecognitionEvent) => void) | null;
-  onerror: (() => void) | null;
+  onerror: ((event: { error: string }) => void) | null;
   onend: (() => void) | null;
   start(): void;
   stop(): void;
@@ -133,6 +121,7 @@ interface DisplayMessage {
   isOptimistic?: boolean;
   isFollowup?: boolean;
   followupTaskId?: string;
+  saveFailed?: boolean;
 }
 
 function selectBestVoice(
@@ -177,6 +166,7 @@ const MODULE_TAGS = [
 export function ChatPage() {
   const { actor } = useActor();
   const contextEngine = useContextEngine();
+  const { setIsTyping, setIsVoiceListening } = contextEngine;
   const queryClient = useQueryClient();
 
   // Threads
@@ -224,52 +214,66 @@ export function ChatPage() {
   const voicesRef = useRef<SpeechSynthesisVoice[]>([]);
   const recognitionRef = useRef<SpeechRecognitionInstance | null>(null);
   const continuousModeRef = useRef(false);
+  const ttsTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const voiceRestartCountRef = useRef(0);
   const startVoiceInputRef = useRef<() => void>(() => {});
   const handleSendRef = useRef<(text?: string) => void>(() => {});
   const isFirstLoad = useRef(true);
   const prevMessageCount = useRef(0);
 
   // Build display messages from persisted + optimistic
-  const persistedMessages: DisplayMessage[] = [...rawMessages]
-    .sort((a, b) =>
-      a.timestamp < b.timestamp ? -1 : a.timestamp > b.timestamp ? 1 : 0,
-    )
-    .map((m) => ({
-      id: m.id.toString(),
-      role: m.role as "user" | "assistant",
-      content: m.content,
-      timestamp: m.timestamp,
-    }));
+  const persistedMessages: DisplayMessage[] = useMemo(
+    () =>
+      [...rawMessages]
+        .sort((a, b) =>
+          a.timestamp < b.timestamp ? -1 : a.timestamp > b.timestamp ? 1 : 0,
+        )
+        .map((m) => ({
+          id: m.id.toString(),
+          role: m.role as "user" | "assistant",
+          content: m.content,
+          timestamp: m.timestamp,
+        })),
+    [rawMessages],
+  );
 
-  const allVisibleMessages: DisplayMessage[] = [
-    ...persistedMessages,
-    ...optimisticMessages.filter(
-      (opt) =>
-        !persistedMessages.some(
-          (p) => p.content === opt.content && p.role === opt.role,
-        ),
-    ),
-  ].sort((a, b) =>
-    a.timestamp < b.timestamp ? -1 : a.timestamp > b.timestamp ? 1 : 0,
+  const allVisibleMessages: DisplayMessage[] = useMemo(
+    () =>
+      [
+        ...persistedMessages,
+        ...optimisticMessages.filter((opt) => {
+          return !persistedMessages.some((p) => {
+            if (p.content !== opt.content || p.role !== opt.role) return false;
+            const persistedMs = Number(p.timestamp) / 1_000_000;
+            return persistedMs >= Number(opt.timestamp) / 1_000_000 - 5000;
+          });
+        }),
+      ].sort((a, b) =>
+        a.timestamp < b.timestamp ? -1 : a.timestamp > b.timestamp ? 1 : 0,
+      ),
+    [persistedMessages, optimisticMessages],
   );
 
   // Clear optimistic when persisted catches up
   useEffect(() => {
     if (optimisticMessages.length === 0) return;
     const allCovered = optimisticMessages.every((opt) =>
-      persistedMessages.some(
-        (p) => p.content === opt.content && p.role === opt.role,
-      ),
+      persistedMessages.some((p) => {
+        if (p.content !== opt.content || p.role !== opt.role) return false;
+        const persistedMs = Number(p.timestamp) / 1_000_000;
+        return persistedMs >= Number(opt.timestamp) / 1_000_000 - 5000;
+      }),
     );
     if (allCovered) setOptimisticMessages([]);
   }, [persistedMessages, optimisticMessages]);
 
   // Reset scroll flag when thread changes
+  // biome-ignore lint/correctness/useExhaustiveDependencies: intentional reset on thread change
   useEffect(() => {
     isFirstLoad.current = true;
     prevMessageCount.current = 0;
     setOptimisticMessages([]);
-  }, []); // activeThreadId change is detected via rawMessages
+  }, [activeThreadId]);
 
   // Auto-scroll
   useEffect(() => {
@@ -310,6 +314,9 @@ export function ChatPage() {
     window.speechSynthesis.onvoiceschanged = loadVoices;
     return () => {
       synthRef.current?.cancel();
+      if (window.speechSynthesis.onvoiceschanged === loadVoices) {
+        window.speechSynthesis.onvoiceschanged = null;
+      }
     };
   }, []);
 
@@ -345,7 +352,13 @@ export function ChatPage() {
               queryKey: ["threadMessages", activeThreadId.toString()],
             });
           })
-          .catch(() => {});
+          .catch(() => {
+            setOptimisticMessages((prev) =>
+              prev.map((m) =>
+                m.id === optMsg.id ? { ...m, saveFailed: true } : m,
+              ),
+            );
+          });
       }
     };
     window.addEventListener("dj-proactive-message", handler);
@@ -376,8 +389,9 @@ export function ChatPage() {
       utterance.onstart = () => setIsSpeaking(true);
       utterance.onend = () => setIsSpeaking(false);
       utterance.onerror = () => setIsSpeaking(false);
+      if (ttsTimerRef.current) clearTimeout(ttsTimerRef.current);
       synthRef.current.speak(utterance);
-      setTimeout(() => setIsSpeaking(false), 60000);
+      ttsTimerRef.current = setTimeout(() => setIsSpeaking(false), 60000);
     },
     [voiceEnabled],
   );
@@ -400,8 +414,12 @@ export function ChatPage() {
     recognition.interimResults = false;
     recognition.lang = "en-US";
     recognitionRef.current = recognition;
-    recognition.onstart = () => setIsListening(true);
+    recognition.onstart = () => {
+      setIsListening(true);
+      setIsVoiceListening(true);
+    };
     recognition.onresult = (event: SpeechRecognitionEvent) => {
+      voiceRestartCountRef.current = 0;
       const transcript =
         event.results[event.results.length - 1][0].transcript.trim();
       if (transcript.toLowerCase().includes("hey dj")) {
@@ -415,24 +433,52 @@ export function ChatPage() {
         setTimeout(() => handleSendRef.current(transcript), 100);
       }
     };
-    recognition.onerror = () => {
+    recognition.onerror = (event: { error: string }) => {
       setIsListening(false);
-      if (!continuousModeRef.current)
+      setIsVoiceListening(false);
+      if (continuousModeRef.current) return; // continuous mode handles this via onend
+      const errCode = event.error;
+      if (errCode === "not-allowed") {
+        toast.error(
+          "Microphone access denied. Please allow access in your browser settings.",
+        );
+      } else if (errCode === "no-speech") {
+        // Silently ignore — user simply didn't speak
+      } else if (errCode === "audio-capture") {
+        toast.error("No microphone detected. Please check your device.");
+      } else if (errCode === "network") {
+        toast.error(
+          "Network error during speech recognition. Check your connection.",
+        );
+      } else {
         toast.error("Voice recognition error. Please try again.");
+      }
     };
     recognition.onend = () => {
       setIsListening(false);
       if (continuousModeRef.current) {
-        setTimeout(() => startVoiceInputRef.current(), 500);
+        voiceRestartCountRef.current += 1;
+        if (voiceRestartCountRef.current > 5) {
+          setContinuousMode(false);
+          continuousModeRef.current = false;
+          voiceRestartCountRef.current = 0;
+          toast.error(
+            "Continuous listening stopped after repeated failures. Tap mic to restart.",
+          );
+          return;
+        }
+        const delay = Math.min(500 * voiceRestartCountRef.current, 3000);
+        setTimeout(() => startVoiceInputRef.current(), delay);
       }
     };
     recognition.start();
-  }, [speak]);
+  }, [speak, setIsVoiceListening]);
 
   const stopVoiceInput = useCallback(() => {
     recognitionRef.current?.stop();
     setIsListening(false);
-  }, []);
+    setIsVoiceListening(false);
+  }, [setIsVoiceListening]);
 
   const toggleContinuousMode = useCallback(() => {
     const next = !continuousModeRef.current;
@@ -450,570 +496,31 @@ export function ChatPage() {
   startVoiceInputRef.current = startVoiceInput;
   handleSendRef.current = (text?: string) => handleSend(text);
 
-  const buildConversationContext = (): string => {
-    const recent = persistedMessagesRef.current.slice(-20);
-    if (recent.length === 0) return "";
-    return recent
-      .map(
-        (m) =>
-          `${m.role === "user" ? "User" : "DJ"}: ${m.content.slice(0, 600)}`,
-      )
-      .join("\n");
-  };
-
-  const buildPersonalityContext = (): string => {
-    const currentRules = rulesRef.current;
-    const style =
-      personalitySettingsRef.current?.communicationStyle || "professional";
-    const regularRules = currentRules.filter(
-      (r) => !r.ruleText.startsWith("[KNOWLEDGE_SOURCE]"),
-    );
-    let context = `DJ's style: ${style}`;
-    if (regularRules.length > 0) {
-      context += `\nActive rules: ${regularRules
-        .slice(0, 5)
-        .map((r) => r.ruleText)
-        .join("; ")}`;
-    }
-    return context;
-  };
-
-  const parseCommand = async (userMessage: string): Promise<string> => {
-    const lowerMessage = userMessage.toLowerCase().trim();
-    const currentMemories = memoriesRef.current;
-    const currentRules = rulesRef.current;
-    const knowledgeSources = currentMemories
-      .map(parseKnowledgeSource)
-      .filter((s) => s !== null);
-
-    const searchKnowledgeMatch = userMessage.match(
-      /(?:dj,?\s*)?(?:search\s+(?:my\s+)?knowledge\s+(?:base\s+)?for|what\s+do\s+you\s+know\s+about)\s+(.+)/i,
-    );
-    if (searchKnowledgeMatch) {
-      const query = searchKnowledgeMatch[1].trim();
-      const userResults = searchKnowledgeSources(knowledgeSources, query);
-      const builtinHits = searchBuiltinKnowledge(query);
-      if (userResults.length === 0 && builtinHits.length === 0) {
-        return `I don't have any knowledge sources matching "${query}". You can add some at the Knowledge page, or ask me directly about IT, Finance, or Productivity topics.`;
-      }
-      let response = `Here's what I found for **"${query}"**:\n\n`;
-      if (userResults.length > 0) {
-        response += "**From your saved knowledge:**\n";
-        response += userResults
-          .slice(0, 3)
-          .map(
-            (s) =>
-              `- **${s.title}** (${s.sourceType}): ${s.content.slice(0, 200)}...`,
-          )
-          .join("\n");
-        response += "\n\n";
-      }
-      if (builtinHits.length > 0) {
-        response += `**From DJ's built-in knowledge:**\n`;
-        response += builtinHits
-          .map(
-            (b) => `**${b.topic}** (${b.category})\n${b.content.slice(0, 400)}`,
-          )
-          .join("\n\n");
-      }
-      return response;
-    }
-
-    const synthesisMatch = userMessage.match(
-      /(?:what\s+do\s+(?:all\s+)?(?:my\s+)?(?:sources?|knowledge|files?)\s+say\s+about|summarize\s+(?:my\s+)?(?:knowledge|sources?)\s+(?:on|about)|tell\s+me\s+everything\s+(?:you\s+know\s+)?about)\s+(.+)/i,
-    );
-    if (synthesisMatch) {
-      const query = synthesisMatch[1].trim();
-      const userResults = searchKnowledgeSources(knowledgeSources, query);
-      const builtinHits = searchBuiltinKnowledge(query);
-      if (userResults.length === 0 && builtinHits.length === 0) {
-        return `I searched all sources but found nothing specifically about "${query}". Try saving relevant knowledge at the Knowledge page.`;
-      }
-      let synthesis = `**Comprehensive answer on "${query}"** (synthesized from ${userResults.length + builtinHits.length} source${userResults.length + builtinHits.length !== 1 ? "s" : ""}):\n\n`;
-      if (builtinHits.length > 0) {
-        synthesis += `**Built-in Knowledge:**\n${builtinHits.map((b) => `*${b.topic}*: ${b.content.slice(0, 350)}`).join("\n\n")}\n\n`;
-      }
-      if (userResults.length > 0) {
-        synthesis += `**Your Saved Sources:**\n${userResults
-          .slice(0, 3)
-          .map((s) => `*${s.title}*: ${s.content.slice(0, 300)}`)
-          .join("\n\n")}`;
-      }
-      return synthesis;
-    }
-
-    if (lowerMessage.match(/^(dj,?\s*)?remember\s+/i)) {
-      const content = userMessage.replace(/^(dj,?\s*)?remember\s+/i, "").trim();
-      if (content) {
-        await addMemory.mutateAsync(content);
-        return "Understood. I've updated myself accordingly. This memory has been stored permanently.";
-      }
-    }
-
-    if (lowerMessage.match(/^(dj,?\s*)?forget\s+/i)) {
-      const content = userMessage.replace(/^(dj,?\s*)?forget\s+/i, "").trim();
-      const matchingMemory = currentMemories.find(
-        (m) =>
-          !m.content.startsWith("[KNOWLEDGE_SOURCE]") &&
-          m.content.toLowerCase().includes(content.toLowerCase()),
-      );
-      if (matchingMemory) {
-        await deleteMemory.mutateAsync(matchingMemory.id);
-        return "Understood. I've removed that from my memory.";
-      }
-      return "I couldn't find a matching memory to forget.";
-    }
-
-    if (
-      lowerMessage.includes("what do you remember") ||
-      lowerMessage.includes("show memories") ||
-      lowerMessage.includes("list memories")
-    ) {
-      const regularMemories = currentMemories.filter(
-        (m) => !m.content.startsWith("[KNOWLEDGE_SOURCE]"),
-      );
-      if (regularMemories.length === 0) {
-        return "I don't have any stored memories yet. Teach me by saying 'DJ, remember [something]'.";
-      }
-      return `Here's everything I remember:\n\n${regularMemories.map((m, i) => `${i + 1}. ${m.content}`).join("\n")}`;
-    }
-
-    if (lowerMessage.includes("reset all") && lowerMessage.includes("memor")) {
-      const regularMemories = currentMemories.filter(
-        (m) => !m.content.startsWith("[KNOWLEDGE_SOURCE]"),
-      );
-      for (const m of regularMemories) {
-        await deleteMemory.mutateAsync(m.id);
-      }
-      return "Done. All memories have been cleared. I'm starting fresh.";
-    }
-
-    const commandMatch = userMessage.match(
-      /(?:dj,?\s*)?create\s+(?:a\s+)?command\s+called\s+"([^"]+)"\s+that\s+(.+)/i,
-    );
-    if (commandMatch) {
-      const [, name, action] = commandMatch;
-      await createCommand.mutateAsync({ name, action });
-      return `Understood. I've created the custom command "${name}". Activate it by saying "${name}".`;
-    }
-
-    if (
-      lowerMessage.includes("your new rule is") ||
-      lowerMessage.includes("set rule:")
-    ) {
-      const rule = userMessage
-        .replace(/^(dj,?\s*)?(?:your\s+new\s+rule\s+is|set\s+rule:)\s*/i, "")
-        .trim();
-      if (rule) {
-        await setBehaviorRule.mutateAsync({
-          ruleText: rule,
-          priority: BigInt(currentRules.length + 1),
-        });
-        return "Understood. I've set that as a new behavior rule and will follow it in every future response.";
-      }
-    }
-
-    if (
-      lowerMessage.includes("be more formal") ||
-      lowerMessage.includes("be more casual") ||
-      lowerMessage.includes("be more concise") ||
-      lowerMessage.includes("be more detailed") ||
-      lowerMessage.includes("be more professional")
-    ) {
-      let style = "professional";
-      if (lowerMessage.includes("casual")) style = "casual";
-      else if (lowerMessage.includes("concise")) style = "concise";
-      else if (lowerMessage.includes("detailed")) style = "detailed";
-      else if (lowerMessage.includes("formal")) style = "formal";
-      await setPersonality.mutateAsync(style);
-      return `Understood. I've adjusted my communication style to be more ${style}.`;
-    }
-
-    const activateMatch = userMessage.match(
-      /(?:dj,?\s*)?activate\s+(?:the\s+)?(\w+)\s+module/i,
-    );
-    if (activateMatch) {
-      await activateModule.mutateAsync(activateMatch[1].toLowerCase());
-      return `The ${activateMatch[1]} module has been activated.`;
-    }
-
-    const deactivateMatch = userMessage.match(
-      /(?:dj,?\s*)?deactivate\s+(?:the\s+)?(\w+)\s+module/i,
-    );
-    if (deactivateMatch) {
-      await deactivateModule.mutateAsync(deactivateMatch[1].toLowerCase());
-      return `The ${deactivateMatch[1]} module has been deactivated.`;
-    }
-
-    // Tasks
-    const taskMatch = userMessage.match(
-      /(?:remind(?:er)?\s+me\s+(?:to\s+)?|add\s+(?:a\s+)?task[:\s]+|set\s+(?:a\s+)?reminder[:\s]+|schedule[:\s]+)(.+?)(?:\s+(?:at|by|on|before|today|tomorrow)\s+(.+))?$/i,
-    );
-    if (
-      taskMatch ||
-      lowerMessage.includes("add task") ||
-      lowerMessage.includes("remind me") ||
-      lowerMessage.includes("reminder me") ||
-      lowerMessage.includes("set reminder") ||
-      lowerMessage.includes("new task")
-    ) {
-      const titleRaw = taskMatch
-        ? taskMatch[1].trim()
-        : userMessage
-            .replace(
-              /^(dj,?\s*)?(add\s+task|remind\s+me|set\s+reminder|new\s+task)[:\s]*/i,
-              "",
-            )
-            .trim();
-      const timeRaw = taskMatch ? taskMatch[2] : undefined;
-      const cleanTitle = titleRaw
-        .replace(/\b(today|tomorrow)\b/gi, "")
-        .replace(/\b(at|by|on|before)\s+\d{1,2}(:\d{2})?\s*(am|pm)?\b/gi, "")
-        .replace(/\b\d{1,2}:\d{2}\s*(am|pm)?\b/gi, "")
-        .replace(/\b\d{1,2}\s*(am|pm)\b/gi, "")
-        .replace(/\s{2,}/g, " ")
-        .trim();
-      const taskTitle = cleanTitle || titleRaw;
-
-      let deadlineMs: bigint | null = null;
-      let alreadyPassedToday = false;
-      const timePat1 = /(\d{1,2}):(\d{2})\s*(am|pm)?/i;
-      const timePat2 = /(\d{1,2})\s*(am|pm)/i;
-      const timeMatch1 = userMessage.match(timePat1);
-      const timeMatch2 = !timeMatch1 ? userMessage.match(timePat2) : null;
-
-      if (timeMatch1) {
-        let hours = Number.parseInt(timeMatch1[1]);
-        const minutes = Number.parseInt(timeMatch1[2]);
-        const ampm = timeMatch1[3]?.toLowerCase();
-        if (ampm === "pm" && hours < 12) hours += 12;
-        if (ampm === "am" && hours === 12) hours = 0;
-        const d = new Date();
-        d.setHours(hours, minutes, 0, 0);
-        if (d.getTime() < Date.now()) {
-          if (lowerMessage.includes("today")) alreadyPassedToday = true;
-          else d.setDate(d.getDate() + 1);
-        }
-        deadlineMs = BigInt(d.getTime()) * BigInt(1_000_000);
-      } else if (timeMatch2) {
-        let hours = Number.parseInt(timeMatch2[1]);
-        const ampm = timeMatch2[2]?.toLowerCase();
-        if (ampm === "pm" && hours < 12) hours += 12;
-        if (ampm === "am" && hours === 12) hours = 0;
-        const d = new Date();
-        d.setHours(hours, 0, 0, 0);
-        if (d.getTime() < Date.now()) {
-          if (lowerMessage.includes("today")) alreadyPassedToday = true;
-          else d.setDate(d.getDate() + 1);
-        }
-        deadlineMs = BigInt(d.getTime()) * BigInt(1_000_000);
-      } else if (lowerMessage.includes("today")) {
-        const d = new Date();
-        d.setHours(23, 59, 0, 0);
-        deadlineMs = BigInt(d.getTime()) * BigInt(1_000_000);
-      } else if (lowerMessage.includes("tomorrow")) {
-        const d = new Date();
-        d.setDate(d.getDate() + 1);
-        d.setHours(9, 0, 0, 0);
-        deadlineMs = BigInt(d.getTime()) * BigInt(1_000_000);
-      }
-
-      if (taskTitle) {
-        try {
-          if (!actor) throw new Error("Actor not available");
-          await (actor as any).addTask(
-            taskTitle,
-            timeRaw ? `Scheduled: ${timeRaw}` : "",
-            deadlineMs,
-            "medium",
-          );
-          queryClient.invalidateQueries({ queryKey: ["tasks"] });
-          trackCommandPattern("task");
-          const deadlineStr = deadlineMs
-            ? ` at ${new Date(Number(deadlineMs) / 1_000_000).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}`
-            : "";
-          const passedNote = alreadyPassedToday
-            ? "\n\n*(Note: this time has already passed today — reminder saved for reference.)*"
-            : "";
-          return `${randomTaskConfirm("task", `${taskTitle}${deadlineStr}`)} View or edit it in the Tasks section.${passedNote}`;
-        } catch {
-          return `I understood you want to add a task: **${taskTitle}**. However I couldn't save it right now — please try again or add it directly in the Tasks section.`;
-        }
-      }
-    }
-
-    // Notes
-    const noteMatch = userMessage.match(
-      /(?:add\s+(?:a\s+)?note[:\s]+|note[:\s]+|save\s+(?:a\s+)?note[:\s]+|remember\s+this\s+note[:\s]+)(.+)/i,
-    );
-    if (noteMatch) {
-      const noteContent = noteMatch[1].trim();
-      const words = noteContent.split(" ").slice(0, 5).join(" ");
-      try {
-        if (!actor) throw new Error("Actor not available");
-        await (actor as any).addNote(
-          words,
-          noteContent,
-          noteContent.slice(0, 100),
-          [],
-        );
-        queryClient.invalidateQueries({ queryKey: ["notes"] });
-        trackCommandPattern("note");
-        const shortNote =
-          noteContent.slice(0, 60) + (noteContent.length > 60 ? "..." : "");
-        return `${randomTaskConfirm("note", shortNote)} Find it in your Notes section.`;
-      } catch {
-        return "I understood you want to save this note. However I couldn't save it right now — please try again or add it directly in the Notes section.";
-      }
-    }
-
-    // Finance
-    const financeMatch = userMessage.match(
-      /(?:add\s+)?(?:today'?s?\s+)?(?:an?\s+)?(?:expense|spent?|cost|paid?|income|earning|received?|got)\s+(?:of\s+)?(?:rs\.?|inr|₹|\$|usd)?\s*(\d+(?:\.\d{1,2})?)\s*(?:(?:rs\.?|inr|₹|\$)?)?\.?\s*(?:(?:on|for|as|from)\s+(.+?))?(?:\/[-]?)?$/i,
-    );
-    const financeMatch2 = userMessage.match(
-      /(?:rs\.?|inr|₹|\$|usd)\s*(\d+(?:\.\d{1,2})?)\s*(?:(?:on|for|as|from)\s+(.+?))?(?:\/[-]?)?\s*(?:expense|income|earned?)?$/i,
-    );
-    const financeMatch3 = userMessage.match(
-      /(?:add\s+)?(?:today'?s?\s+)?(?:an?\s+)?(?:expense|spent?|cost|paid?|income|earning|received?|got)\s+(?:of\s+)?(?:rs\.?\s+)(\d+(?:\.\d{1,2})?)/i,
-    );
-    const fm = financeMatch || financeMatch2 || financeMatch3;
-    if (fm) {
-      const amountStr = fm[1];
-      const descRaw = fm[2]?.trim().replace(/[\/\-]+$/, "") || "";
-      const amount = Math.round(Number.parseFloat(amountStr) * 100);
-      const isIncome = /income|earning|received?|got/i.test(userMessage);
-      const category = isIncome ? "income" : descRaw || "general";
-      const description = descRaw || (isIncome ? "Income" : "Expense");
-      try {
-        if (!actor) throw new Error("Actor not available");
-        await (actor as any).addFinanceEntry(
-          isIncome ? BigInt(amount) : BigInt(-amount),
-          category,
-          description,
-          BigInt(Date.now()) * BigInt(1_000_000),
-        );
-        queryClient.invalidateQueries({ queryKey: ["financeEntries"] });
-        trackCommandPattern("expense");
-        const sign = isIncome ? "+" : "-";
-        return `${randomTaskConfirm("finance", `${sign}₹${Number.parseFloat(amountStr).toFixed(2)} for ${description}`)} View details in the Finance Tracker.`;
-      } catch {
-        return `I understood you want to record: **${isIncome ? "+" : "-"}₹${Number.parseFloat(amountStr).toFixed(2)}** for **${description}**. However I couldn't save it right now.`;
-      }
-    }
-
-    return generateContextualResponse(userMessage, knowledgeSources);
-  };
-
-  const generateContextualResponse = (
-    userMessage: string,
-    knowledgeSources: ReturnType<typeof parseKnowledgeSource>[] = [],
-  ): string => {
-    const style =
-      personalitySettingsRef.current?.communicationStyle || "professional";
-    const lowerMessage = userMessage.toLowerCase();
-    const currentMemories = memoriesRef.current;
-    const currentRules = rulesRef.current;
-    const conversationContext = buildConversationContext();
-    const _pc = buildPersonalityContext();
-    const _contextPrompt = buildContextPrompt(contextEngine);
-    const regularMemories = currentMemories.filter(
-      (m) => !m.content.startsWith("[KNOWLEDGE_SOURCE]"),
-    );
-
-    const mathMatch = userMessage.trim().match(/^[\d\s\+\-\*\/\(\)\.%^]+$/);
-    if (mathMatch) {
-      try {
-        const expr = userMessage.trim().replace(/\^/g, "**");
-        if (/^[\d\s\+\-\*\/\(\)\.%\*]+$/.test(expr)) {
-          const result = Function(`"use strict"; return (${expr})`)();
-          if (typeof result === "number" && Number.isFinite(result)) {
-            return `${userMessage.trim()} = **${result}**`;
-          }
-        }
-      } catch {
-        // not a valid expression
-      }
-    }
-
-    if (
-      lowerMessage.match(
-        /^(hello|hi|hey|good morning|good evening|good afternoon)[\s!.]*$/,
-      )
-    ) {
-      const ctxName = contextEngine.userPreferences?.name;
-      const userName =
-        ctxName ||
-        regularMemories
-          .find((m) => m.content.toLowerCase().includes("my name is"))
-          ?.content.replace(/.*my name is\s+/i, "")
-          .split(/[,. ]/)[0];
-      const timeGreet =
-        contextEngine.timeOfDay === "morning"
-          ? "Good morning"
-          : contextEngine.timeOfDay === "evening"
-            ? "Good evening"
-            : contextEngine.timeOfDay === "night"
-              ? "Working late?"
-              : null;
-      const baseGreeting = randomGreeting(userName);
-      return timeGreet
-        ? `${timeGreet}${userName ? `, ${userName}! ` : "! "}All systems active and ready for you.`
-        : baseGreeting;
-    }
-
-    if (
-      lowerMessage.includes("how are you") ||
-      lowerMessage.includes("how do you feel")
-    ) {
-      return "All good on my end! Always running, always ready. What do you need?";
-    }
-
-    if (
-      lowerMessage.includes("help") ||
-      lowerMessage.includes("what can you do") ||
-      lowerMessage.includes("capabilities")
-    ) {
-      return `Here's what I can do:\n\n- **Memory**: "DJ, remember [something]" / "DJ, forget [something]"\n- **Knowledge**: "DJ, what do you know about [topic]"\n- **Rules**: "DJ, your new rule is [rule]"\n- **Tasks/Reminders**: "Remind me at 3pm to [task]"\n- **Notes**: "Note: [content]"\n- **Finance**: "Add expense Rs.100 on food"\n- **Style**: "DJ, be more casual/formal/concise/detailed"\n\nI currently have ${regularMemories.length} memories stored. What would you like to do?`;
-    }
-
-    if (
-      (lowerMessage.includes("tell me more") ||
-        lowerMessage.includes("explain that") ||
-        lowerMessage.includes("more about") ||
-        lowerMessage.includes("go on") ||
-        lowerMessage.includes("continue")) &&
-      conversationContext
-    ) {
-      const lastAssistant = persistedMessagesRef.current
-        .filter((m) => m.role === "assistant")
-        .slice(-1)[0];
-      if (lastAssistant) {
-        return `Expanding on what I mentioned: ${lastAssistant.content}\n\nIs there a specific aspect you'd like me to elaborate on further?`;
-      }
-    }
-
-    if (
-      lowerMessage.includes("what did i say") ||
-      lowerMessage.includes("recap") ||
-      lowerMessage.includes("summarize our conversation") ||
-      lowerMessage.includes("what have we discussed")
-    ) {
-      if (persistedMessagesRef.current.length === 0) {
-        return "This is the beginning of our conversation. Nothing has been said yet.";
-      }
-      const recentUserMessages = persistedMessagesRef.current
-        .filter((m) => m.role === "user")
-        .slice(-5);
-      const summary = recentUserMessages
-        .map((m, i) => `${i + 1}. "${m.content.slice(0, 100)}"`)
-        .join("\n");
-      return `Here's a summary of your recent messages:\n\n${summary}`;
-    }
-
-    const validSources = knowledgeSources.filter((s) => s !== null);
-    const userKnowledgeResults: { title: string; content: string }[] = [];
-    if (validSources.length > 0) {
-      const { context, titles } = getRelevantContext(validSources, userMessage);
-      if (context) {
-        userKnowledgeResults.push(
-          ...titles.map((t) => ({ title: t, content: context })),
-        );
-      }
-    }
-
-    const builtinResults = searchBuiltinKnowledge(userMessage);
-
-    if (userKnowledgeResults.length > 0 && builtinResults.length > 0) {
-      const builtinSummary = builtinResults[0].content.slice(0, 400);
-      const userSummary = userKnowledgeResults[0].content.slice(0, 400);
-      const intro =
-        style === "concise"
-          ? "Here's what I found:"
-          : "I found relevant information from multiple sources:";
-      return `${intro}\n\n**From your knowledge base (${userKnowledgeResults[0].title}):**\n${userSummary}\n\n**From DJ's built-in knowledge (${builtinResults[0].topic}):**\n${builtinSummary}`;
-    }
-
-    if (userKnowledgeResults.length > 0) {
-      const intro =
-        style === "concise"
-          ? "From your knowledge base:"
-          : "I found relevant information in your knowledge base:";
-      return `${intro}\n\n${userKnowledgeResults[0].content.slice(0, 800)}\n\n---\n*Source: ${userKnowledgeResults[0].title}*`;
-    }
-
-    if (builtinResults.length > 0) {
-      activeTopicRef.current = builtinResults[0].topic;
-      const focusedAnswer = extractFocusedAnswer(
-        userMessage,
-        builtinResults[0],
-      );
-      if (focusedAnswer) return wrapResponse(focusedAnswer, "knowledge");
-      const intro =
-        style === "concise"
-          ? `**${builtinResults[0].topic}:**`
-          : `Here's what I know about **${builtinResults[0].topic}**:`;
-      const footer =
-        builtinResults.length > 1
-          ? `\n\n---\n*I also have built-in knowledge on: ${builtinResults
-              .slice(1)
-              .map((r) => r.topic)
-              .join(", ")}*`
-          : "";
-      return `${intro}\n\n${builtinResults[0].content}${footer}`;
-    }
-
-    if (regularMemories.length > 0) {
-      const relevantMemory = regularMemories.find((m) =>
-        m.content
-          .toLowerCase()
-          .split(" ")
-          .some((word) => word.length > 4 && lowerMessage.includes(word)),
-      );
-      if (relevantMemory) {
-        return `Based on what I know about you: ${relevantMemory.content}\n\nFor more specific help, please ask a more detailed question.`;
-      }
-    }
-
-    if (
-      currentRules.length > 0 &&
-      lowerMessage.includes("what are your rules")
-    ) {
-      const ruleList = currentRules
-        .slice(0, 5)
-        .map((r, i) => `${i + 1}. ${r.ruleText}`)
-        .join("\n");
-      return `My current behavior rules:\n\n${ruleList}`;
-    }
-
-    const activeTopic = activeTopicRef.current;
-    if (
-      activeTopic &&
-      (lowerMessage.includes("why") ||
-        lowerMessage.includes("how") ||
-        lowerMessage.includes("what") ||
-        lowerMessage.includes("when"))
-    ) {
-      const topicResults = searchBuiltinKnowledge(activeTopic);
-      if (topicResults.length > 0) {
-        return `Following up on **${activeTopic}**:\n\n${topicResults[0].content}`;
-      }
-    }
-
-    // Context-aware situational reply
-    const pageName = contextEngine.currentPage;
-    if (pageName === "/finance" && !lowerMessage.includes("?")) {
-      return (
-        smartFallback(userMessage) +
-        (contextEngine.activeTasks.length > 0
-          ? `\n\nHeads up — you have ${contextEngine.activeTasks.length} task${contextEngine.activeTasks.length > 1 ? "s" : ""} due today that need attention.`
-          : "")
-      );
-    }
-    return smartFallback(userMessage);
-  };
+  // ── Assistant controller (replaces inline parseCommand) ──────────────────────────
+  const assistantController = createAssistantController(() => {
+    const deps: AssistantDeps = {
+      actor,
+      queryClient,
+      memories: memoriesRef.current,
+      rules: rulesRef.current,
+      personalitySettings: personalitySettingsRef.current,
+      contextEngine,
+      conversationHistory:
+        persistedMessagesRef.current as ConversationMessage[],
+      activeTopicRef,
+      addMemory: (content: string) => addMemory.mutateAsync(content),
+      deleteMemory: (id: bigint) => deleteMemory.mutateAsync(id),
+      createCommand: (params) => createCommand.mutateAsync(params),
+      setBehaviorRule: (params) => setBehaviorRule.mutateAsync(params),
+      setPersonality: (style: string) => setPersonality.mutateAsync(style),
+      activateModule: (name: string) => activateModule.mutateAsync(name),
+      deactivateModule: (name: string) => deactivateModule.mutateAsync(name),
+    };
+    return deps;
+  });
 
   const handleSend = async (messageOverride?: string) => {
+    setIsTyping(false);
     const messageText = messageOverride ?? input.trim();
     if (!messageText || isProcessing || activeThreadId === null) return;
 
@@ -1038,11 +545,17 @@ export function ChatPage() {
               queryKey: ["threadMessages", activeThreadId.toString()],
             });
           })
-          .catch(() => {});
+          .catch(() => {
+            setOptimisticMessages((prev) =>
+              prev.map((m) =>
+                m.id === optimisticUserMsg.id ? { ...m, saveFailed: true } : m,
+              ),
+            );
+          });
       }
 
       contextEngine.logAction("chat_message", messageText.substring(0, 50));
-      const response = await parseCommand(messageText);
+      const response = await assistantController.process(messageText);
 
       const suggestions = getSuggestedRules();
       if (suggestions.length > 0) setPatternSuggestion(suggestions[0]);
@@ -1064,7 +577,13 @@ export function ChatPage() {
               queryKey: ["threadMessages", activeThreadId.toString()],
             });
           })
-          .catch(() => {});
+          .catch(() => {
+            setOptimisticMessages((prev) =>
+              prev.map((m) =>
+                m.id === optimisticDJMsg.id ? { ...m, saveFailed: true } : m,
+              ),
+            );
+          });
       }
 
       if (voiceEnabled) speak(response);
@@ -1423,6 +942,50 @@ export function ChatPage() {
                           )}
                         </div>
                         <MessageContent content={message.content} />
+                        {/* Save failed indicator */}
+                        {message.saveFailed && (
+                          <div className="flex items-center gap-1 mt-1">
+                            <span className="text-red-400 text-xs">
+                              ⚠ Save failed
+                            </span>
+                            <button
+                              type="button"
+                              data-ocid="chat.message.retry_button"
+                              className="text-xs text-primary underline hover:no-underline"
+                              onClick={() => {
+                                if (!actor || !activeThreadId) return;
+                                (actor as any)
+                                  .saveThreadMessage(
+                                    activeThreadId,
+                                    message.role,
+                                    message.content,
+                                  )
+                                  .then(() => {
+                                    setOptimisticMessages((prev) =>
+                                      prev.map((m) =>
+                                        m.id === message.id
+                                          ? { ...m, saveFailed: false }
+                                          : m,
+                                      ),
+                                    );
+                                    queryClient.invalidateQueries({
+                                      queryKey: [
+                                        "threadMessages",
+                                        activeThreadId.toString(),
+                                      ],
+                                    });
+                                  })
+                                  .catch(() =>
+                                    toast.error(
+                                      "Retry failed. Check your connection.",
+                                    ),
+                                  );
+                              }}
+                            >
+                              Retry
+                            </button>
+                          </div>
+                        )}
                         {/* Follow-up Yes/No */}
                         {message.isFollowup && message.followupTaskId && (
                           <div className="mt-2 flex gap-2">
@@ -1555,10 +1118,12 @@ export function ChatPage() {
                                 onClick={async () => {
                                   try {
                                     if (actor) {
-                                      await (actor as any).setBehaviorRule(
-                                        rule.trigger,
-                                        BigInt(0),
-                                      );
+                                      await setBehaviorRule.mutateAsync({
+                                        ruleText: rule.action,
+                                        priority: BigInt(
+                                          rulesRef.current.length + 1,
+                                        ),
+                                      });
                                     }
                                     markRuleSuggested(patternSuggestion);
                                     setPatternSuggestion(null);
@@ -1599,7 +1164,12 @@ export function ChatPage() {
 
           {/* Input bar */}
           {activeThreadId !== null && (
-            <div className="border-t border-primary/20 bg-card/95 px-4 py-3 backdrop-blur">
+            <div
+              className="border-t border-primary/20 bg-card/95 px-4 py-3 backdrop-blur"
+              style={{
+                paddingBottom: "max(0.75rem, env(safe-area-inset-bottom, 0px))",
+              }}
+            >
               <div className="mx-auto max-w-3xl">
                 <div className="flex gap-2">
                   <Button
@@ -1684,7 +1254,11 @@ export function ChatPage() {
                         : "Message DJ... (or tap mic to speak)"
                     }
                     value={input}
-                    onChange={(e) => setInput(e.target.value)}
+                    onChange={(e) => {
+                      setInput(e.target.value);
+                      setIsTyping(e.target.value.length > 0);
+                    }}
+                    onBlur={() => setIsTyping(false)}
                     onKeyDown={handleKeyDown}
                     className="flex-1 border-primary/40 bg-card/50 focus-visible:ring-primary/50"
                     disabled={isProcessing || isListening}

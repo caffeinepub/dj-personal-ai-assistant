@@ -1,4 +1,6 @@
 import { Toaster } from "@/components/ui/sonner";
+import { ErrorBoundary } from "./components/ErrorBoundary";
+import { ProactiveEngine } from "./components/ProactiveEngine";
 import { ContextEngineProvider } from "./context/ContextEngineContext";
 import { useInternetIdentity } from "./hooks/useInternetIdentity";
 import { useUserProfile } from "./hooks/useQueries";
@@ -10,6 +12,7 @@ import { ExcelPage } from "./pages/ExcelPage";
 import { FinancePage } from "./pages/FinancePage";
 import { KnowledgePage } from "./pages/KnowledgePage";
 import { LoginPage } from "./pages/LoginPage";
+import { MemoryPage } from "./pages/MemoryPage";
 import { NotesPage } from "./pages/NotesPage";
 import { ProfilePage } from "./pages/ProfilePage";
 import { SettingsPage } from "./pages/SettingsPage";
@@ -56,9 +59,10 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
 
 function App() {
   return (
-    <>
+    <ErrorBoundary>
       <BrowserRouter>
         <ContextEngineProvider>
+          <ProactiveEngine />
           <Routes>
             <Route path="/login" element={<LoginPage />} />
             <Route path="/setup" element={<SetupWizardPage />} />
@@ -103,30 +107,6 @@ function App() {
               }
             />
             <Route
-              path="/profile"
-              element={
-                <ProtectedRoute>
-                  <ProfilePage />
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/settings"
-              element={
-                <ProtectedRoute>
-                  <SettingsPage />
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/teach"
-              element={
-                <ProtectedRoute>
-                  <TeachDJPage />
-                </ProtectedRoute>
-              }
-            />
-            <Route
               path="/knowledge"
               element={
                 <ProtectedRoute>
@@ -159,6 +139,30 @@ function App() {
               }
             />
             <Route
+              path="/profile"
+              element={
+                <ProtectedRoute>
+                  <ProfilePage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/settings"
+              element={
+                <ProtectedRoute>
+                  <SettingsPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/teach-dj"
+              element={
+                <ProtectedRoute>
+                  <TeachDJPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
               path="/system-status"
               element={
                 <ProtectedRoute>
@@ -166,11 +170,20 @@ function App() {
                 </ProtectedRoute>
               }
             />
+            <Route
+              path="/memory"
+              element={
+                <ProtectedRoute>
+                  <MemoryPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
+          <Toaster />
         </ContextEngineProvider>
       </BrowserRouter>
-      <Toaster />
-    </>
+    </ErrorBoundary>
   );
 }
 

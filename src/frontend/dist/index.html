@@ -18,12 +18,27 @@
     <link rel="icon" type="image/png" href="/assets/generated/icon-512.dim_512x512.png" />
     <link rel="manifest" href="/manifest.json" />
 
-    <!-- Fonts -->
+    <!-- Google Fonts: non-render-blocking via media=print trick -->
+    <!-- preconnect hints so DNS+TLS is ready before the font CSS loads -->
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;500;600;700;900&family=Rajdhani:wght@300;400;500;600;700&family=Share+Tech+Mono&display=swap" rel="stylesheet" />
-    <script type="module" crossorigin src="/assets/index-C8RThUeH.js"></script>
-    <link rel="stylesheet" crossorigin href="/assets/index-B0_RYzS_.css">
+    <!-- Load asynchronously: media="print" lets the browser fetch without blocking render;
+         onload swaps to media="all" so the font activates once downloaded. -->
+    <link
+      rel="stylesheet"
+      href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;500;600;700;900&family=Rajdhani:wght@300;400;500;600;700&family=Share+Tech+Mono&display=swap"
+      media="print"
+      onload="this.media='all'"
+    />
+    <!-- Fallback for browsers with JS disabled -->
+    <noscript>
+      <link
+        rel="stylesheet"
+        href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;500;600;700;900&family=Rajdhani:wght@300;400;500;600;700&family=Share+Tech+Mono&display=swap"
+      />
+    </noscript>
+    <script type="module" crossorigin src="/assets/index-CC5vK4QU.js"></script>
+    <link rel="stylesheet" crossorigin href="/assets/index-DSBgaQqq.css">
   </head>
   <body>
     <div id="root"></div>

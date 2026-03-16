@@ -7,7 +7,7 @@ import {
   useRef,
   useState,
 } from "react";
-import { useActor } from "../hooks/useActor";
+import { useTasks, useUserProfile } from "../hooks/useQueries";
 
 export type RecentActionType =
   | "page_visit"
@@ -63,6 +63,10 @@ export interface ContextEngineState {
   timeOfDay: TimeOfDay;
   userPreferences: UserPreferences | null;
   learnedPatterns: LearnedPatterns;
+  isTyping: boolean;
+  isVoiceListening: boolean;
+  setIsTyping: (v: boolean) => void;
+  setIsVoiceListening: (v: boolean) => void;
   logAction: (type: RecentActionType, label: string) => void;
   setCurrentPage: (path: string) => void;
 }
@@ -109,19 +113,21 @@ export function ContextEngineProvider({
 }: {
   children: React.ReactNode;
 }) {
-  const { actor, isFetching } = useActor();
+  // Use React Query cached data — avoids redundant actor calls
+  const { data: profileData } = useUserProfile();
+  const { data: tasksData } = useTasks();
 
   const [currentPage, setCurrentPageState] = useState("/");
   const [recentActions, setRecentActions] =
     useState<RecentAction[]>(loadRecentActions);
-  const [activeTasks, setActiveTasks] = useState<ActiveTask[]>([]);
   const [timeOfDay, setTimeOfDay] = useState<TimeOfDay>(() =>
     getTimeOfDay(new Date().getHours()),
   );
-  const [userPreferences, setUserPreferences] =
-    useState<UserPreferences | null>(null);
   const [learnedPatterns, setLearnedPatterns] =
     useState<LearnedPatterns>(loadLearnedPatterns);
+
+  const [isTyping, setIsTyping] = useState(false);
+  const [isVoiceListening, setIsVoiceListening] = useState(false);
 
   const learnedPatternsRef = useRef(learnedPatterns);
   learnedPatternsRef.current = learnedPatterns;
@@ -137,66 +143,42 @@ export function ContextEngineProvider({
     return () => clearInterval(interval);
   }, []);
 
-  // Load user profile & active tasks from backend
-  useEffect(() => {
-    if (!actor || isFetching) return;
-
-    // Load user profile
-    (actor as any)
-      .getCallerUserProfile()
-      .then((profile: any) => {
-        if (!profile) return;
+  // Derive user preferences from cached profile data
+  const userPreferences: UserPreferences | null = profileData
+    ? (() => {
         const prefs: UserPreferences = {};
-        if (profile.name) prefs.name = profile.name;
-        // Try to parse preferences JSON for profession/goals
-        if (profile.preferences) {
+        if (profileData.name) prefs.name = profileData.name;
+        if (profileData.preferences) {
           try {
-            const parsed = JSON.parse(profile.preferences);
+            const parsed = JSON.parse(profileData.preferences);
             if (parsed.name) prefs.name = parsed.name;
             if (parsed.profession) prefs.profession = parsed.profession;
             if (parsed.goals) prefs.goals = parsed.goals;
             if (parsed.preferences) prefs.preferences = parsed.preferences;
           } catch {
-            prefs.preferences = profile.preferences;
+            prefs.preferences = profileData.preferences;
           }
         }
-        setUserPreferences(prefs);
-      })
-      .catch(() => {});
+        return prefs;
+      })()
+    : null;
 
-    // Load active tasks (due today or overdue)
-    const loadTasks = () => {
-      if (!actor) return;
-      (actor as any)
-        .getAllTasks()
-        .then((tasks: any[]) => {
-          const todayStart = new Date();
-          todayStart.setHours(0, 0, 0, 0);
-          const todayEnd = new Date();
-          todayEnd.setHours(23, 59, 59, 999);
-
-          const active = tasks.filter((t: any) => {
-            if (t.completed) return false;
-            if (!t.deadline) return false;
-            const deadlineMs = Number(t.deadline) / 1_000_000;
-            return deadlineMs <= todayEnd.getTime();
-          });
-          setActiveTasks(
-            active.map((t: any) => ({
-              title: t.title,
-              deadline: t.deadline,
-              priority: t.priority,
-              completed: t.completed,
-            })),
-          );
-        })
-        .catch(() => {});
-    };
-
-    loadTasks();
-    const taskInterval = setInterval(loadTasks, 60 * 60 * 1000);
-    return () => clearInterval(taskInterval);
-  }, [actor, isFetching]);
+  // Derive active tasks (due today or overdue) from cached task data
+  const activeTasks: ActiveTask[] = (tasksData ?? [])
+    .filter((t) => {
+      if (t.completed) return false;
+      if (!t.deadline) return false;
+      const todayEnd = new Date();
+      todayEnd.setHours(23, 59, 59, 999);
+      const deadlineMs = Number(t.deadline) / 1_000_000;
+      return deadlineMs <= todayEnd.getTime();
+    })
+    .map((t) => ({
+      title: t.title,
+      deadline: t.deadline,
+      priority: t.priority,
+      completed: t.completed,
+    }));
 
   const logAction = useCallback((type: RecentActionType, label: string) => {
     const action: RecentAction = { type, label, timestamp: Date.now() };
@@ -210,7 +192,7 @@ export function ContextEngineProvider({
     // Update learned patterns
     const now = new Date();
     const hour = now.getHours();
-    const day = now.getDay(); // 0 = Sunday, 6 = Saturday
+    const day = now.getDay();
     const isWeekend = day === 0 || day === 6;
 
     const current = learnedPatternsRef.current;
@@ -259,6 +241,10 @@ export function ContextEngineProvider({
     timeOfDay,
     userPreferences,
     learnedPatterns,
+    isTyping,
+    isVoiceListening,
+    setIsTyping,
+    setIsVoiceListening,
     logAction,
     setCurrentPage,
   };
@@ -344,13 +330,11 @@ function formatTaskDeadline(deadline: bigint): string {
 export function buildContextPrompt(ctx: ContextEngineState): string {
   const parts: string[] = [];
 
-  // Current page
   const pageLabel = getPageLabel(ctx.currentPage);
   parts.push(
     `You are currently helping the user on the ${pageLabel} page. The time is ${ctx.timeOfDay}.`,
   );
 
-  // Recent actions (exclude page_visit spam, keep last 5 meaningful)
   const allRecent = [...ctx.recentActions]
     .sort((a, b) => b.timestamp - a.timestamp)
     .slice(0, 5);
@@ -360,7 +344,6 @@ export function buildContextPrompt(ctx: ContextEngineState): string {
     parts.push(`Recent actions: ${actionList}.`);
   }
 
-  // Active/overdue tasks
   if (ctx.activeTasks.length > 0) {
     const taskList = ctx.activeTasks
       .slice(0, 3)
@@ -372,7 +355,6 @@ export function buildContextPrompt(ctx: ContextEngineState): string {
     parts.push(`Active/overdue tasks: ${taskList}.`);
   }
 
-  // User info
   if (ctx.userPreferences) {
     const p = ctx.userPreferences;
     const infoParts: string[] = [];
@@ -384,7 +366,6 @@ export function buildContextPrompt(ctx: ContextEngineState): string {
     }
   }
 
-  // Learned patterns
   const patternParts: string[] = [];
   const { learnedPatterns: lp } = ctx;
   if (lp.financeEntriesEvening >= 3) {

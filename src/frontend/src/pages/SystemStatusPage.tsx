@@ -115,12 +115,14 @@ export function SystemStatusPage() {
   const monthEntries = financeEntries.filter(
     (e) => Number(e.entryDate) / 1e6 >= monthStart,
   );
-  const income = monthEntries
-    .filter((e) => Number(e.amount) > 0)
-    .reduce((acc, e) => acc + Number(e.amount), 0);
-  const expenses = monthEntries
-    .filter((e) => Number(e.amount) < 0)
-    .reduce((acc, e) => acc + Math.abs(Number(e.amount)), 0);
+  const income =
+    monthEntries
+      .filter((e) => Number(e.amount) > 0)
+      .reduce((acc, e) => acc + Number(e.amount), 0) / 100;
+  const expenses =
+    monthEntries
+      .filter((e) => Number(e.amount) < 0)
+      .reduce((acc, e) => acc + Math.abs(Number(e.amount)), 0) / 100;
   const balance = income - expenses;
 
   const totalTasks = tasks.length;

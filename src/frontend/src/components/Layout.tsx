@@ -8,6 +8,7 @@ import {
 import {
   Activity,
   BookOpen,
+  Brain,
   CheckSquare,
   Code,
   DollarSign,
@@ -46,6 +47,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
     { path: "/tasks", icon: CheckSquare, label: "Tasks" },
     { path: "/notes", icon: StickyNote, label: "Notes" },
     { path: "/finance", icon: DollarSign, label: "Finance" },
+    { path: "/memory", icon: Brain, label: "Memory" },
     { path: "/excel", icon: FileSpreadsheet, label: "Excel" },
     { path: "/coding", icon: Code, label: "Code" },
     { path: "/website", icon: Globe, label: "Web" },
@@ -58,136 +60,129 @@ export function Layout({ children }: { children: React.ReactNode }) {
     { path: "/", icon: Home, label: "Home" },
     { path: "/chat", icon: MessageSquare, label: "Chat" },
     { path: "/tasks", icon: CheckSquare, label: "Tasks" },
-    { path: "/notes", icon: StickyNote, label: "Notes" },
+    { path: "/memory", icon: Brain, label: "Memory" },
     { path: "/profile", icon: User, label: "Profile" },
   ];
 
   const mobileMoreItems = [
     { path: "/finance", icon: DollarSign, label: "Finance" },
+    { path: "/notes", icon: StickyNote, label: "Notes" },
     { path: "/knowledge", icon: BookOpen, label: "Knowledge" },
     { path: "/excel", icon: FileSpreadsheet, label: "Excel" },
     { path: "/coding", icon: Code, label: "Code" },
-    { path: "/website", icon: Globe, label: "Website" },
+    { path: "/website", icon: Globe, label: "Web" },
     { path: "/settings", icon: Settings, label: "Settings" },
-    { path: "/teach", icon: GraduationCap, label: "Teach DJ" },
     { path: "/system-status", icon: Activity, label: "Status" },
+    { path: "/teach-dj", icon: GraduationCap, label: "Teach DJ" },
   ];
 
-  const isActive = (path: string) => location.pathname === path;
-  const isMoreActive = mobileMoreItems.some((i) => isActive(i.path));
-
   return (
-    <div className="flex min-h-screen flex-col">
-      <HudBackground />
+    <div className="flex min-h-screen flex-col bg-[#060b14]">
       <ProactiveReminders />
-      <header className="holo-border glow-border sticky top-0 z-50 border-b border-primary/30 bg-card/95 backdrop-blur supports-[backdrop-filter]:bg-card/80">
-        <div className="container flex h-16 items-center justify-between px-4">
-          <Link to="/" className="flex items-center gap-3">
-            <span className="glow-text font-display text-3xl font-bold tracking-wider">
-              DJ
-            </span>
-          </Link>
 
-          <nav className="hidden items-center gap-1 md:flex overflow-x-auto">
-            {allNavItems.map((item) => {
-              const Icon = item.icon;
-              return (
-                <Link key={item.path} to={item.path}>
-                  <Button
-                    variant={isActive(item.path) ? "default" : "ghost"}
-                    size="sm"
-                    className={
-                      isActive(item.path)
-                        ? "bg-primary text-primary-foreground"
-                        : "text-muted-foreground hover:text-foreground"
-                    }
-                  >
-                    <Icon className="mr-1 h-3.5 w-3.5" />
-                    {item.label}
-                  </Button>
-                </Link>
-              );
-            })}
-          </nav>
-
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => clear()}
-            className="border-destructive/50 text-destructive hover:bg-destructive/10 shrink-0"
-          >
-            <LogOut className="mr-2 h-4 w-4" />
-            <span className="hidden sm:inline">Logout</span>
-          </Button>
+      {/* Desktop sidebar */}
+      <div className="fixed left-0 top-0 z-40 hidden h-full w-16 flex-col items-center border-r border-white/5 bg-[#060b14]/95 py-4 backdrop-blur-xl md:flex">
+        {/* Logo */}
+        <div className="mb-6 flex h-10 w-10 items-center justify-center rounded-xl border border-cyan-500/40 bg-cyan-500/10">
+          <span className="font-display text-sm font-bold text-cyan-400">
+            DJ
+          </span>
         </div>
-      </header>
 
-      <main className="relative z-10 flex-1">{children}</main>
-
-      <nav className="holo-border glow-border fixed bottom-0 left-0 right-0 z-50 border-t border-primary/30 bg-card/95 backdrop-blur md:hidden">
-        <div className="flex items-center justify-around px-1 py-1">
-          {mobileNavItems.map((item) => {
-            const Icon = item.icon;
-            const active = isActive(item.path);
+        {/* Nav items */}
+        <nav className="flex flex-1 flex-col items-center gap-1 overflow-y-auto">
+          {allNavItems.map(({ path, icon: Icon, label }) => {
+            const active = location.pathname === path;
             return (
-              <Link key={item.path} to={item.path} className="flex-1">
-                <Button
-                  variant={active ? "default" : "ghost"}
-                  size="sm"
-                  className={`w-full flex-col h-auto py-1.5 gap-0.5 ${
-                    active
-                      ? "bg-primary text-primary-foreground"
-                      : "text-muted-foreground hover:text-foreground"
-                  }`}
-                >
-                  <Icon className="h-4 w-4" />
-                  <span className="text-[9px]">{item.label}</span>
-                </Button>
+              <Link
+                key={path}
+                to={path}
+                data-ocid={`nav.${label.toLowerCase().replace(/ /g, "-")}.link`}
+                title={label}
+                className={`group relative flex h-10 w-10 items-center justify-center rounded-xl transition-all ${
+                  active
+                    ? "bg-cyan-500/20 text-cyan-400"
+                    : "text-white/30 hover:bg-white/5 hover:text-white/70"
+                }`}
+              >
+                <Icon className="h-4.5 w-4.5" />
+                {active && (
+                  <span className="absolute left-0 top-1/2 h-4 w-0.5 -translate-y-1/2 rounded-r bg-cyan-400" />
+                )}
               </Link>
             );
           })}
+        </nav>
 
-          <div className="flex-1">
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button
-                  variant={isMoreActive ? "default" : "ghost"}
-                  size="sm"
-                  className={`w-full flex-col h-auto py-1.5 gap-0.5 ${
-                    isMoreActive
-                      ? "bg-primary text-primary-foreground"
-                      : "text-muted-foreground hover:text-foreground"
-                  }`}
+        {/* Logout */}
+        <Button
+          variant="ghost"
+          size="icon"
+          onClick={() => clear()}
+          title="Log out"
+          className="mt-2 text-white/20 hover:text-rose-400"
+        >
+          <LogOut className="h-4 w-4" />
+        </Button>
+      </div>
+
+      {/* Main content */}
+      <main className="flex-1 md:ml-16">
+        <HudBackground />
+        {children}
+      </main>
+
+      {/* Mobile bottom nav */}
+      <div className="fixed bottom-0 left-0 right-0 z-40 flex items-center justify-around border-t border-white/5 bg-[#060b14]/95 px-2 pb-safe pt-2 backdrop-blur-xl md:hidden">
+        {mobileNavItems.map(({ path, icon: Icon, label }) => {
+          const active = location.pathname === path;
+          return (
+            <Link
+              key={path}
+              to={path}
+              data-ocid={`nav.${label.toLowerCase()}.link`}
+              className={`flex flex-col items-center gap-0.5 rounded-lg px-3 py-1.5 text-[10px] transition-all ${
+                active ? "text-cyan-400" : "text-white/30 hover:text-white/60"
+              }`}
+            >
+              <Icon className="h-5 w-5" />
+              {label}
+            </Link>
+          );
+        })}
+        {/* More menu */}
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <button
+              type="button"
+              className="flex flex-col items-center gap-0.5 rounded-lg px-3 py-1.5 text-[10px] text-white/30 hover:text-white/60"
+            >
+              <MoreHorizontal className="h-5 w-5" />
+              More
+            </button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent
+            side="top"
+            align="end"
+            className="mb-2 border-white/10 bg-[#060b14]/95 text-white backdrop-blur-xl"
+          >
+            {mobileMoreItems.map(({ path, icon: Icon, label }) => (
+              <DropdownMenuItem key={path} asChild>
+                <Link
+                  to={path}
+                  data-ocid={`nav.more.${label.toLowerCase().replace(/ /g, "-")}.link`}
+                  className="flex cursor-pointer items-center gap-2"
                 >
-                  <MoreHorizontal className="h-4 w-4" />
-                  <span className="text-[9px]">More</span>
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent
-                side="top"
-                align="end"
-                className="mb-2 border-primary/30 bg-card/95 backdrop-blur"
-              >
-                {mobileMoreItems.map((item) => {
-                  const Icon = item.icon;
-                  return (
-                    <DropdownMenuItem key={item.path} asChild>
-                      <Link
-                        to={item.path}
-                        className={`flex items-center gap-2 ${isActive(item.path) ? "text-primary" : ""}`}
-                      >
-                        <Icon className="h-4 w-4" />
-                        {item.label}
-                      </Link>
-                    </DropdownMenuItem>
-                  );
-                })}
-              </DropdownMenuContent>
-            </DropdownMenu>
-          </div>
-        </div>
-      </nav>
+                  <Icon className="h-4 w-4" />
+                  {label}
+                </Link>
+              </DropdownMenuItem>
+            ))}
+          </DropdownMenuContent>
+        </DropdownMenu>
+      </div>
 
+      {/* Mobile spacer */}
       <div className="h-16 md:hidden" />
     </div>
   );

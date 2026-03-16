@@ -20,6 +20,24 @@ export interface KnowledgeFolder {
   createdAt: bigint;
 }
 
+// Extended actor type that includes chat-thread methods added after initial generation
+interface DJActorExtended {
+  getChatThreads(): Promise<ChatThread[]>;
+  createChatThread(name: string, moduleTag: string | null): Promise<bigint>;
+  deleteChatThread(id: bigint): Promise<void>;
+  addThreadMessage(
+    threadId: bigint,
+    role: string,
+    content: string,
+  ): Promise<void>;
+  getThreadMessages(
+    threadId: bigint,
+    offset: bigint,
+    limit: bigint,
+  ): Promise<ThreadMessage[]>;
+  deleteThreadMessage(threadId: bigint, messageId: bigint): Promise<void>;
+}
+
 export interface WikiPage {
   id: bigint;
   folderId: bigint;
@@ -859,7 +877,9 @@ export function useChatThreads() {
     queryKey: ["chatThreads"],
     queryFn: async () => {
       if (!actor) return [];
-      const result = await (actor as any).getChatThreads();
+      const result = await (
+        actor as unknown as DJActorExtended
+      ).getChatThreads();
       return result as ChatThread[];
     },
     enabled: !!actor && !isFetching,
@@ -872,10 +892,12 @@ export function useThreadMessages(threadId: bigint | null) {
     queryKey: ["threadMessages", threadId?.toString()],
     queryFn: async () => {
       if (!actor || threadId === null) return [];
-      const result = await (actor as any).getThreadMessages(threadId, 0n, 200n);
+      const result = await (
+        actor as unknown as DJActorExtended
+      ).getThreadMessages(threadId, 0n, 200n);
       return result as ThreadMessage[];
     },
     enabled: !!actor && !isFetching && threadId !== null,
-    refetchInterval: 5000,
+    refetchInterval: 30000,
   });
 }

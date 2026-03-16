@@ -103,6 +103,18 @@ export function DashboardPage() {
     }
   }, []);
 
+  // Listen for proactive engine briefing trigger
+  useEffect(() => {
+    const handler = () => {
+      const key = `dj_briefing_dismissed_${getTodayDateKey()}`;
+      if (!localStorage.getItem(key)) {
+        setBriefingOpen(true);
+      }
+    };
+    window.addEventListener("dj-show-briefing", handler);
+    return () => window.removeEventListener("dj-show-briefing", handler);
+  }, []);
+
   const dismissBriefing = () => {
     localStorage.setItem(`dj_briefing_dismissed_${getTodayDateKey()}`, "1");
     setBriefingOpen(false);

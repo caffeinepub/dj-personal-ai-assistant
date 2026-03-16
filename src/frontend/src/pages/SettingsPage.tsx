@@ -22,7 +22,7 @@ import {
   Users,
   Zap,
 } from "lucide-react";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { Layout } from "../components/Layout";
 import {
@@ -37,11 +37,8 @@ import {
   useUpdateUserProfile,
   useUserProfile,
 } from "../hooks/useQueries";
+import { useSpeechRecognition } from "../hooks/useSpeechRecognition";
 import { Link } from "../lib/router-shim";
-
-interface SpeechRecognitionEvent {
-  results: { [key: number]: { [key: number]: { transcript: string } } };
-}
 
 const PERSONALITIES = [
   {
@@ -218,9 +215,32 @@ export function SettingsPage() {
   const [showConfidence, setShowConfidence] = useState(false);
 
   // Voice to rule state
-  const [isListening, setIsListening] = useState(false);
   const [voiceTranscript, setVoiceTranscript] = useState("");
   const [isSavingVoiceRule, setIsSavingVoiceRule] = useState(false);
+
+  // Assistant Behavior settings (localStorage-backed)
+  const [proactiveMode, setProactiveModeState] = useState(
+    () => localStorage.getItem("dj_proactive_mode") !== "false",
+  );
+  const [wakeWordEnabled, setWakeWordEnabledState] = useState(
+    () => localStorage.getItem("dj_wake_word_enabled") !== "false",
+  );
+  const [continuousListening, setContinuousListeningState] = useState(
+    () => localStorage.getItem("dj_continuous_listening") === "true",
+  );
+
+  const handleProactiveMode = (v: boolean) => {
+    setProactiveModeState(v);
+    localStorage.setItem("dj_proactive_mode", String(v));
+  };
+  const handleWakeWordEnabled = (v: boolean) => {
+    setWakeWordEnabledState(v);
+    localStorage.setItem("dj_wake_word_enabled", String(v));
+  };
+  const handleContinuousListening = (v: boolean) => {
+    setContinuousListeningState(v);
+    localStorage.setItem("dj_continuous_listening", String(v));
+  };
 
   // Applied templates tracker
   const [appliedTemplates, setAppliedTemplates] = useState<string[]>([]);
@@ -426,29 +446,12 @@ export function SettingsPage() {
     }
   };
 
-  const startVoiceCapture = useCallback(() => {
-    const SpeechRecognitionClass =
-      window.SpeechRecognition || window.webkitSpeechRecognition;
-    if (!SpeechRecognitionClass) {
-      toast.error("Speech recognition not supported in this browser");
-      return;
-    }
-    const recognition = new SpeechRecognitionClass();
-    recognition.continuous = false;
-    recognition.interimResults = false;
-    recognition.onstart = () => setIsListening(true);
-    recognition.onresult = (event: SpeechRecognitionEvent) => {
-      const transcript = event.results[0][0].transcript;
-      setVoiceTranscript(transcript);
-      setIsListening(false);
-    };
-    recognition.onerror = () => {
-      setIsListening(false);
-      toast.error("Voice recognition error");
-    };
-    recognition.onend = () => setIsListening(false);
-    recognition.start();
-  }, []);
+  const { isListening: isVoiceListening, start: startVoiceCapture } =
+    useSpeechRecognition({
+      onResult: (transcript) => {
+        setVoiceTranscript(transcript);
+      },
+    });
 
   const handleSaveVoiceRule = async () => {
     if (!voiceTranscript.trim()) return;
@@ -891,26 +894,26 @@ export function SettingsPage() {
               <button
                 type="button"
                 onClick={startVoiceCapture}
-                disabled={isListening}
+                disabled={isVoiceListening}
                 className={`flex h-16 w-16 items-center justify-center rounded-full border-2 transition-all ${
-                  isListening
+                  isVoiceListening
                     ? "border-primary bg-primary/20 animate-pulse"
                     : "border-primary/50 bg-card hover:border-primary hover:bg-primary/10"
                 }`}
                 style={{
-                  boxShadow: isListening
+                  boxShadow: isVoiceListening
                     ? "0 0 20px oklch(0.65 0.25 220 / 0.6)"
                     : "",
                 }}
               >
-                {isListening ? (
+                {isVoiceListening ? (
                   <MicOff className="h-7 w-7 text-primary" />
                 ) : (
                   <Mic className="h-7 w-7 text-primary" />
                 )}
               </button>
               <p className="text-sm text-muted-foreground">
-                {isListening
+                {isVoiceListening
                   ? "Listening... speak your rule"
                   : "Tap to speak a rule"}
               </p>
@@ -938,6 +941,58 @@ export function SettingsPage() {
                 </Button>
               </div>
             )}
+          </div>
+        </Section>
+
+        {/* ─── Section G2: Assistant Behavior ─── */}
+        <Section title="Assistant Behavior">
+          <div className="space-y-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <Label className="text-sm font-medium text-foreground">
+                  Enable Proactive Mode
+                </Label>
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  DJ proactively notifies you about tasks, reminders, and
+                  knowledge updates.
+                </p>
+              </div>
+              <Switch
+                checked={proactiveMode}
+                onCheckedChange={handleProactiveMode}
+                data-ocid="settings.proactive_mode.switch"
+              />
+            </div>
+            <div className="flex items-center justify-between">
+              <div>
+                <Label className="text-sm font-medium text-foreground">
+                  Enable Voice Wake Word
+                </Label>
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  Say "Hey DJ" to activate voice input hands-free.
+                </p>
+              </div>
+              <Switch
+                checked={wakeWordEnabled}
+                onCheckedChange={handleWakeWordEnabled}
+                data-ocid="settings.wake_word.switch"
+              />
+            </div>
+            <div className="flex items-center justify-between">
+              <div>
+                <Label className="text-sm font-medium text-foreground">
+                  Enable Continuous Listening
+                </Label>
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  Keep the microphone active after each response.
+                </p>
+              </div>
+              <Switch
+                checked={continuousListening}
+                onCheckedChange={handleContinuousListening}
+                data-ocid="settings.continuous_listening.switch"
+              />
+            </div>
           </div>
         </Section>
 
