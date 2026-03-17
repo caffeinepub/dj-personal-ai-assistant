@@ -1,3 +1,13 @@
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -80,6 +90,7 @@ export function TasksPage() {
   const [deadline, setDeadline] = useState("");
   const [priority, setPriority] = useState("Medium");
   const [filter, setFilter] = useState("all");
+  const [deleteTaskId, setDeleteTaskId] = useState<bigint | null>(null);
 
   const overdueCount = tasks.filter(isOverdue).length;
   const dueTodayCount = tasks.filter(isDueToday).length;
@@ -124,7 +135,7 @@ export function TasksPage() {
       logAction("task_added", title);
       toast.success("Task added");
     } catch {
-      toast.error("Failed to add task");
+      toast.error("I'm having trouble adding that task. Please try again.");
     }
   };
 
@@ -133,7 +144,7 @@ export function TasksPage() {
       await updateCompletion.mutateAsync({ id, completed: !completed });
       toast.success(!completed ? "Task completed!" : "Task reopened");
     } catch {
-      toast.error("Failed to update task");
+      toast.error("I'm having trouble updating that task. Please try again.");
     }
   };
 
@@ -142,7 +153,9 @@ export function TasksPage() {
       await deleteTask.mutateAsync(id);
       toast.success("Task deleted");
     } catch {
-      toast.error("Failed to delete task");
+      toast.error("I'm having trouble deleting that task. Please try again.");
+    } finally {
+      setDeleteTaskId(null);
     }
   };
 
@@ -277,8 +290,10 @@ export function TasksPage() {
         ) : filteredTasks.length === 0 ? (
           <div data-ocid="tasks.empty_state" className="py-16 text-center">
             <CheckSquare className="mx-auto mb-3 h-12 w-12 text-muted-foreground/40" />
-            <p className="text-muted-foreground">
-              No tasks here. Add one above!
+            <p className="text-muted-foreground font-medium">No tasks yet.</p>
+            <p className="mt-1 text-sm text-muted-foreground">
+              Say &ldquo;add task [name]&rdquo; in Chat, or tap + above to
+              create one.
             </p>
           </div>
         ) : (
@@ -357,8 +372,8 @@ export function TasksPage() {
                       data-ocid={`tasks.delete_button.${idx + 1}`}
                       variant="ghost"
                       size="icon"
-                      onClick={() => handleDelete(task.id)}
-                      className="shrink-0 text-muted-foreground hover:text-destructive"
+                      onClick={() => setDeleteTaskId(task.id)}
+                      className="min-h-[44px] min-w-[44px] shrink-0 text-muted-foreground hover:text-destructive"
                     >
                       <Trash2 className="h-4 w-4" />
                     </Button>
@@ -371,6 +386,40 @@ export function TasksPage() {
 
         <div className="h-4" />
       </div>
+
+      {/* Delete Confirmation Dialog */}
+      <AlertDialog
+        open={deleteTaskId !== null}
+        onOpenChange={(open) => {
+          if (!open) setDeleteTaskId(null);
+        }}
+      >
+        <AlertDialogContent data-ocid="tasks.dialog">
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete this task?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel
+              data-ocid="tasks.cancel_button"
+              onClick={() => setDeleteTaskId(null)}
+            >
+              Cancel
+            </AlertDialogCancel>
+            <AlertDialogAction
+              data-ocid="tasks.confirm_button"
+              onClick={() =>
+                deleteTaskId !== null && handleDelete(deleteTaskId)
+              }
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </Layout>
   );
 }

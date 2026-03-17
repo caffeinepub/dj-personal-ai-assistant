@@ -235,18 +235,38 @@ export function SettingsPage() {
   const handleProactiveMode = (v: boolean) => {
     setProactiveModeState(v);
     localStorage.setItem("dj_proactive_mode", String(v));
+    window.dispatchEvent(
+      new CustomEvent("dj-settings-changed", {
+        detail: { key: "dj_proactive_mode", value: v },
+      }),
+    );
   };
   const handleWakeWordEnabled = (v: boolean) => {
     setWakeWordEnabledState(v);
     localStorage.setItem("dj_wake_word_enabled", String(v));
+    window.dispatchEvent(
+      new CustomEvent("dj-settings-changed", {
+        detail: { key: "dj_wake_word_enabled", value: v },
+      }),
+    );
   };
   const handleContinuousListening = (v: boolean) => {
     setContinuousListeningState(v);
     localStorage.setItem("dj_continuous_listening", String(v));
+    window.dispatchEvent(
+      new CustomEvent("dj-settings-changed", {
+        detail: { key: "dj_continuous_listening", value: v },
+      }),
+    );
   };
   function handleAutonomySuggestions(v: boolean) {
     setAutonomySuggestionsState(v);
     localStorage.setItem("dj_autonomy_suggestions", String(v));
+    window.dispatchEvent(
+      new CustomEvent("dj-settings-changed", {
+        detail: { key: "dj_autonomy_suggestions", value: v },
+      }),
+    );
   }
 
   // Applied templates tracker

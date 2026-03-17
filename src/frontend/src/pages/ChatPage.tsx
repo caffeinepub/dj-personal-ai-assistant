@@ -215,6 +215,10 @@ export function ChatPage() {
   const recognitionRef = useRef<SpeechRecognitionInstance | null>(null);
   const continuousModeRef = useRef(false);
   const ttsTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const ttsQueueRef = useRef<string[]>([]);
+  const isSpeakingRef = useRef(false);
+  const micTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const drainQueueRef = useRef<() => void>(() => {});
   const voiceRestartCountRef = useRef(0);
   const startVoiceInputRef = useRef<() => void>(() => {});
   const handleSendRef = useRef<(text?: string) => void>(() => {});
@@ -365,6 +369,42 @@ export function ChatPage() {
     return () => window.removeEventListener("dj-proactive-message", handler);
   }, [activeThreadId, actor, queryClient]);
 
+  // dj-chat-command: process chat commands dispatched from other pages (e.g. System Status)
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const ev = e as CustomEvent;
+      const command = ev.detail as string;
+      if (command) {
+        handleSendRef.current(command);
+      }
+    };
+    window.addEventListener("dj-chat-command", handler);
+    return () => window.removeEventListener("dj-chat-command", handler);
+  }, []);
+
+  // dj-settings-changed: react to settings changes without page reload
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const ev = e as CustomEvent;
+      const { key, value } = ev.detail as { key: string; value: boolean };
+      if (key === "dj_continuous_listening") {
+        if (value !== continuousModeRef.current) {
+          continuousModeRef.current = value;
+          setContinuousMode(value);
+          if (value) {
+            startVoiceInputRef.current();
+          } else {
+            recognitionRef.current?.abort();
+            setIsListening(false);
+            if (micTimeoutRef.current) clearTimeout(micTimeoutRef.current);
+          }
+        }
+      }
+    };
+    window.addEventListener("dj-settings-changed", handler);
+    return () => window.removeEventListener("dj-settings-changed", handler);
+  }, []);
+
   // Refs for stale closure avoidance
   const memoriesRef = useRef(memories);
   const rulesRef = useRef(rules);
@@ -376,29 +416,43 @@ export function ChatPage() {
   const activeTopicRef = useRef<string>("");
   persistedMessagesRef.current = persistedMessages;
 
+  const drainQueue = useCallback(() => {
+    if (ttsQueueRef.current.length === 0) {
+      isSpeakingRef.current = false;
+      setIsSpeaking(false);
+      return;
+    }
+    const next = ttsQueueRef.current.shift()!;
+    isSpeakingRef.current = true;
+    setIsSpeaking(true);
+    const utterance = new SpeechSynthesisUtterance(next);
+    const bestVoice = selectBestVoice(voicesRef.current);
+    if (bestVoice) utterance.voice = bestVoice;
+    utterance.rate = 1.1;
+    utterance.pitch = 1.0;
+    utterance.volume = 1.0;
+    utterance.onend = () => drainQueueRef.current();
+    utterance.onerror = () => drainQueueRef.current();
+    synthRef.current?.speak(utterance);
+  }, []);
+  drainQueueRef.current = drainQueue;
+
   const speak = useCallback(
     (text: string) => {
       if (!synthRef.current || !voiceEnabled) return;
-      synthRef.current.cancel();
-      const utterance = new SpeechSynthesisUtterance(text);
-      const bestVoice = selectBestVoice(voicesRef.current);
-      if (bestVoice) utterance.voice = bestVoice;
-      utterance.rate = 1.1;
-      utterance.pitch = 1.0;
-      utterance.volume = 1.0;
-      utterance.onstart = () => setIsSpeaking(true);
-      utterance.onend = () => setIsSpeaking(false);
-      utterance.onerror = () => setIsSpeaking(false);
-      if (ttsTimerRef.current) clearTimeout(ttsTimerRef.current);
-      synthRef.current.speak(utterance);
-      ttsTimerRef.current = setTimeout(() => setIsSpeaking(false), 60000);
+      // Queue the message — drain starts immediately if not speaking
+      ttsQueueRef.current.push(text);
+      if (!isSpeakingRef.current) drainQueueRef.current();
     },
     [voiceEnabled],
   );
 
   const stopSpeaking = useCallback(() => {
     synthRef.current?.cancel();
+    ttsQueueRef.current = [];
+    isSpeakingRef.current = false;
     setIsSpeaking(false);
+    if (ttsTimerRef.current) clearTimeout(ttsTimerRef.current);
   }, []);
 
   const startVoiceInput = useCallback(() => {
@@ -417,9 +471,35 @@ export function ChatPage() {
     recognition.onstart = () => {
       setIsListening(true);
       setIsVoiceListening(true);
+      // Start 30-second inactivity timer
+      if (micTimeoutRef.current) clearTimeout(micTimeoutRef.current);
+      if (continuousModeRef.current) {
+        micTimeoutRef.current = setTimeout(() => {
+          continuousModeRef.current = false;
+          setContinuousMode(false);
+          recognitionRef.current?.stop();
+          setIsListening(false);
+          toast(
+            "Microphone timed out after inactivity. Tap the mic to restart.",
+          );
+        }, 30000);
+      }
     };
     recognition.onresult = (event: SpeechRecognitionEvent) => {
       voiceRestartCountRef.current = 0;
+      // Reset inactivity timer on speech
+      if (micTimeoutRef.current) clearTimeout(micTimeoutRef.current);
+      if (continuousModeRef.current) {
+        micTimeoutRef.current = setTimeout(() => {
+          continuousModeRef.current = false;
+          setContinuousMode(false);
+          recognitionRef.current?.stop();
+          setIsListening(false);
+          toast(
+            "Microphone timed out after inactivity. Tap the mic to restart.",
+          );
+        }, 30000);
+      }
       const transcript =
         event.results[event.results.length - 1][0].transcript.trim();
       if (transcript.toLowerCase().includes("hey dj")) {

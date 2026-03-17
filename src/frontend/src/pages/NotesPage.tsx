@@ -1,3 +1,13 @@
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -71,6 +81,7 @@ export function NotesPage() {
   const [editTitle, setEditTitle] = useState("");
   const [editContent, setEditContent] = useState("");
   const [editTags, setEditTags] = useState("");
+  const [deleteNoteId, setDeleteNoteId] = useState<bigint | null>(null);
 
   const filteredNotes = notes.filter((n) => {
     const q = search.toLowerCase();
@@ -108,7 +119,9 @@ export function NotesPage() {
       await deleteNote.mutateAsync(id);
       toast.success("Note deleted");
     } catch {
-      toast.error("Failed to delete note");
+      toast.error("I'm having trouble deleting that note. Please try again.");
+    } finally {
+      setDeleteNoteId(null);
     }
   };
 
@@ -288,9 +301,9 @@ export function NotesPage() {
                     size="sm"
                     onClick={(e) => {
                       e.stopPropagation();
-                      handleDelete(note.id);
+                      setDeleteNoteId(note.id);
                     }}
-                    className="text-destructive hover:bg-destructive/10"
+                    className="text-destructive hover:bg-destructive/10 min-h-[44px]"
                   >
                     <Trash2 className="mr-1 h-3.5 w-3.5" /> Delete
                   </Button>
@@ -418,6 +431,40 @@ export function NotesPage() {
 
         <div className="h-4" />
       </div>
+
+      {/* Delete Confirmation Dialog */}
+      <AlertDialog
+        open={deleteNoteId !== null}
+        onOpenChange={(open) => {
+          if (!open) setDeleteNoteId(null);
+        }}
+      >
+        <AlertDialogContent data-ocid="notes.dialog">
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete this note?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel
+              data-ocid="notes.cancel_button"
+              onClick={() => setDeleteNoteId(null)}
+            >
+              Cancel
+            </AlertDialogCancel>
+            <AlertDialogAction
+              data-ocid="notes.confirm_button"
+              onClick={() =>
+                deleteNoteId !== null && handleDelete(deleteNoteId)
+              }
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </Layout>
   );
 }

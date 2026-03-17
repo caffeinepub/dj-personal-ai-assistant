@@ -44,6 +44,7 @@ export type Decision =
   | { action: "CREATE_PLAN"; rawMessage: string }
   | { action: "SHOW_PLANS"; rawMessage: string }
   | { action: "AUTONOMY_REVIEW" }
+  | { action: "DAILY_ROUTINE"; rawMessage: string }
   | { action: "GENERAL_RESPONSE"; originalMessage: string };
 
 /**
@@ -163,6 +164,9 @@ export function makeDecision(
 
     case "AUTONOMY_REVIEW":
       return { action: "AUTONOMY_REVIEW" };
+
+    case "DAILY_ROUTINE":
+      return { action: "DAILY_ROUTINE", rawMessage: originalMessage };
   }
 
   return { action: "GENERAL_RESPONSE", originalMessage };

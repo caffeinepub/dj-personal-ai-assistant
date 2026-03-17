@@ -24,6 +24,7 @@ import {
   StickyNote,
   User,
 } from "lucide-react";
+import { AnimatePresence, motion } from "motion/react";
 import { useEffect } from "react";
 import { useContextEngine } from "../context/ContextEngineContext";
 import { useInternetIdentity } from "../hooks/useInternetIdentity";
@@ -123,16 +124,28 @@ export function Layout({ children }: { children: React.ReactNode }) {
           size="icon"
           onClick={() => clear()}
           title="Log out"
+          data-ocid="nav.logout.button"
           className="mt-2 text-white/20 hover:text-rose-400"
         >
           <LogOut className="h-4 w-4" />
         </Button>
       </div>
 
-      {/* Main content */}
+      {/* Main content with page transitions */}
       <main className="flex-1 md:ml-16">
         <HudBackground />
-        {children}
+        <AnimatePresence mode="wait">
+          <motion.div
+            key={location.pathname}
+            initial={{ opacity: 0, y: 8 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -8 }}
+            transition={{ duration: 0.18, ease: "easeOut" }}
+            style={{ minHeight: "100%" }}
+          >
+            {children}
+          </motion.div>
+        </AnimatePresence>
       </main>
 
       {/* Mobile bottom nav */}
@@ -144,7 +157,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
               key={path}
               to={path}
               data-ocid={`nav.${label.toLowerCase()}.link`}
-              className={`flex flex-col items-center gap-0.5 rounded-lg px-3 py-1.5 text-[10px] transition-all ${
+              className={`flex min-h-[44px] flex-col items-center gap-0.5 rounded-lg px-3 py-1.5 text-[10px] transition-all ${
                 active ? "text-cyan-400" : "text-white/30 hover:text-white/60"
               }`}
             >
@@ -158,7 +171,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
           <DropdownMenuTrigger asChild>
             <button
               type="button"
-              className="flex flex-col items-center gap-0.5 rounded-lg px-3 py-1.5 text-[10px] text-white/30 hover:text-white/60"
+              className="flex min-h-[44px] flex-col items-center gap-0.5 rounded-lg px-3 py-1.5 text-[10px] text-white/30 hover:text-white/60"
             >
               <MoreHorizontal className="h-5 w-5" />
               More

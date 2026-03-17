@@ -8,6 +8,7 @@ import {
   FileSpreadsheet,
   Globe,
   GraduationCap,
+  Map as MapIcon,
   MessageSquare,
   StickyNote,
 } from "lucide-react";
@@ -21,6 +22,7 @@ import {
   useFinanceEntries,
   useMemories,
   useNotes,
+  usePlans,
   useTasks,
 } from "../hooks/useQueries";
 import { Link } from "../lib/router-shim";
@@ -99,6 +101,7 @@ export function SystemStatusPage() {
   const { data: commands = [] } = useCustomCommands();
   const { data: activeModules = [] } = useActiveModules();
   const { data: notes = [] } = useNotes();
+  const { data: plans = [] } = usePlans();
 
   const tasksPending = tasks.filter((t) => !t.completed).length;
   const tasksOverdue = tasks.filter(
@@ -106,6 +109,7 @@ export function SystemStatusPage() {
   ).length;
   const knowledgeSources = memories.filter(isKnowledgeSource).length;
   const regularMemories = memories.filter((m) => !isKnowledgeSource(m)).length;
+  const activePlansCount = plans.filter((p) => p.status === "active").length;
 
   const monthStart = new Date(
     new Date().getFullYear(),
@@ -126,6 +130,7 @@ export function SystemStatusPage() {
   const balance = income - expenses;
 
   const totalTasks = tasks.length;
+  const totalMemories = regularMemories;
   const completedTasks = tasks.filter((t) => t.completed).length;
   const completionRatio =
     totalTasks > 0 ? (completedTasks / totalTasks) * 100 : 0;
@@ -279,9 +284,18 @@ export function SystemStatusPage() {
             },
             {
               label: "MEMORY",
-              value: `${regularMemories} stored`,
+              value: `${totalMemories} stored`,
               icon: Brain,
               color: "text-purple-400",
+            },
+            {
+              label: "PLANS",
+              value: `${activePlansCount} active`,
+              icon: MapIcon,
+              color:
+                activePlansCount > 0
+                  ? "text-cyan-400"
+                  : "text-muted-foreground",
             },
             {
               label: "STATUS",
@@ -630,6 +644,50 @@ export function SystemStatusPage() {
                 </Link>
               );
             })}
+          </div>
+          {/* Assistant Action Buttons */}
+          <div className="mt-3 flex flex-wrap gap-2">
+            <button
+              type="button"
+              data-ocid="system_status.daily_briefing.button"
+              onClick={() =>
+                window.dispatchEvent(
+                  new CustomEvent("dj-chat-command", {
+                    detail: "DJ start my morning routine",
+                  }),
+                )
+              }
+              className="flex items-center gap-1.5 rounded-md border border-cyan-500/30 bg-cyan-500/10 px-3 py-2 font-mono text-[10px] text-cyan-400 transition-colors hover:bg-cyan-500/20 min-h-[44px]"
+            >
+              <MessageSquare className="h-3.5 w-3.5" />
+              Run Daily Briefing
+            </button>
+            <button
+              type="button"
+              data-ocid="system_status.review_goals.button"
+              onClick={() =>
+                window.dispatchEvent(
+                  new CustomEvent("dj-chat-command", {
+                    detail: "DJ review my goals",
+                  }),
+                )
+              }
+              className="flex items-center gap-1.5 rounded-md border border-cyan-500/30 bg-cyan-500/10 px-3 py-2 font-mono text-[10px] text-cyan-400 transition-colors hover:bg-cyan-500/20 min-h-[44px]"
+            >
+              <Activity className="h-3.5 w-3.5" />
+              Review Goals
+            </button>
+            <button
+              type="button"
+              data-ocid="system_status.refresh_knowledge.button"
+              onClick={() =>
+                window.dispatchEvent(new CustomEvent("dj-show-briefing"))
+              }
+              className="flex items-center gap-1.5 rounded-md border border-cyan-500/30 bg-cyan-500/10 px-3 py-2 font-mono text-[10px] text-cyan-400 transition-colors hover:bg-cyan-500/20 min-h-[44px]"
+            >
+              <BookOpen className="h-3.5 w-3.5" />
+              Refresh Knowledge
+            </button>
           </div>
         </motion.div>
 

@@ -25,6 +25,7 @@ export type Intent =
   | "CREATE_PLAN"
   | "SHOW_PLANS"
   | "AUTONOMY_REVIEW"
+  | "DAILY_ROUTINE"
   | "GENERAL";
 
 export interface IntentResult {
@@ -118,6 +119,20 @@ export function detectIntent(message: string): IntentResult {
     lower.match(/dj,?\s+(review|suggest|focus)/i)
   )
     return { intent: "AUTONOMY_REVIEW" };
+
+  // ── Daily routines ─────────────────────────────────────────────────────────
+  if (
+    lower.includes("start my morning routine") ||
+    lower.includes("morning routine") ||
+    lower.includes("start work mode") ||
+    lower.includes("work mode") ||
+    lower.includes("review my day") ||
+    lower.includes("end of day") ||
+    lower.includes("daily briefing") ||
+    lower.includes("start my day") ||
+    lower.match(/^(dj,?\s*)?(morning|briefing|work mode|end.of.day)/i)
+  )
+    return { intent: "DAILY_ROUTINE" };
 
   // ── Planner ────────────────────────────────────────────────────────────────
   if (

@@ -1,3 +1,13 @@
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -72,6 +82,7 @@ export function FinancePage() {
   const deleteEntry = useDeleteFinanceEntry();
 
   const [type, setType] = useState<"income" | "expense">("expense");
+  const [deleteEntryId, setDeleteEntryId] = useState<bigint | null>(null);
   const [amount, setAmount] = useState("");
   const [category, setCategory] = useState("Other");
   const [description, setDescription] = useState("");
@@ -178,7 +189,11 @@ export function FinancePage() {
       await deleteEntry.mutateAsync(id);
       toast.success("Transaction deleted");
     } catch {
-      toast.error("Failed to delete");
+      toast.error(
+        "I'm having trouble deleting that transaction. Please try again.",
+      );
+    } finally {
+      setDeleteEntryId(null);
     }
   };
 
@@ -456,8 +471,8 @@ export function FinancePage() {
                       data-ocid={`finance.delete_button.${idx + 1}`}
                       variant="ghost"
                       size="icon"
-                      onClick={() => handleDelete(entry.id)}
-                      className="shrink-0 text-muted-foreground hover:text-destructive"
+                      onClick={() => setDeleteEntryId(entry.id)}
+                      className="min-h-[44px] min-w-[44px] shrink-0 text-muted-foreground hover:text-destructive"
                     >
                       <Trash2 className="h-4 w-4" />
                     </Button>
@@ -501,6 +516,40 @@ export function FinancePage() {
 
         <div className="h-4" />
       </div>
+
+      {/* Delete Confirmation Dialog */}
+      <AlertDialog
+        open={deleteEntryId !== null}
+        onOpenChange={(open) => {
+          if (!open) setDeleteEntryId(null);
+        }}
+      >
+        <AlertDialogContent data-ocid="finance.dialog">
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete this transaction?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel
+              data-ocid="finance.cancel_button"
+              onClick={() => setDeleteEntryId(null)}
+            >
+              Cancel
+            </AlertDialogCancel>
+            <AlertDialogAction
+              data-ocid="finance.confirm_button"
+              onClick={() =>
+                deleteEntryId !== null && handleDelete(deleteEntryId)
+              }
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </Layout>
   );
 }

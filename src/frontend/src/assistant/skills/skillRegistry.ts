@@ -9,6 +9,7 @@
  * The Skill Router iterates this array to find a matching handler.
  */
 
+import { DailyRoutineSkill } from "./dailyRoutineSkill";
 import { FinanceSkill } from "./financeSkill";
 import { KnowledgeSkill } from "./knowledgeSkill";
 import { NotesSkill } from "./notesSkill";
@@ -22,4 +23,5 @@ export const skills: Skill[] = [
   FinanceSkill,
   KnowledgeSkill,
   PlannerSkill,
+  DailyRoutineSkill,
 ];
