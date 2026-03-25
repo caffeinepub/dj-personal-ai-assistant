@@ -17,7 +17,7 @@ export interface PersonalitySettings {
 export interface UserProfile {
   name: string;
   preferences: string;
-  personalitySettings: PersonalitySettings;
+  personalitySettings: string;
   onboardingComplete: boolean;
 }
 

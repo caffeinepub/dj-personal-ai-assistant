@@ -24,12 +24,36 @@ export const UserRole = IDL.Variant({
   'user' : IDL.Null,
   'guest' : IDL.Null,
 });
+export const UserProfile = IDL.Record({
+  'name' : IDL.Text,
+  'onboardingComplete' : IDL.Bool,
+  'preferences' : IDL.Text,
+  'personalitySettings' : IDL.Text,
+});
+export const ChatThread = IDL.Record({
+  'id' : IDL.Nat,
+  'moduleTag' : IDL.Opt(IDL.Text),
+  'name' : IDL.Text,
+  'createdAt' : IDL.Int,
+});
+export const MemoryNode = IDL.Record({
+  'id' : IDL.Nat,
+  'content' : IDL.Text,
+  'timestamp' : IDL.Int,
+});
 export const Plan = IDL.Record({
   'id' : IDL.Text,
   'status' : IDL.Text,
   'goal' : IDL.Text,
   'stepsJson' : IDL.Text,
   'createdAt' : IDL.Int,
+});
+export const ThreadMessage = IDL.Record({
+  'id' : IDL.Nat,
+  'content' : IDL.Text,
+  'role' : IDL.Text,
+  'timestamp' : IDL.Int,
+  'threadId' : IDL.Nat,
 });
 
 export const idlService = IDL.Service({
@@ -60,17 +84,38 @@ export const idlService = IDL.Service({
     ),
   '_caffeineStorageUpdateGatewayPrincipals' : IDL.Func([], [], []),
   '_initializeAccessControlWithSecret' : IDL.Func([IDL.Text], [], []),
+  'addMemory' : IDL.Func([IDL.Text], [IDL.Nat], []),
   'assignCallerUserRole' : IDL.Func([IDL.Principal, UserRole], [], []),
+  'createChatThread' : IDL.Func([IDL.Text, IDL.Opt(IDL.Text)], [IDL.Nat], []),
+  'createUserProfile' : IDL.Func([UserProfile], [], []),
+  'deleteChatThread' : IDL.Func([IDL.Nat], [IDL.Bool], []),
+  'deleteMemory' : IDL.Func([IDL.Nat], [IDL.Bool], []),
   'deletePlan' : IDL.Func([IDL.Text], [IDL.Bool], []),
+  'deleteThreadMessage' : IDL.Func([IDL.Nat, IDL.Nat], [IDL.Bool], []),
+  'getCallerUserProfile' : IDL.Func([], [IDL.Opt(UserProfile)], ['query']),
   'getCallerUserRole' : IDL.Func([], [UserRole], ['query']),
+  'getChatThreads' : IDL.Func([], [IDL.Vec(ChatThread)], ['query']),
+  'getMemories' : IDL.Func([], [IDL.Vec(MemoryNode)], ['query']),
   'getPlanById' : IDL.Func([IDL.Text], [IDL.Opt(Plan)], ['query']),
   'getPlans' : IDL.Func([], [IDL.Vec(Plan)], ['query']),
+  'getThreadMessages' : IDL.Func(
+      [IDL.Nat, IDL.Nat, IDL.Nat],
+      [IDL.Vec(ThreadMessage)],
+      ['query'],
+    ),
+  'getUserProfile' : IDL.Func(
+      [IDL.Principal],
+      [IDL.Opt(UserProfile)],
+      ['query'],
+    ),
   'isCallerAdmin' : IDL.Func([], [IDL.Bool], ['query']),
+  'saveCallerUserProfile' : IDL.Func([UserProfile], [], []),
   'savePlan' : IDL.Func(
       [IDL.Text, IDL.Text, IDL.Text, IDL.Text],
       [IDL.Bool],
       [],
     ),
+  'saveThreadMessage' : IDL.Func([IDL.Nat, IDL.Text, IDL.Text], [IDL.Nat], []),
   'updatePlan' : IDL.Func(
       [IDL.Text, IDL.Text, IDL.Text, IDL.Text],
       [IDL.Bool],
@@ -97,12 +142,36 @@ export const idlFactory = ({ IDL }) => {
     'user' : IDL.Null,
     'guest' : IDL.Null,
   });
+  const UserProfile = IDL.Record({
+    'name' : IDL.Text,
+    'onboardingComplete' : IDL.Bool,
+    'preferences' : IDL.Text,
+    'personalitySettings' : IDL.Text,
+  });
+  const ChatThread = IDL.Record({
+    'id' : IDL.Nat,
+    'moduleTag' : IDL.Opt(IDL.Text),
+    'name' : IDL.Text,
+    'createdAt' : IDL.Int,
+  });
+  const MemoryNode = IDL.Record({
+    'id' : IDL.Nat,
+    'content' : IDL.Text,
+    'timestamp' : IDL.Int,
+  });
   const Plan = IDL.Record({
     'id' : IDL.Text,
     'status' : IDL.Text,
     'goal' : IDL.Text,
     'stepsJson' : IDL.Text,
     'createdAt' : IDL.Int,
+  });
+  const ThreadMessage = IDL.Record({
+    'id' : IDL.Nat,
+    'content' : IDL.Text,
+    'role' : IDL.Text,
+    'timestamp' : IDL.Int,
+    'threadId' : IDL.Nat,
   });
   
   return IDL.Service({
@@ -133,15 +202,40 @@ export const idlFactory = ({ IDL }) => {
       ),
     '_caffeineStorageUpdateGatewayPrincipals' : IDL.Func([], [], []),
     '_initializeAccessControlWithSecret' : IDL.Func([IDL.Text], [], []),
+    'addMemory' : IDL.Func([IDL.Text], [IDL.Nat], []),
     'assignCallerUserRole' : IDL.Func([IDL.Principal, UserRole], [], []),
+    'createChatThread' : IDL.Func([IDL.Text, IDL.Opt(IDL.Text)], [IDL.Nat], []),
+    'createUserProfile' : IDL.Func([UserProfile], [], []),
+    'deleteChatThread' : IDL.Func([IDL.Nat], [IDL.Bool], []),
+    'deleteMemory' : IDL.Func([IDL.Nat], [IDL.Bool], []),
     'deletePlan' : IDL.Func([IDL.Text], [IDL.Bool], []),
+    'deleteThreadMessage' : IDL.Func([IDL.Nat, IDL.Nat], [IDL.Bool], []),
+    'getCallerUserProfile' : IDL.Func([], [IDL.Opt(UserProfile)], ['query']),
     'getCallerUserRole' : IDL.Func([], [UserRole], ['query']),
+    'getChatThreads' : IDL.Func([], [IDL.Vec(ChatThread)], ['query']),
+    'getMemories' : IDL.Func([], [IDL.Vec(MemoryNode)], ['query']),
     'getPlanById' : IDL.Func([IDL.Text], [IDL.Opt(Plan)], ['query']),
     'getPlans' : IDL.Func([], [IDL.Vec(Plan)], ['query']),
+    'getThreadMessages' : IDL.Func(
+        [IDL.Nat, IDL.Nat, IDL.Nat],
+        [IDL.Vec(ThreadMessage)],
+        ['query'],
+      ),
+    'getUserProfile' : IDL.Func(
+        [IDL.Principal],
+        [IDL.Opt(UserProfile)],
+        ['query'],
+      ),
     'isCallerAdmin' : IDL.Func([], [IDL.Bool], ['query']),
+    'saveCallerUserProfile' : IDL.Func([UserProfile], [], []),
     'savePlan' : IDL.Func(
         [IDL.Text, IDL.Text, IDL.Text, IDL.Text],
         [IDL.Bool],
+        [],
+      ),
+    'saveThreadMessage' : IDL.Func(
+        [IDL.Nat, IDL.Text, IDL.Text],
+        [IDL.Nat],
         [],
       ),
     'updatePlan' : IDL.Func(

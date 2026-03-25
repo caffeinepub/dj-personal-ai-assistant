@@ -416,7 +416,9 @@ export function SettingsPage() {
       await updateProfile.mutateAsync({
         name: editName || profile?.name || "User",
         preferences,
-        personalitySettings: { communicationStyle: activePersonality },
+        personalitySettings: JSON.stringify({
+          communicationStyle: activePersonality,
+        }),
         onboardingComplete: profile?.onboardingComplete ?? true,
       });
 

@@ -178,9 +178,9 @@ export function TeachDJPage() {
         await updateProfile.mutateAsync({
           name: answers.name,
           preferences: profile.preferences || "",
-          personalitySettings: profile.personalitySettings || {
-            communicationStyle: "professional",
-          },
+          personalitySettings:
+            profile.personalitySettings ||
+            JSON.stringify({ communicationStyle: "professional" }),
           onboardingComplete: profile.onboardingComplete,
         });
       }

@@ -10,12 +10,36 @@ import type { ActorMethod } from '@icp-sdk/core/agent';
 import type { IDL } from '@icp-sdk/core/candid';
 import type { Principal } from '@icp-sdk/core/principal';
 
+export interface ChatThread {
+  'id' : bigint,
+  'moduleTag' : [] | [string],
+  'name' : string,
+  'createdAt' : bigint,
+}
+export interface MemoryNode {
+  'id' : bigint,
+  'content' : string,
+  'timestamp' : bigint,
+}
 export interface Plan {
   'id' : string,
   'status' : string,
   'goal' : string,
   'stepsJson' : string,
   'createdAt' : bigint,
+}
+export interface ThreadMessage {
+  'id' : bigint,
+  'content' : string,
+  'role' : string,
+  'timestamp' : bigint,
+  'threadId' : bigint,
+}
+export interface UserProfile {
+  'name' : string,
+  'onboardingComplete' : boolean,
+  'preferences' : string,
+  'personalitySettings' : string,
 }
 export type UserRole = { 'admin' : null } |
   { 'user' : null } |
@@ -48,13 +72,29 @@ export interface _SERVICE {
   >,
   '_caffeineStorageUpdateGatewayPrincipals' : ActorMethod<[], undefined>,
   '_initializeAccessControlWithSecret' : ActorMethod<[string], undefined>,
+  'addMemory' : ActorMethod<[string], bigint>,
   'assignCallerUserRole' : ActorMethod<[Principal, UserRole], undefined>,
+  'createChatThread' : ActorMethod<[string, [] | [string]], bigint>,
+  'createUserProfile' : ActorMethod<[UserProfile], undefined>,
+  'deleteChatThread' : ActorMethod<[bigint], boolean>,
+  'deleteMemory' : ActorMethod<[bigint], boolean>,
   'deletePlan' : ActorMethod<[string], boolean>,
+  'deleteThreadMessage' : ActorMethod<[bigint, bigint], boolean>,
+  'getCallerUserProfile' : ActorMethod<[], [] | [UserProfile]>,
   'getCallerUserRole' : ActorMethod<[], UserRole>,
+  'getChatThreads' : ActorMethod<[], Array<ChatThread>>,
+  'getMemories' : ActorMethod<[], Array<MemoryNode>>,
   'getPlanById' : ActorMethod<[string], [] | [Plan]>,
   'getPlans' : ActorMethod<[], Array<Plan>>,
+  'getThreadMessages' : ActorMethod<
+    [bigint, bigint, bigint],
+    Array<ThreadMessage>
+  >,
+  'getUserProfile' : ActorMethod<[Principal], [] | [UserProfile]>,
   'isCallerAdmin' : ActorMethod<[], boolean>,
+  'saveCallerUserProfile' : ActorMethod<[UserProfile], undefined>,
   'savePlan' : ActorMethod<[string, string, string, string], boolean>,
+  'saveThreadMessage' : ActorMethod<[bigint, string, string], bigint>,
   'updatePlan' : ActorMethod<[string, string, string, string], boolean>,
 }
 export declare const idlService: IDL.ServiceClass;

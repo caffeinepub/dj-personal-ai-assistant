@@ -20,24 +20,6 @@ export interface KnowledgeFolder {
   createdAt: bigint;
 }
 
-// Extended actor type that includes chat-thread methods added after initial generation
-interface DJActorExtended {
-  getChatThreads(): Promise<ChatThread[]>;
-  createChatThread(name: string, moduleTag: string | null): Promise<bigint>;
-  deleteChatThread(id: bigint): Promise<void>;
-  addThreadMessage(
-    threadId: bigint,
-    role: string,
-    content: string,
-  ): Promise<void>;
-  getThreadMessages(
-    threadId: bigint,
-    offset: bigint,
-    limit: bigint,
-  ): Promise<ThreadMessage[]>;
-  deleteThreadMessage(threadId: bigint, messageId: bigint): Promise<void>;
-}
-
 export interface WikiPage {
   id: bigint;
   folderId: bigint;
@@ -102,7 +84,7 @@ export function useUserProfile() {
     queryKey: ["userProfile"],
     queryFn: async () => {
       if (!actor) throw new Error("Actor not ready");
-      return (actor as any).getCallerUserProfile();
+      return actor.getCallerUserProfile() as Promise<UserProfile | null>;
     },
     enabled: !!actor && !isFetching,
     retry: false,
@@ -115,7 +97,14 @@ export function useCreateUserProfile() {
   return useMutation({
     mutationFn: async (name: string) => {
       if (!actor) throw new Error("Actor not available");
-      await (actor as any).createUserProfile(name);
+      await actor.createUserProfile({
+        name,
+        preferences: "",
+        personalitySettings: JSON.stringify({
+          communicationStyle: "professional",
+        }),
+        onboardingComplete: false,
+      });
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["userProfile"] });
@@ -131,17 +120,22 @@ export function useUpdateUserProfile() {
       profile: Partial<UserProfile> & {
         name: string;
         preferences: string;
-        personalitySettings: PersonalitySettings;
+        personalitySettings: PersonalitySettings | string;
       },
     ) => {
       if (!actor) throw new Error("Actor not available");
-      const fullProfile: UserProfile = {
+      const psRaw = profile.personalitySettings;
+      const psString =
+        typeof psRaw === "string"
+          ? psRaw
+          : JSON.stringify(psRaw ?? { communicationStyle: "professional" });
+      const fullProfile = {
         name: profile.name,
         preferences: profile.preferences,
-        personalitySettings: profile.personalitySettings,
+        personalitySettings: psString,
         onboardingComplete: profile.onboardingComplete ?? false,
       };
-      await (actor as any).saveCallerUserProfile(fullProfile);
+      await actor.saveCallerUserProfile(fullProfile);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["userProfile"] });
@@ -156,7 +150,7 @@ export function useMemories() {
     queryKey: ["memories"],
     queryFn: async () => {
       if (!actor) return [];
-      return (actor as any).getAllMemories();
+      return actor.getMemories() as Promise<Memory[]>;
     },
     enabled: !!actor && !isFetching,
   });
@@ -168,11 +162,7 @@ export function useAddMemory() {
   return useMutation({
     mutationFn: async (content: string) => {
       if (!actor) throw new Error("Actor not available");
-      await (actor as any).addMemory(content);
-      await (actor as any).addImprovementLog(
-        "Memory",
-        `Added memory: ${content.substring(0, 50)}...`,
-      );
+      await actor.addMemory(content);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["memories"] });
@@ -187,15 +177,10 @@ export function useDeleteMemory() {
   return useMutation({
     mutationFn: async (id: bigint) => {
       if (!actor) throw new Error("Actor not available");
-      await (actor as any).deleteMemory(id);
-      await (actor as any).addImprovementLog(
-        "Memory",
-        `Deleted memory ID: ${id}`,
-      );
+      await actor.deleteMemory(id);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["memories"] });
-      queryClient.invalidateQueries({ queryKey: ["improvementLogs"] });
     },
   });
 }
@@ -354,7 +339,15 @@ export function usePersonalitySettings() {
     queryKey: ["personalitySettings"],
     queryFn: async () => {
       if (!actor) return { communicationStyle: "professional" };
-      return (actor as any).getPersonalitySettings();
+      const profile = await actor.getCallerUserProfile();
+      if (!profile) return { communicationStyle: "professional" };
+      try {
+        return JSON.parse(
+          profile.personalitySettings || "{}",
+        ) as PersonalitySettings;
+      } catch {
+        return { communicationStyle: "professional" };
+      }
     },
     enabled: !!actor && !isFetching,
   });
@@ -366,15 +359,17 @@ export function useSetPersonalitySettings() {
   return useMutation({
     mutationFn: async (style: string) => {
       if (!actor) throw new Error("Actor not available");
-      await (actor as any).setPersonalitySettings(style);
-      await (actor as any).addImprovementLog(
-        "Personality",
-        `Changed style to: ${style}`,
-      );
+      const existing = await actor.getCallerUserProfile();
+      if (existing) {
+        await actor.saveCallerUserProfile({
+          ...existing,
+          personalitySettings: JSON.stringify({ communicationStyle: style }),
+        });
+      }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["personalitySettings"] });
-      queryClient.invalidateQueries({ queryKey: ["improvementLogs"] });
+      queryClient.invalidateQueries({ queryKey: ["userProfile"] });
     },
   });
 }
@@ -892,10 +887,11 @@ export function useChatThreads() {
     queryKey: ["chatThreads"],
     queryFn: async () => {
       if (!actor) return [];
-      const result = await (
-        actor as unknown as DJActorExtended
-      ).getChatThreads();
-      return result as ChatThread[];
+      const result = await actor.getChatThreads();
+      return result.map((t) => ({
+        ...t,
+        moduleTag: t.moduleTag ?? null,
+      })) as ChatThread[];
     },
     enabled: !!actor && !isFetching,
   });
@@ -907,10 +903,9 @@ export function useThreadMessages(threadId: bigint | null) {
     queryKey: ["threadMessages", threadId?.toString()],
     queryFn: async () => {
       if (!actor || threadId === null) return [];
-      const result = await (
-        actor as unknown as DJActorExtended
-      ).getThreadMessages(threadId, 0n, 200n);
-      return result as ThreadMessage[];
+      return actor.getThreadMessages(threadId, 0n, 200n) as Promise<
+        ThreadMessage[]
+      >;
     },
     enabled: !!actor && !isFetching && threadId !== null,
     refetchInterval: 30000,

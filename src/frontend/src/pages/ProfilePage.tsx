@@ -102,9 +102,9 @@ export function ProfilePage() {
       await updateProfile.mutateAsync({
         name: name.trim(),
         preferences: profile?.preferences || "",
-        personalitySettings: profile?.personalitySettings || {
-          communicationStyle: "professional",
-        },
+        personalitySettings:
+          profile?.personalitySettings ||
+          JSON.stringify({ communicationStyle: "professional" }),
         onboardingComplete: profile?.onboardingComplete ?? true,
       });
       toast.success("Profile updated successfully!");

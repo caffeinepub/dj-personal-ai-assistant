@@ -94,13 +94,10 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { loginStatus, isInitializing, identity } = useInternetIdentity();
   const { data: profile, isLoading: profileLoading } = useUserProfile();
 
-  const isAuthenticated =
-    loginStatus === "success" ||
-    (loginStatus === "idle" &&
-      identity !== undefined &&
-      !identity.getPrincipal().isAnonymous());
-
-  if (isInitializing || profileLoading) {
+  // Only block on isInitializing — the brief moment AuthClient is being
+  // created on mount. Once auth is initialized, immediately check auth state.
+  // Individual pages handle their own data-loading states.
+  if (isInitializing) {
     return (
       <div className="flex h-screen items-center justify-center">
         <div className="glow-border rounded-lg p-8">
@@ -110,14 +107,20 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
     );
   }
 
+  const isAuthenticated =
+    loginStatus === "success" ||
+    (loginStatus === "idle" &&
+      identity !== undefined &&
+      !identity.getPrincipal().isAnonymous());
+
   if (!isAuthenticated) {
     return <Navigate to="/login" replace />;
   }
 
   if (
-    profile !== undefined &&
+    profile != null &&
     !profileLoading &&
-    !profile?.onboardingComplete
+    profile.onboardingComplete === false
   ) {
     return <Navigate to="/setup" replace />;
   }

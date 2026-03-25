@@ -116,8 +116,11 @@ export function LoginPage() {
     );
   }
 
-  const isButtonDisabled =
-    loginStatus === "logging-in" || loginStatus === "initializing";
+  // Bug fix: button is only disabled during active II login flow ("logging-in").
+  // Previously it was also disabled during "initializing", which blocked mobile
+  // users on slow networks. The handleLogin function already shows a toast if
+  // the user taps while still initializing, so feedback is preserved.
+  const isButtonDisabled = loginStatus === "logging-in";
 
   return (
     <div className="flex min-h-screen flex-col items-center justify-center p-4">
@@ -164,6 +167,11 @@ export function LoginPage() {
           {loginStatus === "initializing" && (
             <p className="mt-2 text-center text-xs text-muted-foreground">
               Loading authentication system...
+            </p>
+          )}
+          {loginStatus !== "logging-in" && (
+            <p className="mt-3 text-center text-xs text-muted-foreground/70">
+              A secure login window will open. Allow popups if prompted.
             </p>
           )}
         </CardContent>

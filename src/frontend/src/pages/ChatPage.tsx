@@ -172,6 +172,7 @@ export function ChatPage() {
   // Threads
   const { data: threads = [], isLoading: threadsLoading } = useChatThreads();
   const [activeThreadId, setActiveThreadId] = useState<bigint | null>(null);
+  const [isCreating, setIsCreating] = useState(false);
   const { data: rawMessages = [], isLoading: messagesLoading } =
     useThreadMessages(activeThreadId);
 
@@ -349,7 +350,7 @@ export function ChatPage() {
       setOptimisticMessages((prev) => [...prev, optMsg]);
       // Save to thread
       if (actor) {
-        (actor as any)
+        actor
           .saveThreadMessage(activeThreadId, "assistant", content)
           .then(() => {
             queryClient.invalidateQueries({
@@ -614,11 +615,11 @@ export function ChatPage() {
       timestamp: BigInt(Date.now()) * 1_000_000n,
       isOptimistic: true,
     };
-    setOptimisticMessages([optimisticUserMsg]);
+    setOptimisticMessages((prev) => [...prev, optimisticUserMsg]);
 
     try {
       if (actor) {
-        (actor as any)
+        actor
           .saveThreadMessage(activeThreadId, "user", messageText)
           .then(() => {
             queryClient.invalidateQueries({
@@ -650,7 +651,7 @@ export function ChatPage() {
       setOptimisticMessages([optimisticUserMsg, optimisticDJMsg]);
 
       if (actor) {
-        (actor as any)
+        actor
           .saveThreadMessage(activeThreadId, "assistant", response)
           .then(() => {
             queryClient.invalidateQueries({
@@ -697,14 +698,22 @@ export function ChatPage() {
 
   const createThread = async (name: string, moduleTag: string | null) => {
     if (!actor || !name.trim()) return;
+    if (isCreating) return;
+    setIsCreating(true);
     try {
-      const id = await (actor as any).createChatThread(name.trim(), moduleTag);
+      const rawId = await actor.createChatThread(
+        name.trim(),
+        moduleTag ?? null,
+      );
+      const id: bigint = rawId as bigint;
       queryClient.invalidateQueries({ queryKey: ["chatThreads"] });
-      setActiveThreadId(id as bigint);
+      setActiveThreadId(id);
       setNewThreadDialogOpen(false);
       setNewThreadName("");
     } catch {
       toast.error("Failed to create thread");
+    } finally {
+      setIsCreating(false);
     }
   };
 
@@ -1034,7 +1043,7 @@ export function ChatPage() {
                               className="text-xs text-primary underline hover:no-underline"
                               onClick={() => {
                                 if (!actor || !activeThreadId) return;
-                                (actor as any)
+                                actor
                                   .saveThreadMessage(
                                     activeThreadId,
                                     message.role,
@@ -1442,9 +1451,9 @@ export function ChatPage() {
               <Button
                 className="w-full bg-primary/20 text-primary border border-primary/30 hover:bg-primary/30"
                 onClick={() => createThread(newThreadName, null)}
-                disabled={!newThreadName.trim()}
+                disabled={!newThreadName.trim() || isCreating}
               >
-                Create Thread
+                {isCreating ? "Creating..." : "Create Thread"}
               </Button>
             </TabsContent>
             <TabsContent value="module" className="pt-3">

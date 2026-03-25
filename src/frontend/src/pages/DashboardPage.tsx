@@ -258,8 +258,14 @@ export function DashboardPage() {
                   {profile?.name || "User"}
                 </p>
                 <Badge className="bg-primary/20 text-primary border-primary/30 text-xs capitalize">
-                  {profile?.personalitySettings?.communicationStyle ||
-                    "professional"}
+                  {(() => {
+                    try {
+                      return JSON.parse(profile?.personalitySettings || "{}")
+                        .communicationStyle;
+                    } catch {
+                      return undefined;
+                    }
+                  })() || "professional"}
                 </Badge>
               </div>
               <div className="flex flex-wrap gap-3 mt-0.5 text-xs text-muted-foreground">

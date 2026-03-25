@@ -21,7 +21,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import {
-  DollarSign,
+  IndianRupee,
   Loader2,
   Plus,
   Trash2,
@@ -58,9 +58,10 @@ const EXPENSE_CATEGORIES = [
 ];
 
 function formatCurrency(amount: number): string {
-  return new Intl.NumberFormat("en-US", {
+  return new Intl.NumberFormat("en-IN", {
     style: "currency",
-    currency: "USD",
+    currency: "INR",
+    maximumFractionDigits: 2,
   }).format(amount);
 }
 
@@ -203,7 +204,7 @@ export function FinancePage() {
     <Layout>
       <div className="container mx-auto space-y-6 px-4 py-8">
         <div className="flex items-center gap-3">
-          <DollarSign className="h-8 w-8 text-primary" />
+          <IndianRupee className="h-8 w-8 text-primary" />
           <h1 className="glow-text font-display text-3xl font-bold">
             Finance Tracker
           </h1>
@@ -321,7 +322,7 @@ export function FinancePage() {
 
             <div className="grid gap-4 sm:grid-cols-2">
               <div className="space-y-1.5">
-                <Label>Amount ($)</Label>
+                <Label>Amount (₹)</Label>
                 <Input
                   data-ocid="finance.input"
                   type="number"
@@ -414,7 +415,7 @@ export function FinancePage() {
           </div>
         ) : filteredEntries.length === 0 ? (
           <div data-ocid="finance.empty_state" className="py-16 text-center">
-            <DollarSign className="mx-auto mb-3 h-12 w-12 text-muted-foreground/40" />
+            <IndianRupee className="mx-auto mb-3 h-12 w-12 text-muted-foreground/40" />
             <p className="text-muted-foreground">
               No transactions for {formatMonth(selectedMonth)}.
             </p>

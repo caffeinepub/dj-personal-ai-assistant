@@ -119,7 +119,9 @@ export function SetupWizardPage() {
       await updateProfile.mutateAsync({
         name: name || profile?.name || "User",
         preferences,
-        personalitySettings: { communicationStyle: selectedPersonality },
+        personalitySettings: JSON.stringify({
+          communicationStyle: selectedPersonality,
+        }),
         onboardingComplete: true,
       });
 
