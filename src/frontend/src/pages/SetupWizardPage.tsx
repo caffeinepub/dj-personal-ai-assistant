@@ -19,9 +19,7 @@ import { toast } from "sonner";
 import {
   useBehaviorRules,
   useCreateUserProfile,
-  useSaveOnboardingComplete,
   useSetBehaviorRule,
-  useSetPersonalitySettings,
   useUpdateUserProfile,
   useUserProfile,
 } from "../hooks/useQueries";
@@ -84,8 +82,6 @@ export function SetupWizardPage() {
   const createProfile = useCreateUserProfile();
   const updateProfile = useUpdateUserProfile();
   const setBehaviorRule = useSetBehaviorRule();
-  const saveOnboarding = useSaveOnboardingComplete();
-  const setPersonality = useSetPersonalitySettings();
 
   const [step, setStep] = useState(0);
   const [name, setName] = useState(profile?.name || "");
@@ -103,7 +99,7 @@ export function SetupWizardPage() {
   const handleComplete = async () => {
     setIsSubmitting(true);
     try {
-      // Create or update profile
+      // Create profile if it doesn't exist yet
       if (!profile) {
         await createProfile.mutateAsync(name || "User");
       }
@@ -116,6 +112,7 @@ export function SetupWizardPage() {
         .filter(Boolean)
         .join(". ");
 
+      // updateProfile saves name, preferences, personalitySettings, and marks onboardingComplete
       await updateProfile.mutateAsync({
         name: name || profile?.name || "User",
         preferences,
@@ -125,10 +122,7 @@ export function SetupWizardPage() {
         onboardingComplete: true,
       });
 
-      // Set personality
-      await setPersonality.mutateAsync(selectedPersonality);
-
-      // Save selected rules
+      // Save selected quick rules
       for (let i = 0; i < selectedRules.length; i++) {
         const ruleText = QUICK_RULES.find(
           (r) => r.id === selectedRules[i],
@@ -141,13 +135,11 @@ export function SetupWizardPage() {
         }
       }
 
-      // Mark onboarding complete
-      await saveOnboarding.mutateAsync(true);
-
       toast.success("DJ is ready! Welcome aboard.");
       navigate("/");
-    } catch (_error) {
-      toast.error("Something went wrong. Please try again.");
+    } catch (err) {
+      console.error("[SetupWizard] handleComplete error:", err);
+      toast.error("Setup failed. Please try again.");
     } finally {
       setIsSubmitting(false);
     }
