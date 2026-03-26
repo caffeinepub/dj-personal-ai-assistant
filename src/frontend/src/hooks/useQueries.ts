@@ -192,6 +192,7 @@ export function useCustomCommands() {
     queryKey: ["customCommands"],
     queryFn: async () => {
       if (!actor) return [];
+      if (typeof (actor as any).getAllCommands !== "function") return [];
       return (actor as any).getAllCommands();
     },
     enabled: !!actor && !isFetching,
@@ -204,11 +205,9 @@ export function useCreateCustomCommand() {
   return useMutation({
     mutationFn: async ({ name, action }: { name: string; action: string }) => {
       if (!actor) throw new Error("Actor not available");
-      await (actor as any).createCommand(name, action);
-      await (actor as any).addImprovementLog(
-        "Command",
-        `Created command: ${name}`,
-      );
+      if (typeof (actor as any).createCommand === "function") {
+        await (actor as any).createCommand(name, action);
+      }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["customCommands"] });
@@ -223,11 +222,9 @@ export function useDeleteCommand() {
   return useMutation({
     mutationFn: async (id: bigint) => {
       if (!actor) throw new Error("Actor not available");
-      await (actor as any).deleteCommand(id);
-      await (actor as any).addImprovementLog(
-        "Command",
-        `Deleted command ID: ${id}`,
-      );
+      if (typeof (actor as any).deleteCommand === "function") {
+        await (actor as any).deleteCommand(id);
+      }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["customCommands"] });
@@ -243,6 +240,7 @@ export function useBehaviorRules() {
     queryKey: ["behaviorRules"],
     queryFn: async () => {
       if (!actor) return [];
+      if (typeof (actor as any).getAllRules !== "function") return [];
       return (actor as any).getAllRules();
     },
     enabled: !!actor && !isFetching,
@@ -255,6 +253,7 @@ export function useGetRulesOrdered() {
     queryKey: ["behaviorRulesOrdered"],
     queryFn: async () => {
       if (!actor) return [];
+      if (typeof (actor as any).getAllRulesOrdered !== "function") return [];
       return (actor as any).getAllRulesOrdered();
     },
     enabled: !!actor && !isFetching,
@@ -270,11 +269,9 @@ export function useSetBehaviorRule() {
       priority = 0n,
     }: { ruleText: string; priority?: bigint }) => {
       if (!actor) throw new Error("Actor not available");
-      await (actor as any).setBehaviorRule(ruleText, priority);
-      await (actor as any).addImprovementLog(
-        "Rule",
-        `Set rule: ${ruleText.substring(0, 50)}`,
-      );
+      if (typeof (actor as any).setBehaviorRule === "function") {
+        await (actor as any).setBehaviorRule(ruleText, priority);
+      }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["behaviorRules"] });
@@ -308,7 +305,9 @@ export function useSaveOnboardingComplete() {
   return useMutation({
     mutationFn: async (completed: boolean) => {
       if (!actor) throw new Error("Actor not available");
-      await (actor as any).saveOnboardingComplete(completed);
+      if (typeof (actor as any).saveOnboardingComplete === "function") {
+        await (actor as any).saveOnboardingComplete(completed);
+      }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["userProfile"] });
@@ -322,8 +321,9 @@ export function useDeleteBehaviorRule() {
   return useMutation({
     mutationFn: async (id: bigint) => {
       if (!actor) throw new Error("Actor not available");
-      await (actor as any).deleteRule(id);
-      await (actor as any).addImprovementLog("Rule", `Deleted rule ID: ${id}`);
+      if (typeof (actor as any).deleteRule === "function") {
+        await (actor as any).deleteRule(id);
+      }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["behaviorRules"] });
@@ -424,10 +424,7 @@ export function useActivateModule() {
     mutationFn: async (moduleName: string) => {
       if (!actor) throw new Error("Actor not available");
       await (actor as any).activateModule(moduleName);
-      await (actor as any).addImprovementLog(
-        "Module",
-        `Activated module: ${moduleName}`,
-      );
+      // addImprovementLog not available in backend
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["activeModules"] });
@@ -443,10 +440,7 @@ export function useDeactivateModule() {
     mutationFn: async (moduleName: string) => {
       if (!actor) throw new Error("Actor not available");
       await (actor as any).deactivateModule(moduleName);
-      await (actor as any).addImprovementLog(
-        "Module",
-        `Deactivated module: ${moduleName}`,
-      );
+      // addImprovementLog not available in backend
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["activeModules"] });
