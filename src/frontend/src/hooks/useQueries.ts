@@ -462,21 +462,43 @@ export function useImprovementLogs() {
   });
 }
 
-// Code Snippets Queries
+// ── Code Snippets (localStorage) ─────────────────────────────────────────────
+
+function getSnippetsFromStorage(): CodeSnippet[] {
+  try {
+    const raw = localStorage.getItem("dj_code_snippets");
+    if (!raw) return [];
+    return JSON.parse(raw).map((s: any) => ({
+      ...s,
+      id: BigInt(s.id),
+      createdAt: BigInt(s.createdAt ?? Date.now()),
+    }));
+  } catch {
+    return [];
+  }
+}
+
+function saveSnippetsToStorage(snippets: CodeSnippet[]) {
+  localStorage.setItem(
+    "dj_code_snippets",
+    JSON.stringify(
+      snippets.map((s) => ({
+        ...s,
+        id: s.id.toString(),
+        createdAt: s.createdAt.toString(),
+      })),
+    ),
+  );
+}
+
 export function useCodeSnippets() {
-  const { actor, isFetching } = useActor();
   return useQuery<CodeSnippet[]>({
     queryKey: ["codeSnippets"],
-    queryFn: async () => {
-      if (!actor) return [];
-      return (actor as any).getCodeSnippets();
-    },
-    enabled: !!actor && !isFetching,
+    queryFn: () => getSnippetsFromStorage(),
   });
 }
 
 export function useSaveCodeSnippet() {
-  const { actor } = useActor();
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: async ({
@@ -488,8 +510,15 @@ export function useSaveCodeSnippet() {
       title: string;
       code: string;
     }) => {
-      if (!actor) throw new Error("Actor not available");
-      await (actor as any).saveCodeSnippet(language, title, code);
+      const snippets = getSnippetsFromStorage();
+      const newSnippet: CodeSnippet = {
+        id: BigInt(Date.now()),
+        title,
+        language,
+        codeContent: code,
+        createdAt: BigInt(Date.now()),
+      };
+      saveSnippetsToStorage([...snippets, newSnippet]);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["codeSnippets"] });

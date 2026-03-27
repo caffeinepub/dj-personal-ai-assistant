@@ -238,6 +238,26 @@ function extractTaskEntities(message: string): TaskEntities {
 // ── Finance entity helpers ────────────────────────────────────────────────────
 
 function extractFinanceEntities(message: string): FinanceEntities {
+  // Pattern: "Add Food Expense 500", "Add Fuel income 100", "Log Coffee Expense 250"
+  const fmCategory = message.match(
+    /(?:add|log|record|track)\s+([\w][\w\s]*?)\s+(expense|income)\s+(?:rs\.?|inr|₹|\$|usd)?\s*(\d+(?:\.\d{1,2})?)/i,
+  );
+
+  if (fmCategory) {
+    const categoryRaw = fmCategory[1].trim();
+    const typeKeyword = fmCategory[2].toLowerCase();
+    const amountStr = fmCategory[3];
+    const amount = Math.round(Number.parseFloat(amountStr) * 100);
+    const isIncome = typeKeyword === "income";
+    return {
+      amount,
+      amountStr,
+      description: categoryRaw,
+      category: categoryRaw.toLowerCase(),
+      isIncome,
+    };
+  }
+
   const fm1 = message.match(
     /(?:add\s+)?(?:today'?s?\s+)?(?:an?\s+)?(?:expense|spent?|cost|paid?|income|earning|received?|got)\s+(?:of\s+)?(?:rs\.?|inr|₹|\$|usd)?\s*(\d+(?:\.\d{1,2})?)\s*(?:(?:rs\.?|inr|₹|\$)?)?\s*\.?\s*(?:(?:on|for|as|from)\s+(.+?))?(?:\/[-]?)?$/i,
   );

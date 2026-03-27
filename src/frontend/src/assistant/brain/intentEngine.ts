@@ -173,6 +173,10 @@ export function detectIntent(message: string): IntentResult {
     lower.match(
       /(?:add|log|record|track)\s+(?:a\s+)?(?:expense|income|transaction|payment|purchase)/,
     ) ||
+    // "Add Food Expense 500", "Add Fuel expense 100"
+    lower.match(/(?:add|log)\s+\w[\w\s]*\s+(?:expense|income)\b/i) ||
+    // "Add expense 500 food", "Log income 1000"
+    lower.match(/(?:add|log|record|track)\s+(?:expense|income)\s+\d/i) ||
     lower.match(/(?:i\s+)?(?:spent|paid|earned|received|bought)\s+/)
   )
     return { intent: "ADD_FINANCE" };
