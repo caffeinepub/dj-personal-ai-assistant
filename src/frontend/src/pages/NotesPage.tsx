@@ -97,13 +97,13 @@ export function NotesPage() {
       toast.error("Please enter a note title");
       return;
     }
-    const summary = generateSummary(content);
+    const _summary = generateSummary(content);
     const tagList = tags
       .split(",")
       .map((t) => t.trim())
       .filter(Boolean);
     try {
-      await addNote.mutateAsync({ title, content, summary, tags: tagList });
+      await addNote.mutateAsync({ title, content, tags: tagList });
       setTitle("");
       setContent("");
       setTags("");
@@ -134,7 +134,7 @@ export function NotesPage() {
 
   const handleUpdate = async () => {
     if (!editNote) return;
-    const summary = generateSummary(editContent);
+    const _summary = generateSummary(editContent);
     const tagList = editTags
       .split(",")
       .map((t) => t.trim())
@@ -144,7 +144,6 @@ export function NotesPage() {
         id: editNote.id,
         title: editTitle,
         content: editContent,
-        summary,
         tags: tagList,
       });
       setEditNote(null);

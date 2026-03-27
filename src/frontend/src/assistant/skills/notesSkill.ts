@@ -29,12 +29,7 @@ export const NotesSkill: Skill = {
     try {
       if (!actor) throw new Error("Actor not available");
 
-      await actor.addNote(
-        noteTitle,
-        noteContent,
-        noteContent.slice(0, 100),
-        [],
-      );
+      await actor.addNote(noteTitle, noteContent, []);
 
       queryClient.invalidateQueries({ queryKey: ["notes"] });
       trackCommandPattern("note");

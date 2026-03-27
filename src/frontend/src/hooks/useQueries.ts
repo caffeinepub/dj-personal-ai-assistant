@@ -192,8 +192,7 @@ export function useCustomCommands() {
     queryKey: ["customCommands"],
     queryFn: async () => {
       if (!actor) return [];
-      if (typeof (actor as any).getAllCommands !== "function") return [];
-      return (actor as any).getAllCommands();
+      return actor.getAllCommands();
     },
     enabled: !!actor && !isFetching,
   });
@@ -205,9 +204,7 @@ export function useCreateCustomCommand() {
   return useMutation({
     mutationFn: async ({ name, action }: { name: string; action: string }) => {
       if (!actor) throw new Error("Actor not available");
-      if (typeof (actor as any).createCommand === "function") {
-        await (actor as any).createCommand(name, action);
-      }
+      await actor.createCommand(name, action, "");
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["customCommands"] });
@@ -222,9 +219,7 @@ export function useDeleteCommand() {
   return useMutation({
     mutationFn: async (id: bigint) => {
       if (!actor) throw new Error("Actor not available");
-      if (typeof (actor as any).deleteCommand === "function") {
-        await (actor as any).deleteCommand(id);
-      }
+      await actor.deleteCommand(id);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["customCommands"] });
@@ -240,8 +235,7 @@ export function useBehaviorRules() {
     queryKey: ["behaviorRules"],
     queryFn: async () => {
       if (!actor) return [];
-      if (typeof (actor as any).getAllRules !== "function") return [];
-      return (actor as any).getAllRules();
+      return actor.getAllRules();
     },
     enabled: !!actor && !isFetching,
   });
@@ -253,8 +247,7 @@ export function useGetRulesOrdered() {
     queryKey: ["behaviorRulesOrdered"],
     queryFn: async () => {
       if (!actor) return [];
-      if (typeof (actor as any).getAllRulesOrdered !== "function") return [];
-      return (actor as any).getAllRulesOrdered();
+      return actor.getAllRulesOrdered();
     },
     enabled: !!actor && !isFetching,
   });
@@ -269,9 +262,7 @@ export function useSetBehaviorRule() {
       priority = 0n,
     }: { ruleText: string; priority?: bigint }) => {
       if (!actor) throw new Error("Actor not available");
-      if (typeof (actor as any).setBehaviorRule === "function") {
-        await (actor as any).setBehaviorRule(ruleText, priority);
-      }
+      await actor.setBehaviorRule(ruleText, priority, true);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["behaviorRules"] });
@@ -290,7 +281,7 @@ export function useUpdateRulePriority() {
       newPriority,
     }: { id: bigint; newPriority: bigint }) => {
       if (!actor) throw new Error("Actor not available");
-      await (actor as any).updateRulePriority(id, newPriority);
+      await actor.updateRulePriority(id, newPriority);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["behaviorRules"] });
@@ -305,9 +296,7 @@ export function useSaveOnboardingComplete() {
   return useMutation({
     mutationFn: async (completed: boolean) => {
       if (!actor) throw new Error("Actor not available");
-      if (typeof (actor as any).saveOnboardingComplete === "function") {
-        await (actor as any).saveOnboardingComplete(completed);
-      }
+      await actor.saveOnboardingComplete(completed);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["userProfile"] });
@@ -321,9 +310,7 @@ export function useDeleteBehaviorRule() {
   return useMutation({
     mutationFn: async (id: bigint) => {
       if (!actor) throw new Error("Actor not available");
-      if (typeof (actor as any).deleteRule === "function") {
-        await (actor as any).deleteRule(id);
-      }
+      await actor.deleteRule(id);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["behaviorRules"] });
@@ -381,7 +368,7 @@ export function useChatMessages() {
     queryKey: ["chatMessages"],
     queryFn: async () => {
       if (!actor) return [];
-      return (actor as any).getChatMessages(0n, 100n);
+      return actor.getChatMessages(0n, 100n);
     },
     enabled: !!actor && !isFetching,
   });
@@ -396,7 +383,7 @@ export function useSaveChatMessage() {
       content,
     }: { role: string; content: string }) => {
       if (!actor) throw new Error("Actor not available");
-      await (actor as any).saveChatMessage(role, content);
+      await actor.saveChatMessage(role, content);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["chatMessages"] });
@@ -411,7 +398,8 @@ export function useActiveModules() {
     queryKey: ["activeModules"],
     queryFn: async () => {
       if (!actor) return [];
-      return (actor as any).getActiveModules();
+      const modules = await actor.getActiveModules();
+      return modules.filter((m) => m.active).map((m) => m.moduleId);
     },
     enabled: !!actor && !isFetching,
   });
@@ -423,7 +411,7 @@ export function useActivateModule() {
   return useMutation({
     mutationFn: async (moduleName: string) => {
       if (!actor) throw new Error("Actor not available");
-      await (actor as any).activateModule(moduleName);
+      await actor.activateModule(moduleName);
       // addImprovementLog not available in backend
     },
     onSuccess: () => {
@@ -439,7 +427,7 @@ export function useDeactivateModule() {
   return useMutation({
     mutationFn: async (moduleName: string) => {
       if (!actor) throw new Error("Actor not available");
-      await (actor as any).deactivateModule(moduleName);
+      await actor.deactivateModule(moduleName);
       // addImprovementLog not available in backend
     },
     onSuccess: () => {
@@ -456,7 +444,7 @@ export function useImprovementLogs() {
     queryKey: ["improvementLogs"],
     queryFn: async () => {
       if (!actor) return [];
-      return (actor as any).getImprovementLogs(0n, 50n);
+      return actor.getImprovementLogs();
     },
     enabled: !!actor && !isFetching,
   });
@@ -533,7 +521,7 @@ export function useExcelFiles() {
     queryKey: ["excelFiles"],
     queryFn: async () => {
       if (!actor) return [];
-      return (actor as any).getExcelFiles();
+      return actor.getExcelFiles();
     },
     enabled: !!actor && !isFetching,
   });
@@ -548,7 +536,8 @@ export function useSaveExcelFile() {
       data,
     }: { filename: string; data: Uint8Array }) => {
       if (!actor) throw new Error("Actor not available");
-      await (actor as any).saveExcelFile(filename, data);
+      const base64 = btoa(String.fromCharCode(...Array.from(data)));
+      await actor.saveExcelFile(filename, base64);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["excelFiles"] });
@@ -565,7 +554,7 @@ export function useSaveExcelAnalysis() {
       analysis,
     }: { fileId: bigint; analysis: string }) => {
       if (!actor) throw new Error("Actor not available");
-      await (actor as any).saveExcelAnalysis(fileId, analysis);
+      await actor.saveExcelAnalysis(fileId, analysis);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["excelFiles"] });
@@ -580,7 +569,7 @@ export function useWebsites() {
     queryKey: ["websites"],
     queryFn: async () => {
       if (!actor) return [];
-      return (actor as any).getWebsites();
+      return actor.getWebsites();
     },
     enabled: !!actor && !isFetching,
   });
@@ -602,7 +591,8 @@ export function useSaveWebsite() {
       js: string;
     }) => {
       if (!actor) throw new Error("Actor not available");
-      await (actor as any).saveWebsite(name, html, css, js);
+      const contentJson = JSON.stringify({ html, css, js });
+      await actor.saveWebsite(name, name, contentJson);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["websites"] });
@@ -617,7 +607,7 @@ export function useTasks() {
     queryKey: ["tasks"],
     queryFn: async () => {
       if (!actor) return [];
-      return (actor as any).getAllTasks() as Promise<Task[]>;
+      return actor.getAllTasks() as Promise<Task[]>;
     },
     enabled: !!actor && !isFetching,
   });
@@ -639,7 +629,7 @@ export function useAddTask() {
       priority: string;
     }) => {
       if (!actor) throw new Error("Actor not available");
-      await (actor as any).addTask(title, description, deadline, priority);
+      await actor.addTask(title, description, deadline, priority);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["tasks"] });
@@ -656,7 +646,7 @@ export function useUpdateTaskCompletion() {
       completed,
     }: { id: bigint; completed: boolean }) => {
       if (!actor) throw new Error("Actor not available");
-      await (actor as any).updateTaskCompletion(id, completed);
+      await actor.updateTaskCompletion(id, completed);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["tasks"] });
@@ -670,7 +660,7 @@ export function useDeleteTask() {
   return useMutation({
     mutationFn: async (id: bigint) => {
       if (!actor) throw new Error("Actor not available");
-      await (actor as any).deleteTask(id);
+      await actor.deleteTask(id);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["tasks"] });
@@ -685,7 +675,7 @@ export function useNotes() {
     queryKey: ["notes"],
     queryFn: async () => {
       if (!actor) return [];
-      return (actor as any).getAllNotes() as Promise<Note[]>;
+      return actor.getAllNotes() as Promise<Note[]>;
     },
     enabled: !!actor && !isFetching,
   });
@@ -698,16 +688,14 @@ export function useAddNote() {
     mutationFn: async ({
       title,
       content,
-      summary,
       tags,
     }: {
       title: string;
       content: string;
-      summary: string;
       tags: string[];
     }) => {
       if (!actor) throw new Error("Actor not available");
-      await (actor as any).addNote(title, content, summary, tags);
+      await actor.addNote(title, content, tags);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["notes"] });
@@ -723,17 +711,15 @@ export function useUpdateNote() {
       id,
       title,
       content,
-      summary,
       tags,
     }: {
       id: bigint;
       title: string;
       content: string;
-      summary: string;
       tags: string[];
     }) => {
       if (!actor) throw new Error("Actor not available");
-      await (actor as any).updateNote(id, title, content, summary, tags);
+      await actor.updateNote(id, title, content, tags);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["notes"] });
@@ -747,7 +733,7 @@ export function useDeleteNote() {
   return useMutation({
     mutationFn: async (id: bigint) => {
       if (!actor) throw new Error("Actor not available");
-      await (actor as any).deleteNote(id);
+      await actor.deleteNote(id);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["notes"] });
@@ -762,7 +748,7 @@ export function useFinanceEntries() {
     queryKey: ["financeEntries"],
     queryFn: async () => {
       if (!actor) return [];
-      return (actor as any).getAllFinanceEntries() as Promise<FinanceEntry[]>;
+      return actor.getAllFinanceEntries() as Promise<FinanceEntry[]>;
     },
     enabled: !!actor && !isFetching,
   });
@@ -773,18 +759,21 @@ export function useAddFinanceEntry() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: async ({
+      entryType = "expense",
       amount,
       category,
       description,
       entryDate,
     }: {
+      entryType?: string;
       amount: bigint;
       category: string;
       description: string;
       entryDate: bigint;
     }) => {
       if (!actor) throw new Error("Actor not available");
-      await (actor as any).addFinanceEntry(
+      await actor.addFinanceEntry(
+        entryType,
         amount,
         category,
         description,
@@ -803,7 +792,7 @@ export function useDeleteFinanceEntry() {
   return useMutation({
     mutationFn: async (id: bigint) => {
       if (!actor) throw new Error("Actor not available");
-      await (actor as any).deleteFinanceEntry(id);
+      await actor.deleteFinanceEntry(id);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["financeEntries"] });
@@ -818,7 +807,7 @@ export function useKnowledgeFolders() {
     queryKey: ["knowledgeFolders"],
     queryFn: async () => {
       if (!actor) return [];
-      const folders = await (actor as any).getFolders();
+      const folders = await actor.getFolders();
       return folders as KnowledgeFolder[];
     },
     enabled: !!actor && !isFetching,
@@ -834,7 +823,7 @@ export function useCreateKnowledgeFolder() {
       parentId,
     }: { name: string; parentId: bigint | null }) => {
       if (!actor) throw new Error("Actor not available");
-      return (actor as any).createFolder(name, parentId);
+      return actor.createFolder(name, parentId);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["knowledgeFolders"] });
@@ -848,7 +837,7 @@ export function useDeleteKnowledgeFolder() {
   return useMutation({
     mutationFn: async (id: bigint) => {
       if (!actor) throw new Error("Actor not available");
-      await (actor as any).deleteFolder(id);
+      await actor.deleteFolder(id);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["knowledgeFolders"] });
@@ -863,7 +852,7 @@ export function useWikiPageByFolder(folderId: bigint | null) {
     queryKey: ["wikiPage", folderId?.toString()],
     queryFn: async () => {
       if (!actor || folderId === null) return null;
-      return (actor as any).getWikiPageByFolder(folderId);
+      return actor.getWikiPageByFolder(folderId) as Promise<WikiPage | null>;
     },
     enabled: !!actor && !isFetching && folderId !== null,
   });
@@ -885,7 +874,8 @@ export function useSaveWikiPage() {
       tips: string;
     }) => {
       if (!actor) throw new Error("Actor not available");
-      await (actor as any).saveWikiPage(folderId, overview, keyConcepts, tips);
+      const content = JSON.stringify({ overview, keyConcepts, tips });
+      await actor.saveWikiPage(folderId, content);
     },
     onSuccess: (
       _data: unknown,

@@ -136,6 +136,94 @@ export enum UserRole {
     user = "user",
     guest = "guest"
 }
+
+export interface Task {
+    id: bigint;
+    title: string;
+    description: string;
+    dueDate?: bigint;
+    priority: string;
+    completed: boolean;
+    createdAt: bigint;
+}
+export interface Note {
+    id: bigint;
+    title: string;
+    content: string;
+    summary: string;
+    tags: string[];
+    createdAt: bigint;
+    updatedAt: bigint;
+}
+export interface FinanceEntry {
+    id: bigint;
+    entryType?: string;
+    amount: bigint;
+    category: string;
+    description: string;
+    entryDate: bigint;
+    createdAt: bigint;
+}
+export interface KnowledgeFolder {
+    id: bigint;
+    name: string;
+    parentId: bigint | null;
+    createdAt: bigint;
+}
+export interface WikiPage {
+    id?: bigint;
+    folderId: bigint;
+    overviewSection: string;
+    keyConceptsSection: string;
+    tipsSection: string;
+    lastEditedAt: bigint;
+}
+export interface Command {
+    id: bigint;
+    name: string;
+    action: string;
+    actionDescription: string;
+    timestamp: bigint;
+    createdAt: bigint;
+}
+export interface BehaviorRule {
+    id: bigint;
+    ruleText: string;
+    priority: bigint;
+    timestamp: bigint;
+    createdAt: bigint;
+}
+export interface ModuleStatus {
+    moduleId: string;
+    active: boolean;
+}
+export interface LegacyChatMessage {
+    id: bigint;
+    role: string;
+    content: string;
+    timestamp: bigint;
+}
+export interface ImprovementLog {
+    id: bigint;
+    entryType: string;
+    description: string;
+    timestamp: bigint;
+}
+export interface ExcelFile {
+    id: bigint;
+    filename: string;
+    data: Uint8Array;
+    analysis: string;
+    createdAt: bigint;
+}
+export interface Website {
+    id: bigint;
+    templateName: string;
+    htmlContent: string;
+    cssContent: string;
+    jsContent: string;
+    createdAt: bigint;
+}
 export interface backendInterface {
     _caffeineStorageBlobIsLive(hash: Uint8Array): Promise<boolean>;
     _caffeineStorageBlobsToDelete(): Promise<Array<Uint8Array>>;
@@ -165,8 +253,44 @@ export interface backendInterface {
     savePlan(id: string, goal: string, stepsJson: string, status: string): Promise<boolean>;
     saveThreadMessage(threadId: bigint, role: string, content: string): Promise<bigint>;
     updatePlan(id: string, goal: string, stepsJson: string, status: string): Promise<boolean>;
+    getAllTasks(): Promise<Array<Task>>;
+    addTask(title: string, description: string, deadline: bigint | null, priority: string): Promise<bigint>;
+    updateTaskCompletion(id: bigint, completed: boolean): Promise<boolean>;
+    deleteTask(id: bigint): Promise<boolean>;
+    getAllNotes(): Promise<Array<Note>>;
+    addNote(title: string, content: string, tags: string[]): Promise<bigint>;
+    updateNote(id: bigint, title: string, content: string, tags: string[]): Promise<boolean>;
+    deleteNote(id: bigint): Promise<boolean>;
+    getAllFinanceEntries(): Promise<Array<FinanceEntry>>;
+    addFinanceEntry(entryType: string, amount: bigint, category: string, description: string, entryDate: bigint): Promise<bigint>;
+    deleteFinanceEntry(id: bigint): Promise<boolean>;
+    getFolders(): Promise<Array<KnowledgeFolder>>;
+    createFolder(name: string, parentId: bigint | null): Promise<bigint>;
+    deleteFolder(id: bigint): Promise<boolean>;
+    getWikiPageByFolder(folderId: bigint): Promise<WikiPage | null>;
+    saveWikiPage(folderId: bigint, content: string): Promise<boolean>;
+    getAllCommands(): Promise<Array<Command>>;
+    createCommand(trigger: string, action: string, description: string): Promise<void>;
+    deleteCommand(id: bigint): Promise<void>;
+    getAllRules(): Promise<Array<BehaviorRule>>;
+    getAllRulesOrdered(): Promise<Array<BehaviorRule>>;
+    setBehaviorRule(ruleText: string, priority: bigint, enabled: boolean): Promise<void>;
+    updateRulePriority(id: bigint, newPriority: bigint): Promise<void>;
+    deleteRule(id: bigint): Promise<void>;
+    getActiveModules(): Promise<Array<ModuleStatus>>;
+    activateModule(moduleId: string): Promise<void>;
+    deactivateModule(moduleId: string): Promise<void>;
+    getChatMessages(offset: bigint, limit: bigint): Promise<Array<LegacyChatMessage>>;
+    saveChatMessage(role: string, content: string): Promise<void>;
+    getImprovementLogs(): Promise<Array<ImprovementLog>>;
+    getExcelFiles(): Promise<Array<ExcelFile>>;
+    saveExcelFile(filename: string, data: string): Promise<void>;
+    saveExcelAnalysis(fileId: bigint, analysis: string): Promise<void>;
+    getWebsites(): Promise<Array<Website>>;
+    saveWebsite(url: string, title: string, contentJson: string): Promise<void>;
+    saveOnboardingComplete(completed?: boolean): Promise<void>;
 }
-import type { ChatThread as _ChatThread, Plan as _Plan, UserProfile as _UserProfile, UserRole as _UserRole, _CaffeineStorageRefillInformation as __CaffeineStorageRefillInformation, _CaffeineStorageRefillResult as __CaffeineStorageRefillResult } from "./declarations/backend.did.d.ts";
+import type { ChatThread as _ChatThread, Plan as _Plan, UserProfile as _UserProfile, UserRole as _UserRole, _CaffeineStorageRefillInformation as __CaffeineStorageRefillInformation, _CaffeineStorageRefillResult as __CaffeineStorageRefillResult, Task as _Task, Note as _Note, FinanceEntry as _FinanceEntry, KnowledgeFolder as _KnowledgeFolder, WikiPage as _WikiPage, Command as _Command, StoredBehaviorRule as _StoredBehaviorRule, ModuleStatus as _ModuleStatus, LegacyChatMessage as _LegacyChatMessage, ImprovementLogEntry as _ImprovementLogEntry, ExcelFile as _ExcelFile, Website as _Website } from "./declarations/backend.did.d.ts";
 export class Backend implements backendInterface {
     constructor(private actor: ActorSubclass<_SERVICE>, private _uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, private _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, private processError?: (error: unknown) => never){}
     async _caffeineStorageBlobIsLive(arg0: Uint8Array): Promise<boolean> {
@@ -560,6 +684,143 @@ export class Backend implements backendInterface {
             const result = await this.actor.updatePlan(arg0, arg1, arg2, arg3);
             return result;
         }
+    }
+
+    async getAllTasks(): Promise<Array<Task>> {
+        const result = await this.actor.getAllTasks();
+        return result.map(t => ({ ...t, dueDate: t.dueDate.length > 0 ? t.dueDate[0] : undefined }));
+    }
+    async addTask(title: string, description: string, deadline: bigint | null, priority: string): Promise<bigint> {
+        return this.actor.addTask(title, description, deadline !== null ? [deadline] : [], priority);
+    }
+    async updateTaskCompletion(id: bigint, completed: boolean): Promise<boolean> {
+        return this.actor.updateTaskCompletion(id, completed);
+    }
+    async deleteTask(id: bigint): Promise<boolean> {
+        return this.actor.deleteTask(id);
+    }
+    async getAllNotes(): Promise<Array<Note>> {
+        const result = await this.actor.getAllNotes();
+        return result.map(n => ({
+            ...n, summary: '',
+            tags: n.tags ? n.tags.split(',').map((t: string) => t.trim()).filter(Boolean) : []
+        }));
+    }
+    async addNote(title: string, content: string, tags: string[]): Promise<bigint> {
+        return this.actor.addNote(title, content, tags.join(','));
+    }
+    async updateNote(id: bigint, title: string, content: string, tags: string[]): Promise<boolean> {
+        return this.actor.updateNote(id, title, content, tags.join(','));
+    }
+    async deleteNote(id: bigint): Promise<boolean> {
+        return this.actor.deleteNote(id);
+    }
+    async getAllFinanceEntries(): Promise<Array<FinanceEntry>> {
+        const result = await this.actor.getAllFinanceEntries();
+        return result.map(e => ({ ...e, entryDate: e.date }));
+    }
+    async addFinanceEntry(entryType: string, amount: bigint, category: string, description: string, entryDate: bigint): Promise<bigint> {
+        return this.actor.addFinanceEntry(entryType, amount, category, description, entryDate);
+    }
+    async deleteFinanceEntry(id: bigint): Promise<boolean> {
+        return this.actor.deleteFinanceEntry(id);
+    }
+    async getFolders(): Promise<Array<KnowledgeFolder>> {
+        const result = await this.actor.getFolders();
+        return result.map(f => ({ ...f, parentId: f.parentId.length > 0 ? f.parentId[0] : null }));
+    }
+    async createFolder(name: string, parentId: bigint | null): Promise<bigint> {
+        return this.actor.createFolder(name, parentId !== null ? [parentId] : []);
+    }
+    async deleteFolder(id: bigint): Promise<boolean> {
+        return this.actor.deleteFolder(id);
+    }
+    async getWikiPageByFolder(folderId: bigint): Promise<WikiPage | null> {
+        const result = await this.actor.getWikiPageByFolder(folderId);
+        if (result.length === 0) return null;
+        const page = result[0];
+        let parsed: { overview?: string; keyConcepts?: string; tips?: string } = {};
+        try { parsed = JSON.parse(page.content); } catch { parsed = {}; }
+        return {
+            folderId: page.folderId,
+            overviewSection: parsed.overview || page.content,
+            keyConceptsSection: parsed.keyConcepts || '',
+            tipsSection: parsed.tips || '',
+            lastEditedAt: page.updatedAt
+        };
+    }
+    async saveWikiPage(folderId: bigint, content: string): Promise<boolean> {
+        return this.actor.saveWikiPage(folderId, content);
+    }
+    async getAllCommands(): Promise<Array<Command>> {
+        const result = await this.actor.getAllCommands();
+        return result.map(c => ({ id: c.id, name: c.trigger, action: c.action, actionDescription: c.description, timestamp: c.createdAt, createdAt: c.createdAt }));
+    }
+    async createCommand(trigger: string, action: string, description: string): Promise<void> {
+        await this.actor.createCommand(trigger, action, description);
+    }
+    async deleteCommand(id: bigint): Promise<void> {
+        await this.actor.deleteCommand(id);
+    }
+    async getAllRules(): Promise<Array<BehaviorRule>> {
+        const result = await this.actor.getAllRules();
+        return result.map(r => ({ id: r.id, ruleText: r.rule, priority: r.priority, timestamp: r.createdAt, createdAt: r.createdAt }));
+    }
+    async getAllRulesOrdered(): Promise<Array<BehaviorRule>> {
+        const result = await this.actor.getAllRulesOrdered();
+        return result.map(r => ({ id: r.id, ruleText: r.rule, priority: r.priority, timestamp: r.createdAt, createdAt: r.createdAt }));
+    }
+    async setBehaviorRule(ruleText: string, priority: bigint, enabled: boolean): Promise<void> {
+        await this.actor.setBehaviorRule(ruleText, priority, enabled);
+    }
+    async updateRulePriority(id: bigint, newPriority: bigint): Promise<void> {
+        await this.actor.updateRulePriority(id, newPriority);
+    }
+    async deleteRule(id: bigint): Promise<void> {
+        await this.actor.deleteRule(id);
+    }
+    async getActiveModules(): Promise<Array<ModuleStatus>> {
+        return this.actor.getActiveModules();
+    }
+    async activateModule(moduleId: string): Promise<void> {
+        await this.actor.activateModule(moduleId);
+    }
+    async deactivateModule(moduleId: string): Promise<void> {
+        await this.actor.deactivateModule(moduleId);
+    }
+    async getChatMessages(offset: bigint, limit: bigint): Promise<Array<LegacyChatMessage>> {
+        return this.actor.getChatMessages(offset, limit);
+    }
+    async saveChatMessage(role: string, content: string): Promise<void> {
+        await this.actor.saveChatMessage(role, content);
+    }
+    async getImprovementLogs(): Promise<Array<ImprovementLog>> {
+        const result = await this.actor.getImprovementLogs();
+        return result.map(l => ({ id: l.id, entryType: l.category, description: l.message, timestamp: l.timestamp }));
+    }
+    async getExcelFiles(): Promise<Array<ExcelFile>> {
+        const result = await this.actor.getExcelFiles();
+        return result.map(f => ({ id: f.id, filename: f.name, data: new Uint8Array(), analysis: '', createdAt: f.createdAt }));
+    }
+    async saveExcelFile(filename: string, data: string): Promise<void> {
+        await this.actor.saveExcelFile(filename, data);
+    }
+    async saveExcelAnalysis(fileId: bigint, analysis: string): Promise<void> {
+        await this.actor.saveExcelAnalysis(fileId, analysis);
+    }
+    async getWebsites(): Promise<Array<Website>> {
+        const result = await this.actor.getWebsites();
+        return result.map(s => {
+            let parsed: { html?: string; css?: string; js?: string } = {};
+            try { parsed = JSON.parse(s.contentJson); } catch { parsed = {}; }
+            return { id: s.id, templateName: s.title, htmlContent: parsed.html || '', cssContent: parsed.css || '', jsContent: parsed.js || '', createdAt: s.savedAt };
+        });
+    }
+    async saveWebsite(url: string, title: string, contentJson: string): Promise<void> {
+        await this.actor.saveWebsite(url, title, contentJson);
+    }
+    async saveOnboardingComplete(_completed?: boolean): Promise<void> {
+        await this.actor.saveOnboardingComplete();
     }
 }
 function from_candid_ChatThread_n15(_uploadFile: (file: ExternalBlob) => Promise<Uint8Array>, _downloadFile: (file: Uint8Array) => Promise<ExternalBlob>, value: _ChatThread): ChatThread {

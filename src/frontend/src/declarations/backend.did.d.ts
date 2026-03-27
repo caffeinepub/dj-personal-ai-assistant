@@ -55,6 +55,92 @@ export interface _CaffeineStorageRefillResult {
   'success' : [] | [boolean],
   'topped_up_amount' : [] | [bigint],
 }
+export interface Task {
+  'id' : bigint,
+  'title' : string,
+  'description' : string,
+  'dueDate' : [] | [bigint],
+  'priority' : string,
+  'completed' : boolean,
+  'createdAt' : bigint,
+}
+export interface Note {
+  'id' : bigint,
+  'title' : string,
+  'content' : string,
+  'tags' : string,
+  'createdAt' : bigint,
+  'updatedAt' : bigint,
+}
+export interface FinanceEntry {
+  'id' : bigint,
+  'entryType' : string,
+  'amount' : bigint,
+  'category' : string,
+  'description' : string,
+  'date' : bigint,
+  'createdAt' : bigint,
+}
+export interface KnowledgeFolder {
+  'id' : bigint,
+  'name' : string,
+  'parentId' : [] | [bigint],
+  'createdAt' : bigint,
+}
+export interface WikiPage {
+  'folderId' : bigint,
+  'content' : string,
+  'updatedAt' : bigint,
+}
+export interface Command {
+  'id' : bigint,
+  'trigger' : string,
+  'action' : string,
+  'description' : string,
+  'createdAt' : bigint,
+}
+export interface StoredBehaviorRule {
+  'id' : bigint,
+  'rule' : string,
+  'priority' : bigint,
+  'enabled' : boolean,
+  'createdAt' : bigint,
+}
+export interface ModuleStatus {
+  'moduleId' : string,
+  'active' : boolean,
+}
+export interface LegacyChatMessage {
+  'id' : bigint,
+  'role' : string,
+  'content' : string,
+  'timestamp' : bigint,
+}
+export interface ImprovementLogEntry {
+  'id' : bigint,
+  'message' : string,
+  'category' : string,
+  'timestamp' : bigint,
+}
+export interface ExcelFile {
+  'id' : bigint,
+  'name' : string,
+  'dataJson' : string,
+  'createdAt' : bigint,
+  'updatedAt' : bigint,
+}
+export interface ExcelAnalysis {
+  'fileId' : bigint,
+  'analysisJson' : string,
+  'createdAt' : bigint,
+}
+export interface Website {
+  'id' : bigint,
+  'url' : string,
+  'title' : string,
+  'contentJson' : string,
+  'savedAt' : bigint,
+}
 export interface _SERVICE {
   '_caffeineStorageBlobIsLive' : ActorMethod<[Uint8Array], boolean>,
   '_caffeineStorageBlobsToDelete' : ActorMethod<[], Array<Uint8Array>>,
@@ -96,6 +182,42 @@ export interface _SERVICE {
   'savePlan' : ActorMethod<[string, string, string, string], boolean>,
   'saveThreadMessage' : ActorMethod<[bigint, string, string], bigint>,
   'updatePlan' : ActorMethod<[string, string, string, string], boolean>,
+  'getAllTasks' : ActorMethod<[], Array<Task>>,
+  'addTask' : ActorMethod<[string, string, [] | [bigint], string], bigint>,
+  'updateTaskCompletion' : ActorMethod<[bigint, boolean], boolean>,
+  'deleteTask' : ActorMethod<[bigint], boolean>,
+  'getAllNotes' : ActorMethod<[], Array<Note>>,
+  'addNote' : ActorMethod<[string, string, string], bigint>,
+  'updateNote' : ActorMethod<[bigint, string, string, string], boolean>,
+  'deleteNote' : ActorMethod<[bigint], boolean>,
+  'getAllFinanceEntries' : ActorMethod<[], Array<FinanceEntry>>,
+  'addFinanceEntry' : ActorMethod<[string, bigint, string, string, bigint], bigint>,
+  'deleteFinanceEntry' : ActorMethod<[bigint], boolean>,
+  'getFolders' : ActorMethod<[], Array<KnowledgeFolder>>,
+  'createFolder' : ActorMethod<[string, [] | [bigint]], bigint>,
+  'deleteFolder' : ActorMethod<[bigint], boolean>,
+  'getWikiPageByFolder' : ActorMethod<[bigint], [] | [WikiPage]>,
+  'saveWikiPage' : ActorMethod<[bigint, string], boolean>,
+  'getAllCommands' : ActorMethod<[], Array<Command>>,
+  'createCommand' : ActorMethod<[string, string, string], bigint>,
+  'deleteCommand' : ActorMethod<[bigint], boolean>,
+  'getAllRules' : ActorMethod<[], Array<StoredBehaviorRule>>,
+  'getAllRulesOrdered' : ActorMethod<[], Array<StoredBehaviorRule>>,
+  'setBehaviorRule' : ActorMethod<[string, bigint, boolean], bigint>,
+  'updateRulePriority' : ActorMethod<[bigint, bigint], boolean>,
+  'deleteRule' : ActorMethod<[bigint], boolean>,
+  'getActiveModules' : ActorMethod<[], Array<ModuleStatus>>,
+  'activateModule' : ActorMethod<[string], boolean>,
+  'deactivateModule' : ActorMethod<[string], boolean>,
+  'getChatMessages' : ActorMethod<[bigint, bigint], Array<LegacyChatMessage>>,
+  'saveChatMessage' : ActorMethod<[string, string], bigint>,
+  'getImprovementLogs' : ActorMethod<[], Array<ImprovementLogEntry>>,
+  'saveExcelFile' : ActorMethod<[string, string], bigint>,
+  'getExcelFiles' : ActorMethod<[], Array<ExcelFile>>,
+  'saveExcelAnalysis' : ActorMethod<[bigint, string], boolean>,
+  'saveWebsite' : ActorMethod<[string, string, string], bigint>,
+  'getWebsites' : ActorMethod<[], Array<Website>>,
+  'saveOnboardingComplete' : ActorMethod<[], undefined>,
 }
 export declare const idlService: IDL.ServiceClass;
 export declare const idlInitArgs: IDL.Type[];

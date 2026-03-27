@@ -170,6 +170,7 @@ export function FinancePage() {
         BigInt(Math.round(amtNum * 100)) * (type === "expense" ? -1n : 1n);
       const entryDateBigint = BigInt(new Date(date).getTime()) * 1_000_000n;
       await addEntry.mutateAsync({
+        entryType: type,
         amount: amountBigint,
         category,
         description,

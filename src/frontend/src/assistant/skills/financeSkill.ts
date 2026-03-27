@@ -31,6 +31,7 @@ export const FinanceSkill: Skill = {
       if (!actor) throw new Error("Actor not available");
 
       await actor.addFinanceEntry(
+        isIncome ? "income" : "expense",
         isIncome ? BigInt(amount) : BigInt(-amount),
         category,
         description,
