@@ -182,53 +182,241 @@ actor {
     savedAt : Int;
   };
 
-  // ----- Storage -----
-  let userProfiles = Map.empty<Principal, UserProfile>();
-  let userMemories = Map.empty<Principal, List.List<MemoryNode>>();
-  var nextMemoryId : Nat = 1;
-  let userPlans = Map.empty<Principal, List.List<Plan>>();
-  let userThreads = Map.empty<Principal, List.List<ChatThread>>();
+  // ----- Stable Serialization Arrays -----
+  // These survive canister upgrades. In preupgrade they are filled from the
+  // runtime Maps; in postupgrade the runtime Maps are repopulated from them.
+  stable var userProfilesStable        : [(Principal, UserProfile)]          = [];
+  stable var userMemoriesStable        : [(Principal, [MemoryNode])]         = [];
+  stable var userPlansStable           : [(Principal, [Plan])]               = [];
+  stable var userThreadsStable         : [(Principal, [ChatThread])]         = [];
+  stable var userThreadMessagesStable  : [(Principal, [ThreadMessage])]      = [];
+  stable var userTasksStable           : [(Principal, [Task])]               = [];
+  stable var userNotesStable           : [(Principal, [Note])]               = [];
+  stable var userFinanceEntriesStable  : [(Principal, [FinanceEntry])]       = [];
+  stable var userFoldersStable         : [(Principal, [KnowledgeFolder])]    = [];
+  stable var userWikiPagesStable       : [(Principal, [WikiPage])]           = [];
+  stable var userCommandsStable        : [(Principal, [Command])]            = [];
+  stable var userBehaviorRulesStable   : [(Principal, [StoredBehaviorRule])] = [];
+  stable var userModuleStatusesStable  : [(Principal, [ModuleStatus])]       = [];
+  stable var userLegacyMessagesStable  : [(Principal, [LegacyChatMessage])]  = [];
+  stable var userImprovementLogsStable : [(Principal, [ImprovementLogEntry])]= [];
+  stable var userExcelFilesStable      : [(Principal, [ExcelFile])]          = [];
+  stable var userExcelAnalysesStable   : [(Principal, [ExcelAnalysis])]      = [];
+  stable var userWebsitesStable        : [(Principal, [Website])]            = [];
+
+  // ----- Stable Counters (survive upgrades, prevent ID collisions) -----
+  stable var nextMemoryId    : Nat = 1;
+  stable var nextThreadId    : Nat = 1;
+  stable var nextMessageId   : Nat = 1;
+  stable var nextTaskId      : Nat = 1;
+  stable var nextNoteId      : Nat = 1;
+  stable var nextFinanceId   : Nat = 1;
+  stable var nextFolderId    : Nat = 1;
+  stable var nextCommandId   : Nat = 1;
+  stable var nextRuleId      : Nat = 1;
+  stable var nextLegacyMsgId : Nat = 1;
+  stable var nextExcelFileId : Nat = 1;
+  stable var nextWebsiteId   : Nat = 1;
+
+  // ----- Runtime Maps (heap; repopulated from stable arrays on every upgrade) -----
+  let userProfiles       = Map.empty<Principal, UserProfile>();
+  let userMemories       = Map.empty<Principal, List.List<MemoryNode>>();
+  let userPlans          = Map.empty<Principal, List.List<Plan>>();
+  let userThreads        = Map.empty<Principal, List.List<ChatThread>>();
   let userThreadMessages = Map.empty<Principal, List.List<ThreadMessage>>();
-  var nextThreadId : Nat = 1;
-  var nextMessageId : Nat = 1;
 
-  // New module storage
-  let userTasks = Map.empty<Principal, List.List<Task>>();
-  var nextTaskId : Nat = 1;
-
-  let userNotes = Map.empty<Principal, List.List<Note>>();
-  var nextNoteId : Nat = 1;
-
+  let userTasks          = Map.empty<Principal, List.List<Task>>();
+  let userNotes          = Map.empty<Principal, List.List<Note>>();
   let userFinanceEntries = Map.empty<Principal, List.List<FinanceEntry>>();
-  var nextFinanceId : Nat = 1;
 
-  let userFolders = Map.empty<Principal, List.List<KnowledgeFolder>>();
-  var nextFolderId : Nat = 1;
-  let userWikiPages = Map.empty<Principal, List.List<WikiPage>>();
+  let userFolders        = Map.empty<Principal, List.List<KnowledgeFolder>>();
+  let userWikiPages      = Map.empty<Principal, List.List<WikiPage>>();
 
-  let userCommands = Map.empty<Principal, List.List<Command>>();
-  var nextCommandId : Nat = 1;
-
-  let userBehaviorRules = Map.empty<Principal, List.List<StoredBehaviorRule>>();
-  var nextRuleId : Nat = 1;
-
+  let userCommands       = Map.empty<Principal, List.List<Command>>();
+  let userBehaviorRules  = Map.empty<Principal, List.List<StoredBehaviorRule>>();
   let userModuleStatuses = Map.empty<Principal, List.List<ModuleStatus>>();
 
-  let userLegacyMessages = Map.empty<Principal, List.List<LegacyChatMessage>>();
-  var nextLegacyMsgId : Nat = 1;
+  let userLegacyMessages   = Map.empty<Principal, List.List<LegacyChatMessage>>();
+  let userImprovementLogs  = Map.empty<Principal, List.List<ImprovementLogEntry>>();
 
-  let userImprovementLogs = Map.empty<Principal, List.List<ImprovementLogEntry>>();
-
-  let userExcelFiles = Map.empty<Principal, List.List<ExcelFile>>();
-  var nextExcelFileId : Nat = 1;
+  let userExcelFiles    = Map.empty<Principal, List.List<ExcelFile>>();
   let userExcelAnalyses = Map.empty<Principal, List.List<ExcelAnalysis>>();
 
   let userWebsites = Map.empty<Principal, List.List<Website>>();
-  var nextWebsiteId : Nat = 1;
 
   // ----- Authorization -----
   let accessControlState = AccessControl.initState();
   include MixinAuthorization(accessControlState);
+
+  // ----- Upgrade Hooks -----
+
+  // Helper: serialize a Map<Principal, List.List<T>> into a stable [(Principal, [T])].
+  // Uses a List as a temporary buffer to avoid O(n²) Array.append.
+  private func serializeListMap<T>(
+    map : Map.Map<Principal, List.List<T>>
+  ) : [(Principal, [T])] {
+    let buf = List.empty<(Principal, [T])>();
+    for ((p, list) in map.entries()) {
+      buf.add((p, list.toArray()));
+    };
+    buf.toArray();
+  };
+
+  system func preupgrade() {
+    // Direct-value map
+    let profilesBuf = List.empty<(Principal, UserProfile)>();
+    for ((p, v) in userProfiles.entries()) {
+      profilesBuf.add((p, v));
+    };
+    userProfilesStable := profilesBuf.toArray();
+
+    // List-value maps
+    userMemoriesStable        := serializeListMap(userMemories);
+    userPlansStable           := serializeListMap(userPlans);
+    userThreadsStable         := serializeListMap(userThreads);
+    userThreadMessagesStable  := serializeListMap(userThreadMessages);
+    userTasksStable           := serializeListMap(userTasks);
+    userNotesStable           := serializeListMap(userNotes);
+    userFinanceEntriesStable  := serializeListMap(userFinanceEntries);
+    userFoldersStable         := serializeListMap(userFolders);
+    userWikiPagesStable       := serializeListMap(userWikiPages);
+    userCommandsStable        := serializeListMap(userCommands);
+    userBehaviorRulesStable   := serializeListMap(userBehaviorRules);
+    userModuleStatusesStable  := serializeListMap(userModuleStatuses);
+    userLegacyMessagesStable  := serializeListMap(userLegacyMessages);
+    userImprovementLogsStable := serializeListMap(userImprovementLogs);
+    userExcelFilesStable      := serializeListMap(userExcelFiles);
+    userExcelAnalysesStable   := serializeListMap(userExcelAnalyses);
+    userWebsitesStable        := serializeListMap(userWebsites);
+  };
+
+  system func postupgrade() {
+    // Restore direct-value map
+    for ((p, profile) in userProfilesStable.vals()) {
+      userProfiles.add(p, profile);
+    };
+    userProfilesStable := [];
+
+    // Helper inline: restore a list-value map from its stable array
+    for ((p, arr) in userMemoriesStable.vals()) {
+      let list = List.empty<MemoryNode>();
+      for (item in arr.vals()) { list.add(item) };
+      userMemories.add(p, list);
+    };
+    userMemoriesStable := [];
+
+    for ((p, arr) in userPlansStable.vals()) {
+      let list = List.empty<Plan>();
+      for (item in arr.vals()) { list.add(item) };
+      userPlans.add(p, list);
+    };
+    userPlansStable := [];
+
+    for ((p, arr) in userThreadsStable.vals()) {
+      let list = List.empty<ChatThread>();
+      for (item in arr.vals()) { list.add(item) };
+      userThreads.add(p, list);
+    };
+    userThreadsStable := [];
+
+    for ((p, arr) in userThreadMessagesStable.vals()) {
+      let list = List.empty<ThreadMessage>();
+      for (item in arr.vals()) { list.add(item) };
+      userThreadMessages.add(p, list);
+    };
+    userThreadMessagesStable := [];
+
+    for ((p, arr) in userTasksStable.vals()) {
+      let list = List.empty<Task>();
+      for (item in arr.vals()) { list.add(item) };
+      userTasks.add(p, list);
+    };
+    userTasksStable := [];
+
+    for ((p, arr) in userNotesStable.vals()) {
+      let list = List.empty<Note>();
+      for (item in arr.vals()) { list.add(item) };
+      userNotes.add(p, list);
+    };
+    userNotesStable := [];
+
+    for ((p, arr) in userFinanceEntriesStable.vals()) {
+      let list = List.empty<FinanceEntry>();
+      for (item in arr.vals()) { list.add(item) };
+      userFinanceEntries.add(p, list);
+    };
+    userFinanceEntriesStable := [];
+
+    for ((p, arr) in userFoldersStable.vals()) {
+      let list = List.empty<KnowledgeFolder>();
+      for (item in arr.vals()) { list.add(item) };
+      userFolders.add(p, list);
+    };
+    userFoldersStable := [];
+
+    for ((p, arr) in userWikiPagesStable.vals()) {
+      let list = List.empty<WikiPage>();
+      for (item in arr.vals()) { list.add(item) };
+      userWikiPages.add(p, list);
+    };
+    userWikiPagesStable := [];
+
+    for ((p, arr) in userCommandsStable.vals()) {
+      let list = List.empty<Command>();
+      for (item in arr.vals()) { list.add(item) };
+      userCommands.add(p, list);
+    };
+    userCommandsStable := [];
+
+    for ((p, arr) in userBehaviorRulesStable.vals()) {
+      let list = List.empty<StoredBehaviorRule>();
+      for (item in arr.vals()) { list.add(item) };
+      userBehaviorRules.add(p, list);
+    };
+    userBehaviorRulesStable := [];
+
+    for ((p, arr) in userModuleStatusesStable.vals()) {
+      let list = List.empty<ModuleStatus>();
+      for (item in arr.vals()) { list.add(item) };
+      userModuleStatuses.add(p, list);
+    };
+    userModuleStatusesStable := [];
+
+    for ((p, arr) in userLegacyMessagesStable.vals()) {
+      let list = List.empty<LegacyChatMessage>();
+      for (item in arr.vals()) { list.add(item) };
+      userLegacyMessages.add(p, list);
+    };
+    userLegacyMessagesStable := [];
+
+    for ((p, arr) in userImprovementLogsStable.vals()) {
+      let list = List.empty<ImprovementLogEntry>();
+      for (item in arr.vals()) { list.add(item) };
+      userImprovementLogs.add(p, list);
+    };
+    userImprovementLogsStable := [];
+
+    for ((p, arr) in userExcelFilesStable.vals()) {
+      let list = List.empty<ExcelFile>();
+      for (item in arr.vals()) { list.add(item) };
+      userExcelFiles.add(p, list);
+    };
+    userExcelFilesStable := [];
+
+    for ((p, arr) in userExcelAnalysesStable.vals()) {
+      let list = List.empty<ExcelAnalysis>();
+      for (item in arr.vals()) { list.add(item) };
+      userExcelAnalyses.add(p, list);
+    };
+    userExcelAnalysesStable := [];
+
+    for ((p, arr) in userWebsitesStable.vals()) {
+      let list = List.empty<Website>();
+      for (item in arr.vals()) { list.add(item) };
+      userWebsites.add(p, list);
+    };
+    userWebsitesStable := [];
+  };
 
   // ----- User Profile Management -----
   public query ({ caller }) func getCallerUserProfile() : async ?UserProfile {
@@ -451,7 +639,7 @@ actor {
       case (null) { List.empty<Plan>() };
       case (?plans) { plans };
     };
-    // FIX 3: Upsert — update existing plan if id matches, otherwise insert.
+    // Upsert — update existing plan if id matches, otherwise insert.
     let existing = currentPlans.filter(func(p) { p.id == id });
     if (existing.size() > 0) {
       let updated = currentPlans.map<Plan, Plan>(func(p) {
