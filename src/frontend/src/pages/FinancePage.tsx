@@ -107,18 +107,20 @@ export function FinancePage() {
     [entries, selectedMonth],
   );
 
+  // FIX 2: Use entryType field (not sign) to distinguish income vs expense.
+  // Backend stores amount as Nat (unsigned); sign multiplication caused canister traps.
   const totalIncome = useMemo(
     () =>
       entries
-        .filter((e) => e.amount > 0n)
+        .filter((e) => e.entryType === "income")
         .reduce((s, e) => s + Number(e.amount), 0) / 100,
     [entries],
   );
   const totalExpenses = useMemo(
     () =>
       entries
-        .filter((e) => e.amount < 0n)
-        .reduce((s, e) => s + Math.abs(Number(e.amount)), 0) / 100,
+        .filter((e) => e.entryType === "expense")
+        .reduce((s, e) => s + Number(e.amount), 0) / 100,
     [entries],
   );
   const balance = totalIncome - totalExpenses;
@@ -128,11 +130,10 @@ export function FinancePage() {
   );
 
   const categoryBreakdown = useMemo(() => {
-    const expenses = filteredEntries.filter((e) => e.amount < 0n);
+    const expenses = filteredEntries.filter((e) => e.entryType === "expense");
     const totals: Record<string, number> = {};
     for (const e of expenses) {
-      totals[e.category] =
-        (totals[e.category] || 0) + Math.abs(Number(e.amount)) / 100;
+      totals[e.category] = (totals[e.category] || 0) + Number(e.amount) / 100;
     }
     const totalExp = Object.values(totals).reduce((s, v) => s + v, 0);
     return Object.entries(totals)
@@ -147,12 +148,12 @@ export function FinancePage() {
   const djSummary = useMemo(() => {
     const monthIncome =
       filteredEntries
-        .filter((e) => e.amount > 0n)
+        .filter((e) => e.entryType === "income")
         .reduce((s, e) => s + Number(e.amount), 0) / 100;
     const monthExpense =
       filteredEntries
-        .filter((e) => e.amount < 0n)
-        .reduce((s, e) => s + Math.abs(Number(e.amount)), 0) / 100;
+        .filter((e) => e.entryType === "expense")
+        .reduce((s, e) => s + Number(e.amount), 0) / 100;
     const topCat = categoryBreakdown[0]?.cat || "N/A";
     if (filteredEntries.length === 0)
       return "No transactions recorded for this month yet.";
@@ -166,8 +167,8 @@ export function FinancePage() {
       return;
     }
     try {
-      const amountBigint =
-        BigInt(Math.round(amtNum * 100)) * (type === "expense" ? -1n : 1n);
+      // FIX 2: Store absolute value as Nat. entryType distinguishes income/expense.
+      const amountBigint = BigInt(Math.round(amtNum * 100));
       const entryDateBigint = BigInt(new Date(date).getTime()) * 1_000_000n;
       await addEntry.mutateAsync({
         entryType: type,
@@ -424,8 +425,9 @@ export function FinancePage() {
         ) : (
           <div className="space-y-2">
             {filteredEntries.map((entry, idx) => {
-              const isIncome = entry.amount > 0n;
-              const displayAmount = Math.abs(Number(entry.amount)) / 100;
+              // FIX 2: Use entryType field to determine display (not sign of amount)
+              const isIncome = entry.entryType === "income";
+              const displayAmount = Number(entry.amount) / 100;
               const entryDateMs = Number(entry.entryDate) / 1_000_000;
               return (
                 <Card

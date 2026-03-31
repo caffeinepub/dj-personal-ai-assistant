@@ -451,8 +451,25 @@ actor {
       case (null) { List.empty<Plan>() };
       case (?plans) { plans };
     };
-    currentPlans.add(newPlan);
-    userPlans.add(caller, currentPlans);
+    // FIX 3: Upsert — update existing plan if id matches, otherwise insert.
+    let existing = currentPlans.filter(func(p) { p.id == id });
+    if (existing.size() > 0) {
+      let updated = currentPlans.map<Plan, Plan>(func(p) {
+        if (p.id == id) {
+          {
+            id;
+            goal;
+            stepsJson;
+            createdAt = p.createdAt;
+            status;
+          };
+        } else { p };
+      });
+      userPlans.add(caller, updated);
+    } else {
+      currentPlans.add(newPlan);
+      userPlans.add(caller, currentPlans);
+    };
     true;
   };
 

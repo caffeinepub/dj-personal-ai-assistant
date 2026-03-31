@@ -70,6 +70,7 @@ export interface Note {
 
 export interface FinanceEntry {
   id: bigint;
+  entryType: string;
   amount: bigint;
   category: string;
   description: string;
